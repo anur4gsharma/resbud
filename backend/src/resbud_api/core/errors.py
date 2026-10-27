@@ -2,18 +2,18 @@
 
 from dataclasses import dataclass
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
 
 class ApiErrorResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    type: str = "about:blank"
+    type: str
     title: str
-    status: int
+    status: StrictInt
     detail: str
-    code: str
-    request_id: str
+    code: str = Field(pattern=r"^[A-Z0-9_]+$")
+    request_id: str = Field(max_length=100)
 
 
 @dataclass(frozen=True)
@@ -85,4 +85,16 @@ def safe_http_error(status: int) -> SafeHttpError:
     return HTTP_ERROR_DEFAULTS.get(
         status,
         SafeHttpError(500, "INTERNAL_ERROR", "Internal error", "An unexpected error occurred."),
+    )
+
+
+def api_error_payload(error: SafeHttpError, request_id: str) -> ApiErrorResponse:
+    """Build the canonical JSON error body from a fixed safe error definition."""
+    return ApiErrorResponse(
+        type="about:blank",
+        title=error.title,
+        status=error.status,
+        detail=error.detail,
+        code=error.code,
+        request_id=request_id,
     )

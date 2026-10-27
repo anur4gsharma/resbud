@@ -61,10 +61,12 @@
         },
         "methodology_status": {
           "type": "string",
+      "description": "unknown means the user has not supplied this fact; other non-provided values are explicit states.",
           "enum": [
             "provided",
             "not_available",
-            "not_applicable"
+            "not_applicable",
+            "unknown"
           ]
         },
         "methodology": {
@@ -76,10 +78,12 @@
         },
         "dataset_or_materials_status": {
           "type": "string",
+      "description": "unknown means the user has not supplied this fact; other non-provided values are explicit states.",
           "enum": [
             "provided",
             "not_available",
-            "not_applicable"
+            "not_applicable",
+            "unknown"
           ]
         },
         "dataset_or_materials": {
@@ -91,11 +95,13 @@
         },
         "results_status": {
           "type": "string",
+      "description": "unknown means the user has not supplied this fact; not_collected is an explicit state.",
           "enum": [
             "provided",
             "not_collected",
             "not_available",
-            "not_applicable"
+            "not_applicable",
+            "unknown"
           ]
         },
         "results": {
@@ -107,11 +113,13 @@
         },
         "limitations_status": {
           "type": "string",
+      "description": "unknown means the user has not supplied this fact; not_identified is an explicit state.",
           "enum": [
             "provided",
             "not_identified",
             "not_available",
-            "not_applicable"
+            "not_applicable",
+            "unknown"
           ]
         },
         "limitations": {
@@ -121,13 +129,55 @@
           ],
           "maxLength": 8000
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"methodology_status": {"const": "provided"}},
+            "required": ["methodology_status"]
+          },
+          "then": {
+            "required": ["methodology"],
+            "properties": {"methodology": {"type": "string", "minLength": 1, "pattern": "[\\s\\S]*\\S[\\s\\S]*"}}
+          }
+        },
+        {
+          "if": {
+            "properties": {"dataset_or_materials_status": {"const": "provided"}},
+            "required": ["dataset_or_materials_status"]
+          },
+          "then": {
+            "required": ["dataset_or_materials"],
+            "properties": {"dataset_or_materials": {"type": "string", "minLength": 1, "pattern": "[\\s\\S]*\\S[\\s\\S]*"}}
+          }
+        },
+        {
+          "if": {
+            "properties": {"results_status": {"const": "provided"}},
+            "required": ["results_status"]
+          },
+          "then": {
+            "required": ["results"],
+            "properties": {"results": {"type": "string", "minLength": 1, "pattern": "[\\s\\S]*\\S[\\s\\S]*"}}
+          }
+        },
+        {
+          "if": {
+            "properties": {"limitations_status": {"const": "provided"}},
+            "required": ["limitations_status"]
+          },
+          "then": {
+            "required": ["limitations"],
+            "properties": {"limitations": {"type": "string", "minLength": 1, "pattern": "[\\s\\S]*\\S[\\s\\S]*"}}
+          }
+        }
+      ]
     },
     "source_draft": {
       "type": "string",
       "minLength": 1,
       "maxLength": 50000,
-      "pattern": ".*\\S.*",
+      "pattern": "[\\s\\S]*\\S[\\s\\S]*",
       "description": "Non-whitespace source text; maximum 50,000 characters."
     },
     "references": {

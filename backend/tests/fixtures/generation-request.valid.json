@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "project": {
+    "title": "Example Study",
+    "research_field": "Computer science",
+    "research_question": "How can the workflow be evaluated?",
+    "objectives": ["Describe the workflow"],
+    "claimed_contribution": "A documented prototype.",
+    "methodology_status": "provided",
+    "methodology": "A qualitative prototype walkthrough.",
+    "dataset_or_materials_status": "unknown",
+    "results_status": "not_collected",
+    "limitations_status": "unknown"
+  },
+  "source_draft": "This is user-provided source material.",
+  "references": [
+    {
+      "id": "ref_1",
+      "text": "  Example Author. (2025). Example title.  "
+    }
+  ],
+  "preferences": {
+    "target_word_count": 1800,
+    "desired_sections": ["introduction", "methodology"],
+    "citation_style": "apa_7"
+  }
+}

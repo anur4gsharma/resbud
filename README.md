@@ -34,7 +34,7 @@ uv run pytest
 
 The current backend bootstrap exposes an importable FastAPI application; feature routes are added in later milestones. To change Python dependencies, edit `backend/pyproject.toml`, run `uv lock`, then validate with `uv sync --locked --dev`.
 
-The backend requires `RESBUD_ENV` explicitly; `.env.example` sets it to local `development`. Keep `.env` in `backend/` and out of version control. Settings use the `RESBUD_` prefix: `RESBUD_PROVIDER_API_KEY` is a server-side credential; `RESBUD_AUTH_ISSUER` and `RESBUD_AUTH_AUDIENCE` are required for production readiness; `RESBUD_CORS_ALLOWED_ORIGINS` is a JSON array of exact browser origins; `RESBUD_MAX_REQUEST_BODY_BYTES` is capped at 4 MiB. Development and tests are explicitly ready without a provider credential. Production returns not-ready until provider and auth configuration is present. The API currently has no auth enforcement or provider call; those arrive in later prompts.
+The backend requires `RESBUD_ENV` explicitly; `.env.example` sets it to local `development`. Keep `.env` in `backend/` and out of version control. Settings use the `RESBUD_` prefix: `RESBUD_PROVIDER_API_KEY` is a server-side credential; `RESBUD_AUTH_ISSUER` and `RESBUD_AUTH_AUDIENCE` are required for production readiness; `RESBUD_CORS_ALLOWED_ORIGINS` is a JSON array of exact browser origins; `RESBUD_MAX_REQUEST_BODY_BYTES` is capped at 4 MiB. Development and tests are explicitly ready without a provider credential. Production returns not-ready until provider and auth configuration is present. The API currently has no auth enforcement or provider call; those arrive in later milestones.
 
 ## Mobile setup
 

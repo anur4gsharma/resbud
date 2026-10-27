@@ -5,7 +5,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from resbud_api.core.errors import ApiErrorResponse, ResbudError, safe_http_error
+from resbud_api.core.errors import ResbudError, SafeHttpError, api_error_payload, safe_http_error
 
 
 def _request_id(request: Request) -> str:
@@ -13,12 +13,9 @@ def _request_id(request: Request) -> str:
 
 
 def _response(status: int, code: str, title: str, detail: str, request_id: str) -> JSONResponse:
-    payload = ApiErrorResponse(
-        title=title,
-        status=status,
-        detail=detail,
-        code=code,
-        request_id=request_id,
+    payload = api_error_payload(
+        SafeHttpError(status, code, title, detail),
+        request_id,
     )
     return JSONResponse(
         status_code=status,

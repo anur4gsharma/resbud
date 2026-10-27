@@ -175,6 +175,7 @@ components:
             $ref: '#/components/schemas/ApiError'
   schemas:
     ProjectContext:
+      description: Unknown status means the user has not supplied the fact; not_available/not_collected/not_identified are explicit states. A provided status requires non-empty detail.
       type: object
       additionalProperties: false
       required: [title, research_field, research_question, objectives, claimed_contribution, methodology_status, dataset_or_materials_status, results_status, limitations_status]
@@ -188,14 +189,47 @@ components:
           maxItems: 20
           items: { type: string, minLength: 1, maxLength: 1000 }
         claimed_contribution: { type: string, maxLength: 4000 }
-        methodology_status: { type: string, enum: [provided, not_available, not_applicable] }
+        methodology_status: { type: string, enum: [provided, not_available, not_applicable, unknown], description: 'unknown means the user has not supplied this fact; other non-provided values are explicit states.' }
         methodology: { type: [string, 'null'], maxLength: 12000 }
-        dataset_or_materials_status: { type: string, enum: [provided, not_available, not_applicable] }
+        dataset_or_materials_status: { type: string, enum: [provided, not_available, not_applicable, unknown], description: 'unknown means the user has not supplied this fact; other non-provided values are explicit states.' }
         dataset_or_materials: { type: [string, 'null'], maxLength: 8000 }
-        results_status: { type: string, enum: [provided, not_collected, not_available, not_applicable] }
+        results_status: { type: string, enum: [provided, not_collected, not_available, not_applicable, unknown], description: 'unknown means the user has not supplied this fact; not_collected is an explicit state.' }
         results: { type: [string, 'null'], maxLength: 12000 }
-        limitations_status: { type: string, enum: [provided, not_identified, not_available, not_applicable] }
+        limitations_status: { type: string, enum: [provided, not_identified, not_available, not_applicable, unknown], description: 'unknown means the user has not supplied this fact; not_identified is an explicit state.' }
         limitations: { type: [string, 'null'], maxLength: 8000 }
+      allOf:
+        - if:
+            properties:
+              methodology_status: { const: provided }
+            required: [methodology_status]
+          then:
+            required: [methodology]
+            properties:
+              methodology: { type: string, minLength: 1, pattern: '[\s\S]*\S[\s\S]*' }
+        - if:
+            properties:
+              dataset_or_materials_status: { const: provided }
+            required: [dataset_or_materials_status]
+          then:
+            required: [dataset_or_materials]
+            properties:
+              dataset_or_materials: { type: string, minLength: 1, pattern: '[\s\S]*\S[\s\S]*' }
+        - if:
+            properties:
+              results_status: { const: provided }
+            required: [results_status]
+          then:
+            required: [results]
+            properties:
+              results: { type: string, minLength: 1, pattern: '[\s\S]*\S[\s\S]*' }
+        - if:
+            properties:
+              limitations_status: { const: provided }
+            required: [limitations_status]
+          then:
+            required: [limitations]
+            properties:
+              limitations: { type: string, minLength: 1, pattern: '[\s\S]*\S[\s\S]*' }
     ReferenceInput:
       type: object
       additionalProperties: false
@@ -222,7 +256,7 @@ components:
       properties:
         schema_version: { const: 1 }
         project: { $ref: '#/components/schemas/ProjectContext' }
-        source_draft: { type: string, minLength: 1, maxLength: 50000, pattern: '.*\S.*', description: 'Non-whitespace source text; maximum 50,000 characters.' }
+        source_draft: { type: string, minLength: 1, maxLength: 50000, pattern: '[\s\S]*\S[\s\S]*', description: 'Non-whitespace source text; maximum 50,000 characters.' }
         references:
           type: array
           maxItems: 50
@@ -249,6 +283,7 @@ components:
         content: { type: string, maxLength: 30000 }
         state: { type: string, enum: [draft, needs_input, not_applicable] }
     PaperDraft:
+      description: Section IDs must be unique within one paper draft.
       type: object
       additionalProperties: false
       required: [schema_version, title, abstract, keywords, sections, references, review_warnings]
@@ -274,6 +309,7 @@ components:
           maxItems: 100
           items: { $ref: '#/components/schemas/ReviewWarning' }
     GenerationResponse:
+      description: review_warnings must equal paper.review_warnings; both fields share the same typed warning contract.
       type: object
       additionalProperties: false
       required: [schema_version, generation_id, paper, review_warnings, meta]

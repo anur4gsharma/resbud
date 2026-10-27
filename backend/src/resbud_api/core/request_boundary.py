@@ -7,7 +7,7 @@ from typing import cast
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from resbud_api.core.errors import ApiErrorResponse, safe_http_error
+from resbud_api.core.errors import api_error_payload, safe_http_error
 
 REQUEST_ID_HEADER = b"x-request-id"
 _VALID_REQUEST_ID = re.compile(r"[A-Za-z0-9._:-]{1,100}\Z")
@@ -100,17 +100,7 @@ class RequestBoundaryMiddleware:
         request_id: str,
     ) -> None:
         error = safe_http_error(413)
-        payload = (
-            ApiErrorResponse(
-                title=error.title,
-                status=error.status,
-                detail=error.detail,
-                code=error.code,
-                request_id=request_id,
-            )
-            .model_dump_json()
-            .encode("utf-8")
-        )
+        payload = api_error_payload(error, request_id).model_dump_json().encode("utf-8")
         await send(
             {
                 "type": "http.response.start",

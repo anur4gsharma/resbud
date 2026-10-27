@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "title": "Example Study",
+  "abstract": "A draft abstract.",
+  "keywords": ["workflow", "evaluation"],
+  "sections": [
+    {
+      "id": "introduction",
+      "heading": "Introduction",
+      "content": "A draft section.",
+      "state": "draft"
+    },
+    {
+      "id": "results",
+      "heading": "Results",
+      "content": "[INSERT EXPERIMENTAL RESULTS]",
+      "state": "needs_input"
+    }
+  ],
+  "references": [
+    {
+      "id": "ref_1",
+      "text": "  Example Author. (2025). Example title.  "
+    }
+  ],
+  "review_warnings": [
+    {
+      "code": "MISSING_RESULTS",
+      "severity": "warning",
+      "message": "No results were supplied. Add measured results before describing outcomes.",
+      "section_id": "results"
+    }
+  ]
+}

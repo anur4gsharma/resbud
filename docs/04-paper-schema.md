@@ -28,6 +28,8 @@ For every relevant fact, distinguish:
 2. **Not available:** the user explicitly states that the information does not exist or has not been collected.
 3. **Unknown/not supplied:** the user has not provided enough information to determine the fact.
 
+The generation request represents unknown facts with the `unknown` status value for methodology, dataset/materials, results, and limitations. Domain-specific explicit values remain distinct: results may be `not_collected`, and limitations may be `not_identified`. A status of `provided` requires non-empty text in its matching detail field. The request JSON Schema and OpenAPI contract define these values and conditions.
+
 The model must not convert the third category into a guessed answer. Where useful, the output should add a review warning such as “The dataset size was not supplied; provide it before submission.”
 
 ## 4. Generation policy

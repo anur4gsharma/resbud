@@ -37,6 +37,7 @@
     },
     "sections": {
       "type": "array",
+      "description": "Section IDs must be unique within one paper draft.",
       "minItems": 1,
       "maxItems": 15,
       "items": {

@@ -5,7 +5,7 @@ from typing import cast
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from resbud_api.core.errors import ApiErrorResponse, safe_http_error
+from resbud_api.core.errors import api_error_payload, safe_http_error
 
 logger = logging.getLogger("resbud_api.errors")
 
@@ -46,17 +46,7 @@ class SafeUnexpectedErrorMiddleware:
                 return
 
             error = safe_http_error(500)
-            payload = (
-                ApiErrorResponse(
-                    title=error.title,
-                    status=error.status,
-                    detail=error.detail,
-                    code=error.code,
-                    request_id=str(request_id),
-                )
-                .model_dump_json()
-                .encode("utf-8")
-            )
+            payload = api_error_payload(error, str(request_id)).model_dump_json().encode("utf-8")
             await send(
                 {
                     "type": "http.response.start",
