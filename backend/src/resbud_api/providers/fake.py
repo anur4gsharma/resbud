@@ -10,6 +10,7 @@ from resbud_api.providers.base import (
     ProviderResult,
     ProviderTimeout,
     ProviderUnavailable,
+    ResearchBrief,
 )
 
 
@@ -42,7 +43,7 @@ class FakeProvider:
         if self.outcome is FakeOutcome.MALFORMED:
             return ProviderResult("not-json", self.provider_name, self.model_name, 0)
 
-        paper = self._paper(generation_input)
+        paper = self._paper(generation_input.brief)
         return ProviderResult(
             structured_output=json.dumps(paper, ensure_ascii=False, separators=(",", ":")),
             provider_name=self.provider_name,
@@ -51,13 +52,13 @@ class FakeProvider:
         )
 
     @staticmethod
-    def _paper(generation_input: GenerationInput) -> dict[str, object]:
-        project = generation_input.project
-        requested_sections = generation_input.preferences.desired_sections
+    def _paper(brief: ResearchBrief) -> dict[str, object]:
+        project = brief.project
+        requested_sections = brief.preferences.desired_sections
         section_ids = requested_sections or ["introduction", "methodology", "results"]
         sections: list[PaperSection] = []
         for section_id in section_ids:
-            content, state = _section_content(project, section_id, generation_input.source_draft)
+            content, state = _section_content(project, section_id, brief.source_draft)
             sections.append(
                 PaperSection(
                     id=section_id,
@@ -72,9 +73,7 @@ class FakeProvider:
             "abstract": "[DRAFT ABSTRACT: synthesize only supplied material; verify before use.]",
             "keywords": [],
             "sections": [section.model_dump(mode="json") for section in sections],
-            "references": [
-                reference.model_dump(mode="json") for reference in generation_input.references
-            ],
+            "references": [reference.model_dump(mode="json") for reference in brief.references],
             "review_warnings": [],
         }
 

@@ -98,12 +98,17 @@ The API contract is `POST /api/v1/generations/sections` in `contracts/openapi.ya
 - Required fields, IDs, and size limits.
 - Duplicate section IDs.
 - References returned are drawn from supplied references, unless a clearly marked citation-needed placeholder is used.
-- Numeric values in critical fields can be compared against explicitly supplied values where feasible.
+- Preserve the supplied reference objects exactly; flag explicit empty/TODO/TBD citation placeholders.
+- Compare numeric values and a narrow set of labeled numeric facts where feasible; flag obvious unsupported values or conflicting values for review.
 - No empty successful document.
 
 ### Semantic checks
 
 Whether a paraphrase preserves the scientific meaning or whether every claim is supported requires evidence-aware evaluation and often human judgment. Do not present simple string checks or a second LLM call as a guarantee of factual accuracy.
+
+## 10. Integrity-check limits and human review
+
+The versioned generation prompt (`backend/src/resbud_api/services/prompt_builder.py`, version `paper-draft-v1`) treats all source fields as untrusted data and asks the provider to preserve supplied uncertainty, avoid fabrication, and return only the `PaperDraft` JSON shape. Deterministic checks validate that shape, preserve the reference list, identify missing evidence from explicit project statuses, and flag a small set of obvious signals such as conflicting values attached to the same known label. They do not establish that a paraphrase is faithful, detect every contradiction, determine whether a citation supports a claim, or prove that any statement is true. The lexical checks can produce false positives and false negatives. Users must verify every technical claim and reference; no web research or automated citation verification is performed.
 
 ## 9. Schema evolution
 

@@ -7,11 +7,25 @@ from resbud_api.domain.models import PaperPreferences, ProjectContext, Reference
 
 
 @dataclass(frozen=True)
-class GenerationInput:
+class ResearchBrief:
     project: ProjectContext
     source_draft: str
     references: tuple[ReferenceInput, ...]
     preferences: PaperPreferences
+
+
+@dataclass(frozen=True)
+class GenerationPrompt:
+    version: str
+    system_instructions: str
+    user_message: str
+    output_schema: str
+
+
+@dataclass(frozen=True)
+class GenerationInput:
+    brief: ResearchBrief
+    prompt: GenerationPrompt
 
 
 @dataclass(frozen=True)
