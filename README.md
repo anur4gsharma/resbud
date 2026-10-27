@@ -12,6 +12,7 @@ Read the product requirements, architecture, API, paper schema, local storage sp
 - `docs/smoke-test-guide.md`: repeatable manual smoke test guide for mobile client and local backend.
 - `docs/12-requirement-traceability-matrix.md`: requirement-to-test and evidence matrix for all P0 requirements.
 - `docs/operations-and-incident-guide.md`: operations runbook, container deployment, release packaging, and incident checklists.
+- `docs/14-final-engineering-audit.md`: final senior engineering and product audit report for private beta release gate.
 - `docs/adr/`: decisions made while reconciling the specification; unresolved deployment choices are recorded in the audit report.
 - `contracts/`: request/paper JSON Schemas and OpenAPI YAML.
 - `SPEC_README_ORIGINAL.md`: original specification package README preserved as supplied; reconciled paths are documented in the audit report.
