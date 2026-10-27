@@ -356,10 +356,12 @@ def test_oversized_payload_rejected_at_boundary_before_processing() -> None:
     )
     app = create_app(settings)
 
-    oversized_body = json.dumps({
-        **_sample_generation_request(),
-        "source_draft": "x" * 5000,
-    })
+    oversized_body = json.dumps(
+        {
+            **_sample_generation_request(),
+            "source_draft": "x" * 5000,
+        }
+    )
 
     response = _request(
         app,

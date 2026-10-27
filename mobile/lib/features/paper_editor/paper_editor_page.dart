@@ -214,9 +214,11 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
     setState(() => _activeRegeneratingSectionId = section.id);
 
     try {
+      final latestProject =
+          await widget.repository.getProject(widget.project.id) ?? widget.project;
       final genRequest = GenerationRequest.fromInputs(
-        project: widget.project.projectContext,
-        sourceDraft: widget.project.sourceDraft,
+        project: latestProject.projectContext,
+        sourceDraft: latestProject.sourceDraft,
       );
 
       final regenRequest = SectionRegenerationRequest.create(
@@ -375,7 +377,9 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
   }
 
   void _showFeedback(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
       SnackBar(
         content: Text(message),
         backgroundColor: isError ? Theme.of(context).colorScheme.error : null,

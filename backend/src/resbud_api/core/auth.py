@@ -49,9 +49,7 @@ def create_token(
 
     if signing_key:
         key_str = (
-            signing_key.get_secret_value()
-            if isinstance(signing_key, SecretStr)
-            else signing_key
+            signing_key.get_secret_value() if isinstance(signing_key, SecretStr) else signing_key
         )
         sig = hmac.new(key_str.encode("utf-8"), signing_input, hashlib.sha256).digest()
         sig_b64 = _base64url_encode(sig)

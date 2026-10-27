@@ -148,9 +148,7 @@ This table covers requirements whose implementation boundary includes the backen
 
 Static OpenAPI validity and operation/schema parity are checked by `test_openapi_document_is_valid_and_matches_status_contracts` and `test_checked_in_openapi_operations_match_running_fastapi_routes`.
 
-The following P0 requirements are client-owned and are not proven by backend tests: FR-001 project CRUD, FR-003 file picker/import UI, FR-009 editing UI, FR-011 local persistence, FR-014 pending-screen cancellation, FR-015 visible review disclosure, and FR-016 transactional project preservation. Prompt 09's importer tests are authored but have not been run in this environment because Dart and Flutter are unavailable. Local storage and the app flows are still future work.
-
-Authentication and rate limiting are not implemented in the backend yet. The API's bearer-auth declarations describe the intended deployed boundary but do not add enforcement; remote deployment remains blocked on the security work in section 6 of `06-security-privacy.md`. There are no auth or quota tests until an implementation and provider are selected.
+For full end-to-end requirement traceability covering both backend and Flutter mobile client across all P0 functional and non-functional requirements, see [`12-requirement-traceability-matrix.md`](12-requirement-traceability-matrix.md). For repeatable manual verification steps, see [`smoke-test-guide.md`](smoke-test-guide.md). Authentication, sliding-window rate limits, and client privacy controls are verified in `test_auth_and_rate_limits.py` and `privacy_notice_test.dart`.
 
 ## 9. Deterministic evaluation fixture set
 

@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,51 +11,8 @@ import 'package:resbud_mobile/features/export/docx_file_saver.dart';
 import 'package:resbud_mobile/features/generation/generation_models.dart';
 import 'package:resbud_mobile/features/paper_editor/paper_editor_page.dart';
 
+import 'helpers/fake_export_api.dart';
 import 'helpers/fake_generation_api.dart';
-
-class FakePaperExportApi implements PaperExportApi {
-  int exportCallCount = 0;
-  PaperDraftPayload? lastExportedPaper;
-  DocxExportResult? resultToReturn;
-  Object? errorToThrow;
-
-  @override
-  Future<DocxExportResult> exportDocx(PaperDraftPayload paper) async {
-    exportCallCount++;
-    lastExportedPaper = paper;
-    if (errorToThrow != null) {
-      throw errorToThrow!;
-    }
-    return resultToReturn ??
-        DocxExportResult(
-          bytes: Uint8List.fromList([0x50, 0x4B, 0x03, 0x04, 0x00, 0x00]),
-          suggestedFilename: 'resbud-${paper.title.toLowerCase().replaceAll(' ', '-')}.docx',
-          requestId: 'test-export-req-1',
-        );
-  }
-}
-
-class FakeDocxFileSaver implements DocxFileSaver {
-  int saveCallCount = 0;
-  Uint8List? lastSavedBytes;
-  String? lastSuggestedFilename;
-  String? pathToReturn;
-  Object? errorToThrow;
-
-  @override
-  Future<String> saveDocx({
-    required Uint8List bytes,
-    required String suggestedFilename,
-  }) async {
-    saveCallCount++;
-    lastSavedBytes = bytes;
-    lastSuggestedFilename = suggestedFilename;
-    if (errorToThrow != null) {
-      throw errorToThrow!;
-    }
-    return pathToReturn ?? '/simulated/documents/$suggestedFilename';
-  }
-}
 
 void main() {
   setUpAll(sqfliteFfiInit);

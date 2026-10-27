@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'data/local_project_repository.dart';
+import 'features/export/docx_export_client.dart';
+import 'features/export/docx_file_saver.dart';
 import 'features/generation/generation_api_client.dart';
 import 'features/project_input/project_input_page.dart';
 import 'shared/design_tokens.dart';
@@ -74,10 +76,18 @@ class ResbudApp extends StatelessWidget {
     super.key,
     required this.repository,
     PaperGenerationApi? generationApi,
-  }) : generationApi = generationApi ?? GenerationApiClient.fromEnvironment();
+    PaperExportApi? exportApi,
+    DocxFileSaver? fileSaver,
+    this.sourcePicker,
+  }) : generationApi = generationApi ?? GenerationApiClient.fromEnvironment(),
+       exportApi = exportApi ?? DocxExportApiClient.fromEnvironment(),
+       fileSaver = fileSaver ?? LocalDocxFileSaver();
 
   final LocalProjectRepository repository;
   final PaperGenerationApi generationApi;
+  final PaperExportApi exportApi;
+  final DocxFileSaver fileSaver;
+  final SourcePicker? sourcePicker;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -86,6 +96,9 @@ class ResbudApp extends StatelessWidget {
     home: ProjectListPage(
       repository: repository,
       generationApi: generationApi,
+      exportApi: exportApi,
+      fileSaver: fileSaver,
+      sourcePicker: sourcePicker,
     ),
   );
 }
@@ -95,10 +108,16 @@ class ProjectListPage extends StatefulWidget {
     super.key,
     required this.repository,
     required this.generationApi,
+    required this.exportApi,
+    required this.fileSaver,
+    this.sourcePicker,
   });
 
   final LocalProjectRepository repository;
   final PaperGenerationApi generationApi;
+  final PaperExportApi exportApi;
+  final DocxFileSaver fileSaver;
+  final SourcePicker? sourcePicker;
 
   @override
   State<ProjectListPage> createState() => _ProjectListPageState();
@@ -135,6 +154,9 @@ class _ProjectListPageState extends State<ProjectListPage> {
           builder: (_) => ProjectDetailPage(
             repository: widget.repository,
             generationApi: widget.generationApi,
+            exportApi: widget.exportApi,
+            fileSaver: widget.fileSaver,
+            sourcePicker: widget.sourcePicker,
             project: project,
           ),
         ),
@@ -204,6 +226,9 @@ class _ProjectListPageState extends State<ProjectListPage> {
                         builder: (_) => ProjectDetailPage(
                           repository: widget.repository,
                           generationApi: widget.generationApi,
+                          exportApi: widget.exportApi,
+                          fileSaver: widget.fileSaver,
+                          sourcePicker: widget.sourcePicker,
                           project: project,
                         ),
                       ),
@@ -272,11 +297,17 @@ class ProjectDetailPage extends StatelessWidget {
     required this.repository,
     required this.generationApi,
     required this.project,
+    this.exportApi,
+    this.fileSaver,
+    this.sourcePicker,
   });
 
   final LocalProjectRepository repository;
   final PaperGenerationApi generationApi;
   final LocalProject project;
+  final PaperExportApi? exportApi;
+  final DocxFileSaver? fileSaver;
+  final SourcePicker? sourcePicker;
 
   @override
   Widget build(BuildContext context) =>
@@ -284,6 +315,9 @@ class ProjectDetailPage extends StatelessWidget {
         repository: repository,
         generationApi: generationApi,
         project: project,
+        exportApi: exportApi,
+        fileSaver: fileSaver,
+        sourcePicker: sourcePicker,
       );
 }
 

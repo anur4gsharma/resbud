@@ -693,7 +693,9 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   }
 
   void _showMessage(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
       SnackBar(
         content: Text(message),
         backgroundColor: isError ? Theme.of(context).colorScheme.error : null,
@@ -1075,12 +1077,15 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                           ],
                         ),
                         onTap: () async {
+                          final latestProject =
+                              await widget.repository.getProject(widget.project.id) ?? widget.project;
+                          if (!mounted) return;
                           await Navigator.of(context).push<void>(
                             MaterialPageRoute<void>(
                               builder: (_) => PaperEditorPage(
                                 repository: widget.repository,
                                 generationApi: widget.generationApi,
-                                project: widget.project,
+                                project: latestProject,
                                 initialVersion: version,
                                 exportApi: widget.exportApi,
                                 fileSaver: widget.fileSaver,
@@ -1098,6 +1103,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                 );
               },
             ),
+            const SizedBox(height: 120),
           ],
         ),
       ),

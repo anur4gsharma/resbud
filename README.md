@@ -9,6 +9,8 @@ Read the product requirements, architecture, API, paper schema, local storage sp
 ## Contents
 
 - `docs/`: intended product behavior, requirements, architecture, API behavior, research-integrity rules, security/privacy, testing, and academic evaluation.
+- `docs/smoke-test-guide.md`: repeatable manual smoke test guide for mobile client and local backend.
+- `docs/12-requirement-traceability-matrix.md`: requirement-to-test and evidence matrix for all P0 requirements.
 - `docs/adr/`: decisions made while reconciling the specification; unresolved deployment choices are recorded in the audit report.
 - `contracts/`: request/paper JSON Schemas and OpenAPI YAML.
 - `SPEC_README_ORIGINAL.md`: original specification package README preserved as supplied; reconciled paths are documented in the audit report.
@@ -47,8 +49,8 @@ flutter analyze
 flutter test
 ```
 
-Flutter was not installed when this scaffold was created, so mobile checks have not yet been run. Install Flutter from the [official instructions](https://docs.flutter.dev/install) before treating the client as verified.
+Run `flutter analyze` and `flutter test` to execute the full automated mobile test suite. See the [Manual Smoke Test Guide](docs/smoke-test-guide.md) for step-by-step instructions on running the Android app against a local backend.
 
 ## Continuous integration
 
-GitHub Actions runs the backend lint, type, and test checks plus Flutter analysis and tests. CI does not deploy or require provider credentials.
+GitHub Actions runs the backend lint, type, and test checks plus Flutter analysis and tests. CI does not deploy or require provider credentials. All automated checks run offline using deterministic test doubles and fake providers.
