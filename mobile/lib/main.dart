@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'data/local_project_repository.dart';
+import 'features/generation/generation_api_client.dart';
 import 'features/project_input/project_input_page.dart';
 import 'shared/design_tokens.dart';
 
@@ -69,22 +70,35 @@ class _ResbudBootstrapState extends State<ResbudBootstrap> {
 }
 
 class ResbudApp extends StatelessWidget {
-  const ResbudApp({super.key, required this.repository});
+  ResbudApp({
+    super.key,
+    required this.repository,
+    PaperGenerationApi? generationApi,
+  }) : generationApi = generationApi ?? GenerationApiClient.fromEnvironment();
 
   final LocalProjectRepository repository;
+  final PaperGenerationApi generationApi;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Resbud',
     theme: ResbudDesignTokens.lightTheme(),
-    home: ProjectListPage(repository: repository),
+    home: ProjectListPage(
+      repository: repository,
+      generationApi: generationApi,
+    ),
   );
 }
 
 class ProjectListPage extends StatefulWidget {
-  const ProjectListPage({super.key, required this.repository});
+  const ProjectListPage({
+    super.key,
+    required this.repository,
+    required this.generationApi,
+  });
 
   final LocalProjectRepository repository;
+  final PaperGenerationApi generationApi;
 
   @override
   State<ProjectListPage> createState() => _ProjectListPageState();
@@ -120,6 +134,7 @@ class _ProjectListPageState extends State<ProjectListPage> {
         MaterialPageRoute<void>(
           builder: (_) => ProjectDetailPage(
             repository: widget.repository,
+            generationApi: widget.generationApi,
             project: project,
           ),
         ),
@@ -188,6 +203,7 @@ class _ProjectListPageState extends State<ProjectListPage> {
                       MaterialPageRoute<void>(
                         builder: (_) => ProjectDetailPage(
                           repository: widget.repository,
+                          generationApi: widget.generationApi,
                           project: project,
                         ),
                       ),
@@ -254,15 +270,21 @@ class ProjectDetailPage extends StatelessWidget {
   const ProjectDetailPage({
     super.key,
     required this.repository,
+    required this.generationApi,
     required this.project,
   });
 
   final LocalProjectRepository repository;
+  final PaperGenerationApi generationApi;
   final LocalProject project;
 
   @override
   Widget build(BuildContext context) =>
-      ProjectInputPage(repository: repository, project: project);
+      ProjectInputPage(
+        repository: repository,
+        generationApi: generationApi,
+        project: project,
+      );
 }
 
 String _dateLabel(DateTime date) {

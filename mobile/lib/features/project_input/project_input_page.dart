@@ -4,11 +4,17 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/local_project_repository.dart';
+import '../generation/generation_api_client.dart';
+import '../generation/generation_models.dart';
 import '../../import/source_document_importer.dart';
 import '../../shared/design_tokens.dart';
 
 typedef PickedSource = ({String name, Uint8List bytes});
 typedef SourcePicker = Future<PickedSource?> Function();
+
+enum GenerationPhase { ready, validating, generating, success, recoverableFailure }
+
+enum _GenerationReviewAction { keepEditing, savePaper }
 
 const _statusChoices = <String, List<String>>{
   'methodology_status': [
@@ -69,11 +75,13 @@ class ProjectInputPage extends StatefulWidget {
   const ProjectInputPage({
     super.key,
     required this.repository,
+    required this.generationApi,
     required this.project,
     this.sourcePicker,
   });
 
   final LocalProjectRepository repository;
+  final PaperGenerationApi generationApi;
   final LocalProject project;
   final SourcePicker? sourcePicker;
 
@@ -86,7 +94,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   final _scrollController = ScrollController();
   late final Map<String, TextEditingController> _controllers;
   late final Map<String, String> _statuses;
-  late final Future<List<PaperVersion>> _versions;
+  late Future<List<PaperVersion>> _versions;
   late String _initialFingerprint;
   late final TextEditingController _customSectionsController;
   int _targetWordCount = 1500;
@@ -95,6 +103,9 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   bool _saving = false;
   bool _importing = false;
   bool _allowPop = false;
+  GenerationPhase _generationPhase = GenerationPhase.ready;
+  GenerationResult? _generationResult;
+  GenerationApiFailure? _generationFailure;
   String? _importMessage;
   bool _importError = false;
   String? _sectionError;
@@ -332,6 +343,186 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       return false;
     }
   }
+
+  Future<void> _generate() async {
+    if (_generationPhase == GenerationPhase.generating) return;
+    setState(() {
+      _generationPhase = GenerationPhase.validating;
+      _generationFailure = null;
+    });
+    final validationError = _validateContext();
+    if (validationError != null) {
+      setState(() => _generationPhase = GenerationPhase.ready);
+      setState(() {});
+      _showMessage(validationError, isError: true);
+      return;
+    }
+
+    late final GenerationRequest request;
+    try {
+      request = GenerationRequest.fromInputs(
+        project: _buildContext(),
+        sourceDraft: _controllers['source_draft']!.text,
+      );
+    } on FormatException catch (error) {
+      setState(() => _generationPhase = GenerationPhase.ready);
+      _showMessage(error.message, isError: true);
+      return;
+    }
+
+    setState(() => _generationPhase = GenerationPhase.generating);
+    try {
+      final result = await widget.generationApi.generate(request);
+      if (!mounted) return;
+      setState(() {
+        _generationResult = result;
+        _generationFailure = null;
+        _generationPhase = GenerationPhase.success;
+      });
+      await _showGeneratedPreview();
+    } on GenerationApiFailure catch (failure) {
+      if (!mounted) return;
+      setState(() {
+        _generationFailure = failure;
+        _generationResult = null;
+        _generationPhase = GenerationPhase.recoverableFailure;
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _generationFailure = const GenerationApiFailure(
+          code: GenerationFailureCode.unknown,
+        );
+        _generationResult = null;
+        _generationPhase = GenerationPhase.recoverableFailure;
+      });
+    }
+  }
+
+  Future<void> _retryGeneration() async {
+    final failure = _generationFailure;
+    if (failure == null || _generationPhase == GenerationPhase.generating) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Send another generation request?'),
+        content: Text(failure.retryNotice),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && mounted) await _generate();
+  }
+
+  Future<void> _showGeneratedPreview() async {
+    final result = _generationResult;
+    if (result == null || !mounted) return;
+    final action = await showDialog<_GenerationReviewAction>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Review generated draft'),
+        content: SizedBox(
+          width: 560,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(result.response.paper.title, style: Theme.of(context).textTheme.titleMedium),
+                if (result.response.paper.abstractText.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(result.response.paper.abstractText),
+                ],
+                const SizedBox(height: 16),
+                for (final section in result.response.paper.sections) ...[
+                  Text(section.heading, style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 4),
+                  Text(section.content.isEmpty ? '[No content supplied]' : _previewText(section.content)),
+                  const SizedBox(height: 12),
+                ],
+                if (result.response.reviewWarnings.isNotEmpty) ...[
+                  Text('Review warnings', style: Theme.of(context).textTheme.titleSmall),
+                  for (final warning in result.response.reviewWarnings)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text('${warning.severity.toUpperCase()}: ${warning.message}'),
+                    ),
+                ],
+                if (result.requestId != null) ...[
+                  const SizedBox(height: 16),
+                  Text('Request ID: ${result.requestId}', style: Theme.of(context).textTheme.bodySmall),
+                ],
+                const SizedBox(height: 12),
+                Text('The saved paper will change only if you choose “Save generated paper”.', style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, _GenerationReviewAction.keepEditing),
+            child: const Text('Keep editing'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, _GenerationReviewAction.savePaper),
+            child: const Text('Save generated paper'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (action == _GenerationReviewAction.keepEditing) {
+      setState(() {
+        _generationPhase = GenerationPhase.ready;
+        _generationResult = null;
+      });
+    } else if (action == _GenerationReviewAction.savePaper) {
+      await _acceptGeneratedPaper(result);
+    }
+  }
+
+  Future<void> _acceptGeneratedPaper(GenerationResult result) async {
+    if (!await _save(showMessage: false) || !mounted) return;
+    try {
+      await widget.repository.savePaperVersion(
+        projectId: widget.project.id,
+        schemaVersion: result.response.paper.schemaVersion,
+        paper: result.response.paper.toJson(),
+        origin: PaperVersionOrigin.generation,
+        metadata: {
+          'generation_id': result.response.generationId,
+          'provider_name': result.response.meta.providerName,
+          'model_name': result.response.meta.modelName,
+          if (result.requestId != null) 'request_id': result.requestId,
+        },
+      );
+      if (!mounted) return;
+      setState(() {
+        _versions = widget.repository.listPaperVersions(widget.project.id);
+        _generationPhase = GenerationPhase.ready;
+        _generationResult = null;
+      });
+      _showMessage('Generated paper saved as a new version on this device.');
+    } on Object {
+      if (mounted) {
+        _showMessage(
+          'The generated paper was not saved. Your previous saved paper remains current.',
+          isError: true,
+        );
+      }
+    }
+  }
+
+  String _previewText(String content) => content.length <= 500
+      ? content
+      : '${content.substring(0, 500)}…';
 
   Future<void> _requestLeave() async {
     if (_fingerprint() == _initialFingerprint) {
@@ -850,21 +1041,84 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         top: false,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-          child: Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _requestLeave,
-                  child: const Text('Back / cancel'),
+              if (_generationPhase == GenerationPhase.generating)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Column(
+                    children: [
+                      LinearProgressIndicator(),
+                      SizedBox(height: 4),
+                      Text(
+                        'Generating paper draft — this may take a minute…',
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: _saving ? null : () => _save(),
-                  icon: const Icon(Icons.save_outlined),
-                  label: Text(_saving ? 'Saving…' : 'Save project'),
+              if (_generationPhase == GenerationPhase.recoverableFailure &&
+                  _generationFailure != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Column(
+                    children: [
+                      Text(
+                        _generationFailure!.supportDetail,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 4),
+                      TextButton(
+                        onPressed: _retryGeneration,
+                        child: const Text('Retry generation'),
+                      ),
+                    ],
+                  ),
                 ),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _requestLeave,
+                      child: const Text('Back / cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _saving ? null : () => _save(),
+                      icon: const Icon(Icons.save_outlined),
+                      label: Text(_saving ? 'Saving…' : 'Save project'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _generationPhase == GenerationPhase.generating ||
+                              _saving
+                          ? null
+                          : _generate,
+                      icon: _generationPhase == GenerationPhase.generating
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : const Icon(Icons.auto_awesome_outlined),
+                      label: Text(
+                        _generationPhase == GenerationPhase.generating
+                            ? 'Generating…'
+                            : 'Generate',
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
