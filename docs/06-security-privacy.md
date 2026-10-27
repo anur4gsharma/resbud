@@ -7,7 +7,7 @@ This document is a minimum engineering baseline, not a legal compliance certific
 The app handles research drafts that may be unpublished, confidential, or personally identifying. Treat all user content as potentially sensitive.
 
 1. **Device boundary:** project details and saved drafts reside in local storage.
-2. **Resbud API boundary:** the generation request temporarily contains the source and project details; DOCX export temporarily contains the current paper.
+2. **Resbud API boundary:** the generation request temporarily contains the source and project details; DOCX export temporarily contains the current paper and returns the generated file without retaining it.
 3. **Model-provider boundary:** generation content is sent to the configured provider to complete the user's explicit action.
 4. **Observability boundary:** only operational metadata should enter ordinary application logs.
 

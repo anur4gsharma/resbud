@@ -134,7 +134,8 @@ paths:
           description: Generated DOCX document; not stored by the server.
           headers:
             Content-Disposition:
-              schema: { type: string }
+              description: Sanitized attachment filename; the file is generated in memory and is not stored.
+              schema: { type: string, example: 'attachment; filename="resbud-research-paper.docx"' }
             X-Request-ID: { $ref: '#/components/headers/RequestId' }
           content:
             application/vnd.openxmlformats-officedocument.wordprocessingml.document:

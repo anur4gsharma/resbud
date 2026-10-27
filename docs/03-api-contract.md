@@ -116,7 +116,7 @@ There is no server cancellation endpoint in API v1. Leaving a pending screen or 
 
 ## 7. DOCX export contract
 
-The client sends the current validated `PaperDraft` to `/api/v1/exports/docx`. The server generates a document in memory and returns the DOCX MIME type and a safe filename. It does not save the file to persistent server storage.
+The client sends the current validated `PaperDraft` to `/api/v1/exports/docx`. The server generates a document in memory and returns the standard DOCX MIME type and a sanitized ASCII `Content-Disposition` filename derived from the title. The exporter writes the title, abstract, keywords, sections in submitted order, and supplied references using readable Word styles. It preserves text and makes no model call. The generated response is capped at 8 MiB. It does not save the file to persistent server storage.
 
 Because paper content passes through the backend for export, the privacy notice must disclose this. Keep a strict input-size limit, never use model-generated text as a path, and do not log document content.
 

@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 from resbud_api.api.error_handlers import install_error_handlers
+from resbud_api.api.routes.exports import router as exports_router
 from resbud_api.api.routes.generations import router as generations_router
 from resbud_api.api.routes.health import router as health_router
 from resbud_api.core.request_boundary import RequestBoundaryMiddleware
@@ -54,6 +55,7 @@ def create_app(
     install_error_handlers(app)
     app.include_router(health_router)
     app.include_router(generations_router)
+    app.include_router(exports_router)
 
     if runtime_settings.cors_allowed_origins:
         app.add_middleware(
