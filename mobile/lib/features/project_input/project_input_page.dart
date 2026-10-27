@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../data/local_project_repository.dart';
 import '../generation/generation_api_client.dart';
 import '../generation/generation_models.dart';
+import '../paper_editor/paper_editor_page.dart';
 import '../../import/source_document_importer.dart';
 import '../../shared/design_tokens.dart';
 
@@ -1020,15 +1021,40 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                   children: [
                     for (final version in snapshot.data!)
                       ListTile(
+                        key: ValueKey('version-${version.versionNumber}'),
                         contentPadding: EdgeInsets.zero,
                         title: Text('Version ${version.versionNumber}'),
                         subtitle: Text(
                           '${version.origin.name} · schema ${version.schemaVersion}',
                         ),
-                        trailing:
-                            version.id == widget.project.currentPaperVersionId
-                            ? const Icon(Icons.check_circle_outline)
-                            : null,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (version.id == widget.project.currentPaperVersionId)
+                              const Padding(
+                                padding: EdgeInsets.only(right: 8),
+                                child: Icon(Icons.check_circle_outline, color: Colors.green),
+                              ),
+                            const Icon(Icons.chevron_right),
+                          ],
+                        ),
+                        onTap: () async {
+                          await Navigator.of(context).push<void>(
+                            MaterialPageRoute<void>(
+                              builder: (_) => PaperEditorPage(
+                                repository: widget.repository,
+                                generationApi: widget.generationApi,
+                                project: widget.project,
+                                initialVersion: version,
+                              ),
+                            ),
+                          );
+                          if (mounted) {
+                            setState(() {
+                              _versions = widget.repository.listPaperVersions(widget.project.id);
+                            });
+                          }
+                        },
                       ),
                   ],
                 );

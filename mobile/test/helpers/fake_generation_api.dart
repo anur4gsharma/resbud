@@ -11,6 +11,12 @@ class FakeGenerationApi implements PaperGenerationApi {
   Object? nextError;
   int callCount = 0;
   GenerationRequest? lastRequest;
+
+  SectionRegenerationResult? nextSectionResult;
+  Object? nextSectionError;
+  int sectionCallCount = 0;
+  SectionRegenerationRequest? lastSectionRequest;
+
   Duration latency;
 
   FakeGenerationApi({this.latency = Duration.zero});
@@ -30,12 +36,47 @@ class FakeGenerationApi implements PaperGenerationApi {
     return nextResult ?? _defaultResult();
   }
 
+  @override
+  Future<SectionRegenerationResult> regenerateSection(
+    SectionRegenerationRequest request,
+  ) async {
+    sectionCallCount++;
+    lastSectionRequest = request;
+    if (latency > Duration.zero) {
+      await Future<void>.delayed(latency);
+    }
+    if (nextSectionError != null) {
+      final error = nextSectionError!;
+      nextSectionError = null;
+      throw error;
+    }
+    return nextSectionResult ?? _defaultSectionResult(request.sectionId);
+  }
+
   void reset() {
     nextResult = null;
     nextError = null;
     callCount = 0;
     lastRequest = null;
+    nextSectionResult = null;
+    nextSectionError = null;
+    sectionCallCount = 0;
+    lastSectionRequest = null;
   }
+
+  static SectionRegenerationResult _defaultSectionResult(String sectionId) =>
+      SectionRegenerationResult(
+        response: SectionRegenerationResponse(
+          section: PaperSectionPayload(
+            id: sectionId,
+            heading: sectionId[0].toUpperCase() + sectionId.substring(1),
+            content: 'Regenerated replacement content for $sectionId.',
+            state: 'draft',
+          ),
+          reviewWarnings: const [],
+        ),
+        requestId: 'test-section-request-id-001',
+      );
 
   static GenerationResult _defaultResult() => GenerationResult(
     response: _defaultResponse(),

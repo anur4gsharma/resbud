@@ -475,6 +475,210 @@ void main() {
     });
   });
 
+  group('SectionRegenerationRequest serialization', () {
+    final validProjectReq = GenerationRequest.fromInputs(
+      project: _minimalProject(),
+      sourceDraft: 'Some research draft text.',
+    );
+    final validPaper =
+        FakeGenerationApi.defaultResponseJson()['paper'] as Map<String, Object?>;
+    final paperDraft = PaperDraftPayload.fromJson(validPaper);
+
+    test('creates and serializes valid SectionRegenerationRequest', () {
+      final req = SectionRegenerationRequest.create(
+        generationRequest: validProjectReq,
+        currentPaper: paperDraft,
+        sectionId: 'methodology',
+        userInstruction: 'Please add details on the test setup.',
+      );
+      final json = jsonDecode(req.encode()) as Map<String, Object?>;
+      expect(json['schema_version'], 1);
+      expect(json['section_id'], 'methodology');
+      expect(json['user_instruction'], 'Please add details on the test setup.');
+      expect(json['generation_request'], isA<Map<String, Object?>>());
+      expect(json['current_paper'], isA<Map<String, Object?>>());
+    });
+
+    test('rejects target section that does not exist in current paper', () {
+      expect(
+        () => SectionRegenerationRequest.create(
+          generationRequest: validProjectReq,
+          currentPaper: paperDraft,
+          sectionId: 'non_existent_section',
+        ),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('rejects not_applicable section regeneration', () {
+      final naPaper = paperDraft.copyWith(
+        sections: [
+          ...paperDraft.sections,
+          const PaperSectionPayload(
+            id: 'extra_na',
+            heading: 'Extra',
+            content: 'Not applicable',
+            state: 'not_applicable',
+          ),
+        ],
+      );
+      expect(
+        () => SectionRegenerationRequest.create(
+          generationRequest: validProjectReq,
+          currentPaper: naPaper,
+          sectionId: 'extra_na',
+        ),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('rejects user_instruction exceeding 2000 chars', () {
+      expect(
+        () => SectionRegenerationRequest.create(
+          generationRequest: validProjectReq,
+          currentPaper: paperDraft,
+          sectionId: 'methodology',
+          userInstruction: 'x' * 2001,
+        ),
+        throwsA(isA<FormatException>()),
+      );
+    });
+  });
+
+  group('SectionRegenerationResponse parsing', () {
+    test('parses valid section regeneration response', () {
+      final json = {
+        'schema_version': 1,
+        'section': {
+          'id': 'methodology',
+          'heading': 'Methodology',
+          'content': 'Updated methodology content.',
+          'state': 'draft',
+        },
+        'review_warnings': [
+          {
+            'code': 'GENERAL_REVIEW',
+            'severity': 'info',
+            'message': 'Review updated methodology.',
+            'section_id': 'methodology',
+          },
+        ],
+      };
+      final resp = SectionRegenerationResponse.fromJson(json);
+      expect(resp.section.id, 'methodology');
+      expect(resp.section.content, 'Updated methodology content.');
+      expect(resp.reviewWarnings.length, 1);
+    });
+
+    test('rejects empty replacement section content', () {
+      final json = {
+        'schema_version': 1,
+        'section': {
+          'id': 'methodology',
+          'heading': 'Methodology',
+          'content': '   ',
+          'state': 'draft',
+        },
+        'review_warnings': <Object>[],
+      };
+      expect(
+        () => SectionRegenerationResponse.fromJson(json),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('rejects not_applicable replacement section', () {
+      final json = {
+        'schema_version': 1,
+        'section': {
+          'id': 'methodology',
+          'heading': 'Methodology',
+          'content': 'Some content',
+          'state': 'not_applicable',
+        },
+        'review_warnings': <Object>[],
+      };
+      expect(
+        () => SectionRegenerationResponse.fromJson(json),
+        throwsA(isA<FormatException>()),
+      );
+    });
+  });
+
+  group('GenerationApiClient.regenerateSection', () {
+    final validProjectReq = GenerationRequest.fromInputs(
+      project: _minimalProject(),
+      sourceDraft: 'Some research draft text.',
+    );
+    final validPaper =
+        FakeGenerationApi.defaultResponseJson()['paper'] as Map<String, Object?>;
+    final paperDraft = PaperDraftPayload.fromJson(validPaper);
+    final regenRequest = SectionRegenerationRequest.create(
+      generationRequest: validProjectReq,
+      currentPaper: paperDraft,
+      sectionId: 'methodology',
+    );
+
+    test('successful POST returns SectionRegenerationResult with header request ID', () async {
+      final mock = MockClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '/api/v1/generations/sections');
+        return http.Response(
+          jsonEncode({
+            'schema_version': 1,
+            'section': {
+              'id': 'methodology',
+              'heading': 'Methodology',
+              'content': 'Brand new methodology text.',
+              'state': 'draft',
+            },
+            'review_warnings': <Object>[],
+          }),
+          200,
+          headers: {'x-request-id': 'sec-req-999'},
+        );
+      });
+      final client = GenerationApiClient(
+        baseUri: Uri.parse('http://127.0.0.1:8000'),
+        client: mock,
+      );
+      final result = await client.regenerateSection(regenRequest);
+      expect(result.requestId, 'sec-req-999');
+      expect(result.response.section.id, 'methodology');
+      expect(result.response.section.content, 'Brand new methodology text.');
+    });
+
+    test('throws invalidResponse if response section ID does not match request', () async {
+      final mock = MockClient((request) async => http.Response(
+        jsonEncode({
+          'schema_version': 1,
+          'section': {
+            'id': 'introduction',
+            'heading': 'Intro',
+            'content': 'Wrong section content.',
+            'state': 'draft',
+          },
+          'review_warnings': <Object>[],
+        }),
+        200,
+      ));
+      final client = GenerationApiClient(
+        baseUri: Uri.parse('http://127.0.0.1:8000'),
+        client: mock,
+      );
+      expect(
+        () => client.regenerateSection(regenRequest),
+        throwsA(
+          isA<GenerationApiFailure>().having(
+            (f) => f.code,
+            'code',
+            GenerationFailureCode.invalidResponse,
+          ),
+        ),
+      );
+    });
+  });
+
   group('FakeGenerationApi', () {
     late FakeGenerationApi fakeApi;
 

@@ -346,6 +346,24 @@ class PaperDraftPayload {
     'references': references.map((reference) => reference.toJson()).toList(),
     'review_warnings': reviewWarnings.map((warning) => warning.toJson()).toList(),
   };
+
+  PaperDraftPayload copyWith({
+    int? schemaVersion,
+    String? title,
+    String? abstractText,
+    List<String>? keywords,
+    List<PaperSectionPayload>? sections,
+    List<ReferencePayload>? references,
+    List<ReviewWarningPayload>? reviewWarnings,
+  }) => PaperDraftPayload(
+    schemaVersion: schemaVersion ?? this.schemaVersion,
+    title: title ?? this.title,
+    abstractText: abstractText ?? this.abstractText,
+    keywords: keywords ?? this.keywords,
+    sections: sections ?? this.sections,
+    references: references ?? this.references,
+    reviewWarnings: reviewWarnings ?? this.reviewWarnings,
+  );
 }
 
 class PaperSectionPayload {
@@ -378,6 +396,18 @@ class PaperSectionPayload {
   Map<String, Object?> toJson() => {
     'id': id, 'heading': heading, 'content': content, 'state': state,
   };
+
+  PaperSectionPayload copyWith({
+    String? id,
+    String? heading,
+    String? content,
+    String? state,
+  }) => PaperSectionPayload(
+    id: id ?? this.id,
+    heading: heading ?? this.heading,
+    content: content ?? this.content,
+    state: state ?? this.state,
+  );
 }
 
 class ReviewWarningPayload {
@@ -476,6 +506,101 @@ class GenerationMetaPayload {
     'duration_ms': durationMs,
     'input_tokens': inputTokens,
     'output_tokens': outputTokens,
+  };
+}
+
+class SectionRegenerationRequest {
+  const SectionRegenerationRequest({
+    required this.generationRequest,
+    required this.currentPaper,
+    required this.sectionId,
+    this.userInstruction = '',
+  });
+
+  final GenerationRequest generationRequest;
+  final PaperDraftPayload currentPaper;
+  final String sectionId;
+  final String userInstruction;
+
+  factory SectionRegenerationRequest.create({
+    required GenerationRequest generationRequest,
+    required PaperDraftPayload currentPaper,
+    required String sectionId,
+    String userInstruction = '',
+  }) {
+    if (!_sectionIdPattern.hasMatch(sectionId)) {
+      throw const FormatException('Invalid section ID.');
+    }
+    final target = currentPaper.sections
+        .where((section) => section.id == sectionId)
+        .firstOrNull;
+    if (target == null) {
+      throw const FormatException('Target section does not exist in current paper.');
+    }
+    if (target.state == 'not_applicable') {
+      throw const FormatException('Cannot regenerate a not_applicable section.');
+    }
+    if (userInstruction.length > 2000) {
+      throw const FormatException('User instruction must not exceed 2,000 characters.');
+    }
+    return SectionRegenerationRequest(
+      generationRequest: generationRequest,
+      currentPaper: currentPaper,
+      sectionId: sectionId,
+      userInstruction: userInstruction,
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'schema_version': 1,
+    'generation_request': generationRequest.toJson(),
+    'current_paper': currentPaper.toJson(),
+    'section_id': sectionId,
+    'user_instruction': userInstruction,
+  };
+
+  String encode() => jsonEncode(toJson());
+}
+
+class SectionRegenerationResponse {
+  const SectionRegenerationResponse({
+    required this.section,
+    required this.reviewWarnings,
+  });
+
+  final PaperSectionPayload section;
+  final List<ReviewWarningPayload> reviewWarnings;
+
+  factory SectionRegenerationResponse.fromJson(Map<String, Object?> json) {
+    _requireKeys(json, const {
+      'schema_version', 'section', 'review_warnings',
+    }, 'section regeneration response');
+    if (_integer(json['schema_version'], 'schema_version') != 1) {
+      throw const FormatException('Unsupported section regeneration schema version.');
+    }
+    final section = PaperSectionPayload.fromJson(_map(json['section'], 'section'));
+    if (section.content.trim().isEmpty) {
+      throw const FormatException('Replacement section content must not be empty.');
+    }
+    if (section.state == 'not_applicable') {
+      throw const FormatException('Replacement section cannot be not_applicable.');
+    }
+    final warnings = _list(json['review_warnings'], 'review_warnings')
+        .map((value) => ReviewWarningPayload.fromJson(_map(value, 'review warning')))
+        .toList(growable: false);
+    if (warnings.length > 100) {
+      throw const FormatException('Review warnings exceed schema limits.');
+    }
+    return SectionRegenerationResponse(
+      section: section,
+      reviewWarnings: warnings,
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'schema_version': 1,
+    'section': section.toJson(),
+    'review_warnings': reviewWarnings.map((warning) => warning.toJson()).toList(),
   };
 }
 

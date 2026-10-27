@@ -72,8 +72,16 @@ class GenerationResult {
   final String? requestId;
 }
 
+class SectionRegenerationResult {
+  const SectionRegenerationResult({required this.response, required this.requestId});
+
+  final SectionRegenerationResponse response;
+  final String? requestId;
+}
+
 abstract interface class PaperGenerationApi {
   Future<GenerationResult> generate(GenerationRequest request);
+  Future<SectionRegenerationResult> regenerateSection(SectionRegenerationRequest request);
 }
 
 typedef BearerTokenProvider = Future<String?> Function();
@@ -118,6 +126,7 @@ class GenerationApiClient implements PaperGenerationApi {
   final Duration timeout;
 
   Uri get _generationUri => baseUri.resolve('/api/v1/generations');
+  Uri get _sectionRegenerationUri => baseUri.resolve('/api/v1/generations/sections');
 
   Future<void> close() async {
     if (_ownsClient) _client.close();
@@ -169,6 +178,66 @@ class GenerationApiClient implements PaperGenerationApi {
         Map<String, Object?>.from(decoded),
       );
       return GenerationResult(response: parsed, requestId: requestId);
+    } on Object {
+      throw GenerationApiFailure(
+        code: GenerationFailureCode.invalidResponse,
+        requestId: requestId,
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  @override
+  Future<SectionRegenerationResult> regenerateSection(
+    SectionRegenerationRequest request,
+  ) async {
+    final token = await tokenProvider?.call();
+    final headers = <String, String>{
+      'content-type': 'application/json',
+      'accept': 'application/json',
+    };
+    if (token != null && token.trim().isNotEmpty) {
+      headers['authorization'] = 'Bearer ${token.trim()}';
+    }
+
+    late final http.Response response;
+    try {
+      response = await _client
+          .post(
+            _sectionRegenerationUri,
+            headers: headers,
+            body: request.encode(),
+          )
+          .timeout(timeout);
+    } on TimeoutException {
+      throw const GenerationApiFailure(
+        code: GenerationFailureCode.providerTimeout,
+        mayHaveCompleted: true,
+      );
+    } on SocketException {
+      throw const GenerationApiFailure(
+        code: GenerationFailureCode.networkUnavailable,
+      );
+    } on http.ClientException {
+      throw const GenerationApiFailure(
+        code: GenerationFailureCode.networkUnavailable,
+      );
+    }
+
+    final requestId = _requestIdFromHeaders(response.headers);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _errorFromResponse(response, requestId);
+    }
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map) throw const FormatException('Expected an object response.');
+      final parsed = SectionRegenerationResponse.fromJson(
+        Map<String, Object?>.from(decoded),
+      );
+      if (parsed.section.id != request.sectionId) {
+        throw const FormatException('Replacement section ID does not match request.');
+      }
+      return SectionRegenerationResult(response: parsed, requestId: requestId);
     } on Object {
       throw GenerationApiFailure(
         code: GenerationFailureCode.invalidResponse,
