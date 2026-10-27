@@ -11,6 +11,8 @@ The app handles research drafts that may be unpublished, confidential, or person
 3. **Model-provider boundary:** generation content is sent to the configured provider to complete the user's explicit action.
 4. **Observability boundary:** only operational metadata should enter ordinary application logs.
 
+TXT and DOCX import is performed on-device. The selected file bytes are not uploaded or retained by Resbud for extraction; only text the user chooses to submit is sent during generation. The importer reads UTF-8 TXT or the main DOCX body in memory, ignores document metadata, comments, relationships, macros, and embedded files, and applies the size and ZIP expansion limits in `03-api-contract.md`. Unsupported, encrypted, malformed, or oversized files produce a safe local error and leave the project unchanged.
+
 Before generation, the UI must state that the selected material will be transmitted to the configured model provider. Before export, it must be clear that the current paper passes through the Resbud backend for document conversion.
 
 ## 2. Secrets management

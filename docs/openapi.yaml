@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Resbud API
   version: 1.0.0
-  description: API for structured research-paper drafting and DOCX export. Research content is processed per request and is not persisted by default. Every response includes X-Request-ID; errors repeat it as request_id.
+  description: API for structured research-paper drafting and DOCX export. Source TXT/DOCX extraction happens on the mobile device; API v1 has no source-file upload endpoint. Research content sent to this API is processed per request and is not persisted by default. Every response includes X-Request-ID; errors repeat it as request_id.
 servers:
   - url: http://127.0.0.1:8000
     description: Local development only; use HTTPS in deployed environments.
