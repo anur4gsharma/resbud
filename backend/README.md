@@ -11,4 +11,4 @@ uv run mypy src
 uv run pytest
 ```
 
-The package uses a `src/` layout. The current backend foundation provides health, configuration, error, and contract models; product routes are introduced in later milestones.
+The package uses a `src/` layout. Copy the root `.env.example` to `backend/.env` for local development; it explicitly selects the deterministic fake generation provider. Its outputs are labeled as demo output. Production settings reject fake mode and default to a disabled provider until a real adapter is configured. The backend handles generation per request and does not persist research content.

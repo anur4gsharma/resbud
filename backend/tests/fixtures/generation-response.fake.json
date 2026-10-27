@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "paper": {
+    "schema_version": 1,
+    "title": "Example Study",
+    "abstract": "[DRAFT ABSTRACT: synthesize only supplied material; verify before use.]",
+    "keywords": [],
+    "sections": [
+      {
+        "id": "introduction",
+        "heading": "Introduction",
+        "content": "[SOURCE MATERIAL]\nThis is user-provided source material.",
+        "state": "draft"
+      },
+      {
+        "id": "methodology",
+        "heading": "Methodology",
+        "content": "A qualitative prototype walkthrough.",
+        "state": "draft"
+      }
+    ],
+    "references": [
+      {
+        "id": "ref_1",
+        "text": "  Example Author. (2025). Example title.  "
+      }
+    ],
+    "review_warnings": [
+      {
+        "code": "MISSING_DATASET_DETAILS",
+        "severity": "warning",
+        "message": "Dataset or material details were not supplied. Add verified details before submission.",
+        "section_id": "methodology"
+      },
+      {
+        "code": "MISSING_RESULTS",
+        "severity": "warning",
+        "message": "Results were not collected. Do not describe outcomes without measured results.",
+        "section_id": null
+      },
+      {
+        "code": "MISSING_LIMITATIONS",
+        "severity": "warning",
+        "message": "Limitations were not supplied. Identify and review limitations before submission.",
+        "section_id": null
+      },
+      {
+        "code": "GENERAL_REVIEW",
+        "severity": "warning",
+        "message": "Deterministic fake-provider demo output; it is not a research analysis.",
+        "section_id": null
+      }
+    ]
+  },
+  "review_warnings": [
+    {
+      "code": "MISSING_DATASET_DETAILS",
+      "severity": "warning",
+      "message": "Dataset or material details were not supplied. Add verified details before submission.",
+      "section_id": "methodology"
+    },
+    {
+      "code": "MISSING_RESULTS",
+      "severity": "warning",
+      "message": "Results were not collected. Do not describe outcomes without measured results.",
+      "section_id": null
+    },
+    {
+      "code": "MISSING_LIMITATIONS",
+      "severity": "warning",
+      "message": "Limitations were not supplied. Identify and review limitations before submission.",
+      "section_id": null
+    },
+    {
+      "code": "GENERAL_REVIEW",
+      "severity": "warning",
+      "message": "Deterministic fake-provider demo output; it is not a research analysis.",
+      "section_id": null
+    }
+  ],
+  "meta": {
+    "provider_name": "fake",
+    "model_name": "deterministic-demo",
+    "duration_ms": 0,
+    "input_tokens": null,
+    "output_tokens": null
+  }
+}

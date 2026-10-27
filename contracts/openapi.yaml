@@ -319,6 +319,7 @@ components:
         paper: { $ref: '#/components/schemas/PaperDraft' }
         review_warnings:
           type: array
+          maxItems: 100
           items: { $ref: '#/components/schemas/ReviewWarning' }
         meta:
           type: object
@@ -351,6 +352,7 @@ components:
         section: { $ref: '#/components/schemas/PaperSection' }
         review_warnings:
           type: array
+          maxItems: 100
           items: { $ref: '#/components/schemas/ReviewWarning' }
     ApiError:
       type: object

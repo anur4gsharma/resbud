@@ -5,10 +5,11 @@ from functools import lru_cache
 from typing import Literal, cast
 from urllib.parse import urlsplit
 
-from pydantic import AnyHttpUrl, Field, SecretStr, TypeAdapter, field_validator
+from pydantic import AnyHttpUrl, Field, SecretStr, TypeAdapter, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "test", "production"]
+GenerationProvider = Literal["fake", "disabled"]
 MAX_REQUEST_BODY_BYTES = 4 * 1024 * 1024
 _HTTP_URL = TypeAdapter(AnyHttpUrl)
 
@@ -26,6 +27,9 @@ class Settings(BaseSettings):
     )
 
     environment: Environment = Field(..., validation_alias="RESBUD_ENV")
+    generation_provider: GenerationProvider = Field(
+        default="disabled", validation_alias="RESBUD_GENERATION_PROVIDER"
+    )
     provider_api_key: SecretStr | None = Field(
         default=None, validation_alias="RESBUD_PROVIDER_API_KEY"
     )
@@ -40,6 +44,12 @@ class Settings(BaseSettings):
         le=MAX_REQUEST_BODY_BYTES,
         validation_alias="RESBUD_MAX_REQUEST_BODY_BYTES",
     )
+
+    @model_validator(mode="after")
+    def reject_fake_provider_in_production(self) -> "Settings":
+        if self.environment == "production" and self.generation_provider == "fake":
+            raise ValueError("the fake generation provider cannot be enabled in production")
+        return self
 
     @field_validator("provider_api_key", mode="before")
     @classmethod
