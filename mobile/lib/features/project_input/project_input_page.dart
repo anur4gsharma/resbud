@@ -213,6 +213,8 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     _customSectionsController.text,
   ].join('|');
 
+  bool get _isDirty => _fingerprint() != _initialFingerprint;
+
   List<String> get _requestedSections => [
     ..._desiredSections.where(_baseSections.contains),
     ..._nonblankLines(_customSectionsController.text),
@@ -823,7 +825,38 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           icon: const Icon(Icons.arrow_back),
           tooltip: 'Back',
         ),
-        title: const Text('Research inputs'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Flexible(
+              child: Text(
+                'Research inputs',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              key: const ValueKey('project-save-status-badge'),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: _saving
+                    ? Colors.blue.shade50
+                    : (_isDirty ? Colors.amber.shade100 : Colors.green.shade50),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                _saving ? 'Saving…' : (_isDirty ? 'Unsaved' : 'Saved'),
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: _saving
+                      ? Colors.blue.shade800
+                      : (_isDirty ? Colors.amber.shade900 : Colors.green.shade800),
+                ),
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             onPressed: _deleteProject,
@@ -836,6 +869,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         key: _formKey,
         child: ListView(
           controller: _scrollController,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
           children: [
             Text(
@@ -1149,46 +1183,63 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                     ],
                   ),
                 ),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _requestLeave,
-                      child: const Text('Back / cancel'),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isNarrow = constraints.maxWidth < 420;
+                  final backButton = OutlinedButton(
+                    onPressed: _requestLeave,
+                    child: const Text('Back / cancel'),
+                  );
+                  final saveButton = FilledButton.icon(
+                    onPressed: _saving ? null : () => _save(),
+                    icon: const Icon(Icons.save_outlined),
+                    label: Text(_saving ? 'Saving…' : 'Save project'),
+                  );
+                  final generateButton = FilledButton.icon(
+                    onPressed: _generationPhase == GenerationPhase.generating || _saving
+                        ? null
+                        : _generate,
+                    icon: _generationPhase == GenerationPhase.generating
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.auto_awesome_outlined),
+                    label: Text(
+                      _generationPhase == GenerationPhase.generating
+                          ? 'Generating…'
+                          : 'Generate',
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _saving ? null : () => _save(),
-                      icon: const Icon(Icons.save_outlined),
-                      label: Text(_saving ? 'Saving…' : 'Save project'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _generationPhase == GenerationPhase.generating ||
-                              _saving
-                          ? null
-                          : _generate,
-                      icon: _generationPhase == GenerationPhase.generating
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : const Icon(Icons.auto_awesome_outlined),
-                      label: Text(
-                        _generationPhase == GenerationPhase.generating
-                            ? 'Generating…'
-                            : 'Generate',
-                      ),
-                    ),
-                  ),
-                ],
+                  );
+
+                  if (isNarrow) {
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: backButton),
+                            const SizedBox(width: 8),
+                            Expanded(child: saveButton),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SizedBox(width: double.infinity, child: generateButton),
+                      ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Expanded(child: backButton),
+                      const SizedBox(width: 8),
+                      Expanded(child: saveButton),
+                      const SizedBox(width: 8),
+                      Expanded(child: generateButton),
+                    ],
+                  );
+                },
               ),
             ],
           ),

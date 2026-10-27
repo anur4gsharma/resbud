@@ -173,6 +173,68 @@ class _ProjectListPageState extends State<ProjectListPage> {
     }
   }
 
+  Future<void> _renameProject(LocalProject project) async {
+    final newTitle = await showDialog<String>(
+      context: context,
+      builder: (_) => _RenameProjectDialog(initialTitle: project.title),
+    );
+    if (!mounted || newTitle == null || newTitle.trim().isEmpty || newTitle.trim() == project.title) return;
+
+    try {
+      await widget.repository.updateProjectInputs(
+        projectId: project.id,
+        title: newTitle.trim(),
+        projectContext: project.projectContext,
+        sourceDraft: project.sourceDraft,
+      );
+      if (mounted) setState(_refresh);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('The project could not be renamed. Please try again.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteProjectFromList(LocalProject project) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete this project?'),
+        content: const Text(
+          'This permanently deletes the project and its saved version history. There is no cloud backup or recovery.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await widget.repository.deleteProject(project.id);
+      if (mounted) setState(_refresh);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('The project could not be deleted. Please try again.'),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('Resbud')),
@@ -185,26 +247,53 @@ class _ProjectListPageState extends State<ProjectListPage> {
       future: _projects,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return const Center(
-            child: Text('Projects could not be loaded. Try again.'),
-          );
-        }
-        if (!snapshot.hasData)
-          return const Center(child: CircularProgressIndicator());
-        final projects = snapshot.data!;
-        if (projects.isEmpty) {
-          return const Center(
+          return Center(
             child: Padding(
-              padding: EdgeInsets.all(ResbudDesignTokens.pagePadding),
+              padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.description_outlined, size: 44),
-                  SizedBox(height: ResbudDesignTokens.contentSpacing),
-                  Text('Your projects will appear here.'),
-                  SizedBox(height: 8),
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 12),
+                  const Text('Projects could not be loaded. Try again.'),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: () => setState(_refresh),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final projects = snapshot.data!;
+        if (projects.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.description_outlined, size: 48, color: ResbudDesignTokens.seedColor),
+                  const SizedBox(height: ResbudDesignTokens.contentSpacing),
                   Text(
+                    'Your projects will appear here.',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
                     'Create a project to start saving your research locally.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton.icon(
+                    onPressed: _createProject,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Create your first project'),
                   ),
                 ],
               ),
@@ -217,9 +306,52 @@ class _ProjectListPageState extends State<ProjectListPage> {
             for (final project in projects)
               Card(
                 child: ListTile(
-                  title: Text(project.title),
+                  title: Text(
+                    project.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   subtitle: Text('Updated ${_dateLabel(project.updatedAt)}'),
-                  trailing: const Icon(Icons.chevron_right),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      PopupMenuButton<String>(
+                        key: ValueKey('project-menu-${project.id}'),
+                        tooltip: 'Project options',
+                        icon: const Icon(Icons.more_vert),
+                        onSelected: (action) {
+                          if (action == 'rename') {
+                            _renameProject(project);
+                          } else if (action == 'delete') {
+                            _deleteProjectFromList(project);
+                          }
+                        },
+                        itemBuilder: (_) => [
+                          const PopupMenuItem(
+                            value: 'rename',
+                            child: Row(
+                              children: [
+                                Icon(Icons.edit_outlined, size: 20),
+                                SizedBox(width: 8),
+                                Text('Rename'),
+                              ],
+                            ),
+                          ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                                SizedBox(width: 8),
+                                Text('Delete', style: TextStyle(color: Colors.red)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  ),
                   onTap: () async {
                     await Navigator.of(context).push<void>(
                       MaterialPageRoute<void>(
@@ -286,6 +418,52 @@ class _NewProjectDialogState extends State<_NewProjectDialog> {
       FilledButton(
         onPressed: () => Navigator.pop(context, _titleController.text),
         child: const Text('Create'),
+      ),
+    ],
+  );
+}
+
+class _RenameProjectDialog extends StatefulWidget {
+  const _RenameProjectDialog({required this.initialTitle});
+
+  final String initialTitle;
+
+  @override
+  State<_RenameProjectDialog> createState() => _RenameProjectDialogState();
+}
+
+class _RenameProjectDialogState extends State<_RenameProjectDialog> {
+  late final TextEditingController _titleController;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.initialTitle);
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Rename project'),
+    content: TextField(
+      controller: _titleController,
+      autofocus: true,
+      decoration: const InputDecoration(labelText: 'Working title'),
+      onSubmitted: (value) => Navigator.pop(context, value),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _titleController.text),
+        child: const Text('Rename'),
       ),
     ],
   );

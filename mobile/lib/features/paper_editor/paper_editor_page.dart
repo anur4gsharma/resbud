@@ -735,6 +735,11 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
         },
         child: Scaffold(
           appBar: AppBar(
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              tooltip: 'Back',
+              onPressed: _handleBack,
+            ),
             title: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -757,16 +762,20 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                       decoration: BoxDecoration(
-                        color: _isDirty ? Colors.amber.shade100 : Colors.green.shade50,
+                        color: _isSaving
+                            ? Colors.blue.shade50
+                            : (_isDirty ? Colors.amber.shade100 : Colors.green.shade50),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        _isDirty ? 'Unsaved' : 'Saved',
+                        _isSaving ? 'Saving…' : (_isDirty ? 'Unsaved' : 'Saved'),
                         key: const ValueKey('save-status-badge'),
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
-                          color: _isDirty ? Colors.amber.shade900 : Colors.green.shade800,
+                          color: _isSaving
+                              ? Colors.blue.shade800
+                              : (_isDirty ? Colors.amber.shade900 : Colors.green.shade800),
                         ),
                       ),
                     ),
@@ -815,6 +824,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
           ),
           body: ListView(
             controller: _scrollController,
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
             children: [
               _buildIntegrityBanner(),
