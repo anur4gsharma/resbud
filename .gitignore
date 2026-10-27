@@ -42,3 +42,8 @@ mobile/ios/Flutter/.last_build_id
 *.iml
 .DS_Store
 Thumbs.db
+
+# Keep task prompt packs local; do not publish them with the application.
+/prompts/
+/PROMPTS_ALL_IN_ONE.md
+/PROMPT_PACK_README.md
