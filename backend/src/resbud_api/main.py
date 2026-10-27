@@ -1,5 +1,8 @@
 """Application factory and middleware assembly for Resbud."""
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
@@ -11,6 +14,7 @@ from resbud_api.core.safe_errors import SafeUnexpectedErrorMiddleware
 from resbud_api.core.settings import Settings, get_settings
 from resbud_api.providers.base import DisabledProvider, GenerationProvider
 from resbud_api.providers.fake import FakeProvider
+from resbud_api.providers.openai_provider import OpenAIProvider
 
 
 def create_app(
@@ -23,17 +27,28 @@ def create_app(
         generation_provider, FakeProvider
     ):
         raise ValueError("the fake generation provider cannot be injected in production")
+
+    @asynccontextmanager
+    async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+        yield
+        close = getattr(application.state.generation_provider, "aclose", None)
+        if close is not None:
+            await close()
+
     app = FastAPI(
         title="Resbud API",
         version="0.1.0",
         description="API for creating structured research paper drafts.",
         debug=False,
+        lifespan=lifespan,
     )
     app.state.settings = runtime_settings
     if generation_provider is not None:
         app.state.generation_provider = generation_provider
     elif runtime_settings.generation_provider == "fake":
         app.state.generation_provider = FakeProvider()
+    elif runtime_settings.generation_provider == "openai":
+        app.state.generation_provider = OpenAIProvider(runtime_settings)
     else:
         app.state.generation_provider = DisabledProvider()
     install_error_handlers(app)

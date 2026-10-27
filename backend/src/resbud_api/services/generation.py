@@ -14,6 +14,7 @@ from resbud_api.domain.models import (
 )
 from resbud_api.providers.base import (
     GenerationProvider,
+    ProviderInvalidResponse,
     ProviderRateLimited,
     ProviderTimeout,
     ProviderUnavailable,
@@ -47,6 +48,8 @@ async def generate_paper(
         raise ResbudError(503) from exc
     except ProviderRateLimited as exc:
         raise ResbudError(429) from exc
+    except ProviderInvalidResponse as exc:
+        raise ResbudError(502) from exc
 
     try:
         provider_data = json.loads(provider_result.structured_output)

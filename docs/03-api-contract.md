@@ -45,7 +45,9 @@ The request contains:
 
 The request schema is the source of truth for field types and constraints. `source_draft` must contain at least one non-whitespace character. Limits such as maximum input text size must be configurable and checked before provider invocation.
 
-The current local generation slice is a deterministic fake provider selected only by explicit `RESBUD_GENERATION_PROVIDER=fake` configuration. Its response identifies `fake` / `deterministic-demo` and carries a visible demo warning. It returns user-supplied source and references or explicit placeholders; it does not produce a research analysis. Production rejects fake mode and uses a disabled provider until a real adapter is configured. Provider output is parsed against the strict paper model, and returned references must exactly match the supplied references. No request or paper content is persisted by this flow.
+Local development can explicitly select the deterministic fake provider with `RESBUD_GENERATION_PROVIDER=fake`; its response identifies `fake` / `deterministic-demo` and carries a visible demo warning. The OpenAI adapter is selected by server configuration with `RESBUD_GENERATION_PROVIDER=openai`, `RESBUD_PROVIDER_MODEL`, and `RESBUD_PROVIDER_API_KEY`. It requests schema-constrained output, disables response-object storage, and still validates the returned `PaperDraft` locally. Returned references must exactly match the supplied references. Resbud does not persist request or paper content; provider processing and applicable provider retention terms still apply.
+
+The OpenAI adapter caps output at `RESBUD_PROVIDER_MAX_OUTPUT_TOKENS` (default 12,000) and uses separately configured connection and read timeouts (defaults 5 and 90 seconds). Its SDK retries are disabled to avoid repeating a potentially billable call. The token cap does not guarantee a specific cost; cost depends on the configured model and input size. Model availability is account-specific and must be checked with the optional local smoke test in `docs/07-openai-provider.md`.
 
 ## 4. Generate response
 

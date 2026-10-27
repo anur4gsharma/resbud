@@ -9,7 +9,7 @@ from pydantic import AnyHttpUrl, Field, SecretStr, TypeAdapter, field_validator,
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "test", "production"]
-GenerationProvider = Literal["fake", "disabled"]
+GenerationProvider = Literal["fake", "openai", "disabled"]
 MAX_REQUEST_BODY_BYTES = 4 * 1024 * 1024
 _HTTP_URL = TypeAdapter(AnyHttpUrl)
 
@@ -29,6 +29,24 @@ class Settings(BaseSettings):
     environment: Environment = Field(..., validation_alias="RESBUD_ENV")
     generation_provider: GenerationProvider = Field(
         default="disabled", validation_alias="RESBUD_GENERATION_PROVIDER"
+    )
+    provider_model: str | None = Field(
+        default=None, max_length=100, validation_alias="RESBUD_PROVIDER_MODEL"
+    )
+    provider_max_output_tokens: int = Field(
+        default=12000, ge=256, le=16000, validation_alias="RESBUD_PROVIDER_MAX_OUTPUT_TOKENS"
+    )
+    provider_connect_timeout_seconds: float = Field(
+        default=5.0,
+        ge=1.0,
+        le=30.0,
+        validation_alias="RESBUD_PROVIDER_CONNECT_TIMEOUT_SECONDS",
+    )
+    provider_read_timeout_seconds: float = Field(
+        default=90.0,
+        ge=5.0,
+        le=300.0,
+        validation_alias="RESBUD_PROVIDER_READ_TIMEOUT_SECONDS",
     )
     provider_api_key: SecretStr | None = Field(
         default=None, validation_alias="RESBUD_PROVIDER_API_KEY"
@@ -50,6 +68,13 @@ class Settings(BaseSettings):
         if self.environment == "production" and self.generation_provider == "fake":
             raise ValueError("the fake generation provider cannot be enabled in production")
         return self
+
+    @field_validator("provider_model", mode="before")
+    @classmethod
+    def normalize_provider_model(cls, value: object) -> object:
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
 
     @field_validator("provider_api_key", mode="before")
     @classmethod
@@ -93,8 +118,16 @@ class Settings(BaseSettings):
             return []
 
         missing: list[str] = []
-        if self.provider_api_key is None or not self.provider_api_key.get_secret_value().strip():
-            missing.append("provider_api_key")
+        if self.generation_provider == "disabled":
+            missing.append("generation_provider")
+        if self.generation_provider == "openai":
+            if (
+                self.provider_api_key is None
+                or not self.provider_api_key.get_secret_value().strip()
+            ):
+                missing.append("provider_api_key")
+            if self.provider_model is None:
+                missing.append("provider_model")
         if self.auth_issuer is None:
             missing.append("auth_issuer")
         if not self.auth_audience:

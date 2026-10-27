@@ -36,6 +36,7 @@ class ProviderResult:
     duration_ms: int
     input_tokens: int | None = None
     output_tokens: int | None = None
+    request_id: str | None = None
 
 
 class ProviderTimeout(Exception):
@@ -48,6 +49,10 @@ class ProviderUnavailable(Exception):
 
 class ProviderRateLimited(Exception):
     """The configured provider rejected a request due to its own quota."""
+
+
+class ProviderInvalidResponse(Exception):
+    """The provider response could not be parsed as the expected structured output."""
 
 
 class GenerationProvider(Protocol):
