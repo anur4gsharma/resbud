@@ -10,6 +10,7 @@ from resbud_api.api.error_handlers import install_error_handlers
 from resbud_api.api.routes.exports import router as exports_router
 from resbud_api.api.routes.generations import router as generations_router
 from resbud_api.api.routes.health import router as health_router
+from resbud_api.core.rate_limit import InMemoryRateLimiter
 from resbud_api.core.request_boundary import RequestBoundaryMiddleware
 from resbud_api.core.safe_errors import SafeUnexpectedErrorMiddleware
 from resbud_api.core.settings import Settings, get_settings
@@ -44,6 +45,9 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.settings = runtime_settings
+    app.state.rate_limiter = InMemoryRateLimiter(
+        limit_per_minute=runtime_settings.rate_limit_per_minute
+    )
     if generation_provider is not None:
         app.state.generation_provider = generation_provider
     elif runtime_settings.generation_provider == "fake":

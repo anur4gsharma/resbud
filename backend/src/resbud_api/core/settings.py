@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     )
     auth_issuer: AnyHttpUrl | None = Field(default=None, validation_alias="RESBUD_AUTH_ISSUER")
     auth_audience: str | None = Field(default=None, validation_alias="RESBUD_AUTH_AUDIENCE")
+    auth_signing_key: SecretStr | None = Field(
+        default=None, validation_alias="RESBUD_AUTH_SIGNING_KEY"
+    )
+    rate_limit_per_minute: int = Field(
+        default=30, ge=1, le=1000, validation_alias="RESBUD_RATE_LIMIT_PER_MINUTE"
+    )
     cors_allowed_origins: list[str] = Field(
         default_factory=list, validation_alias="RESBUD_CORS_ALLOWED_ORIGINS"
     )
@@ -76,13 +82,14 @@ class Settings(BaseSettings):
             return value.strip() or None
         return value
 
-    @field_validator("provider_api_key", mode="before")
+    @field_validator("provider_api_key", "auth_signing_key", mode="before")
     @classmethod
     def ignore_provider_key_placeholders(cls, value: object) -> object:
         if isinstance(value, str) and value.strip().lower() in {
             "replace-me",
             "replace-with-your-local-secret",
             "your-api-key",
+            "your-signing-key",
         }:
             return None
         return value

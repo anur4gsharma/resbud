@@ -32,6 +32,14 @@ class ResbudError(Exception):
         super().__init__(self.public_error.code)
 
 
+class ResbudRateLimitError(ResbudError):
+    """Specific error for rate limiting to attach a Retry-After header."""
+
+    def __init__(self, retry_after: int = 60) -> None:
+        super().__init__(429)
+        self.retry_after = retry_after
+
+
 HTTP_ERROR_DEFAULTS: dict[int, SafeHttpError] = {
     400: SafeHttpError(
         400, "INVALID_REQUEST", "Invalid request", "The request could not be processed."

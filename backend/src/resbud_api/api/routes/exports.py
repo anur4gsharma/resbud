@@ -2,14 +2,20 @@
 
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import Response
 
 from resbud_api.api.routes.generations import ERROR_RESPONSES, REQUEST_ID_HEADER
+from resbud_api.core.auth import get_current_user
+from resbud_api.core.rate_limit import check_rate_limit
 from resbud_api.domain.models import PaperDraft
 from resbud_api.services.docx_export import DOCX_MEDIA_TYPE, export_paper_docx, safe_docx_filename
 
-router = APIRouter(prefix="/api/v1/exports", tags=["export"])
+router = APIRouter(
+    prefix="/api/v1/exports",
+    tags=["export"],
+    dependencies=[Depends(get_current_user), Depends(check_rate_limit)],
+)
 EXPORT_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     status: details
     for status, details in ERROR_RESPONSES.items()

@@ -88,12 +88,6 @@ void main() {
     tester,
   ) async {
     await pumpInput(tester);
-    const groupLabels = [
-      'Methodology',
-      'Dataset Or Materials',
-      'Results',
-      'Limitations',
-    ];
     final expectedOptions = <List<String>>[
       [
         'Provided',
@@ -122,15 +116,16 @@ void main() {
         'Unknown / not supplied yet',
       ],
     ];
+    final statusKeys = [
+      'methodology_status',
+      'dataset_or_materials_status',
+      'results_status',
+      'limitations_status',
+    ];
     for (var index = 0; index < 4; index++) {
-      await scrollTo(tester, find.text(groupLabels[index]));
-      await tester.tap(
-        find.byKey(
-          ValueKey(
-            'status-${['methodology_status', 'dataset_or_materials_status', 'results_status', 'limitations_status'][index]}',
-          ),
-        ),
-      );
+      final dropdownFinder = find.byKey(ValueKey('status-${statusKeys[index]}'));
+      await scrollTo(tester, dropdownFinder);
+      await tester.tap(dropdownFinder);
       await tester.pumpAndSettle();
       for (final option in expectedOptions[index]) {
         expect(find.text(option), findsWidgets);
@@ -404,5 +399,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Review generated draft'), findsOneWidget);
+  });
+
+  testWidgets('displays user-facing data transmission and privacy notice', (
+    tester,
+  ) async {
+    await pumpInput(tester);
+    final privacyCard = find.byKey(const ValueKey('privacy-transmission-card'));
+    await scrollTo(tester, privacyCard);
+    expect(privacyCard, findsOneWidget);
+    expect(
+      find.textContaining('Transmission Notice: Generating transmits your project facts'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Resbud does not store drafts on the server'),
+      findsOneWidget,
+    );
   });
 }

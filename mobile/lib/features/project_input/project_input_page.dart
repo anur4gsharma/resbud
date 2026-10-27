@@ -1000,7 +1000,37 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                   style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+            Container(
+              key: const ValueKey('privacy-transmission-card'),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blueGrey.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blueGrey.shade200),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.privacy_tip_outlined,
+                    size: 20,
+                    color: Colors.blueGrey.shade700,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Transmission Notice: Generating transmits your project facts, source material, and references to the configured model provider to synthesize your draft. Resbud does not store drafts on the server; your work remains saved locally on this device.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontSize: 12,
+                            color: Colors.blueGrey.shade900,
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: _showSummary,
               icon: const Icon(Icons.fact_check_outlined),

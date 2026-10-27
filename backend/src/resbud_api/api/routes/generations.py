@@ -4,7 +4,9 @@ from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, Request
 
+from resbud_api.core.auth import get_current_user
 from resbud_api.core.errors import ApiErrorResponse
+from resbud_api.core.rate_limit import check_rate_limit
 from resbud_api.domain.models import (
     GenerationRequest,
     GenerationResponse,
@@ -14,7 +16,11 @@ from resbud_api.domain.models import (
 from resbud_api.providers.base import GenerationProvider
 from resbud_api.services.generation import generate_paper, regenerate_section
 
-router = APIRouter(prefix="/api/v1/generations", tags=["generation"])
+router = APIRouter(
+    prefix="/api/v1/generations",
+    tags=["generation"],
+    dependencies=[Depends(get_current_user), Depends(check_rate_limit)],
+)
 REQUEST_ID_HEADER = {
     "X-Request-ID": {
         "description": "Request correlation identifier.",

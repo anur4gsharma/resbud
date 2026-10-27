@@ -106,13 +106,24 @@ Before remote beta:
 
 ## 9. Security release checklist
 
-- [ ] Provider secrets are runtime-injected and absent from the repository and mobile binary.
-- [ ] Production startup refuses unsafe configuration.
-- [ ] Remote requests require validated authentication.
-- [ ] Rate limits and input/output bounds are active.
-- [ ] TLS is enabled on the deployed API.
-- [ ] Content is excluded from ordinary logs.
-- [ ] Privacy disclosure is shown before transmission.
-- [ ] Error responses do not leak stack traces, credentials, file paths, or provider internals.
-- [ ] Dependency and secret scans are run before release.
-- [ ] Known risks and provider data-handling assumptions are documented.
+The security controls are partitioned into code-enforced controls verified continuously by automated test suites and hosting/infrastructure controls enforced during environment provisioning and operations.
+
+### 9.1 Code-Enforced Controls (Automated Verification)
+
+- [x] **Environment Mode Gate**: `RESBUD_ENV` is strictly validated. In `production`, placeholder values for keys/issuers and `fake` providers are rejected at startup.
+- [x] **Authentication Enforcement**: Remote endpoints (`/api/v1/generations`, `/api/v1/generations/sections`, `/api/v1/exports/docx`) reject unauthenticated, malformed, invalid-signature, or expired tokens with HTTP 401. Issuer and audience validation are enforced against configured OIDC claims.
+- [x] **Rate Limiting & Abuse Prevention**: Per-caller / per-IP sliding-window rate limit is enforced, responding with HTTP 429 `RATE_LIMITED` and a standard `Retry-After` header.
+- [x] **Request Body and Input Bounds**: Request bodies exceeding `RESBUD_MAX_REQUEST_BODY_BYTES` (default 4 MiB) are rejected before parsing with HTTP 413 `REQUEST_TOO_LARGE`. String fields have strict character length limits.
+- [x] **Operational Logging Sanitization**: Draft text, references, user prompts, generated output, `Authorization` headers, and provider secrets are explicitly excluded from logs. Sensitive keys are redacted using sentinel masks (`***`).
+- [x] **Health Probe Information Leakage Prevention**: `/health/live` and `/health/ready` reveal no secrets, stack traces, internal IP addresses, or provider internals.
+- [x] **Server-Side Content Non-Retention**: Generations and DOCX exports are processed strictly in-memory without persistent disk or database retention.
+- [x] **Client-Side Privacy Notice**: Mobile UI includes explicit transmission notice disclosing what data is transmitted, why, and that Resbud does not retain drafts server-side.
+
+### 9.2 Hosting and Infrastructure Controls (Operational Verification)
+
+- [ ] **TLS / HTTPS Termination**: Reverse proxy (e.g., NGINX, Cloudflare, AWS ALB) must enforce HTTPS with TLS 1.3/1.2; HTTP traffic must redirect to HTTPS with HSTS enabled.
+- [ ] **Restricted CORS Policy**: `RESBUD_CORS_ALLOWED_ORIGINS` must only contain exact authorized frontend domains; wildcards (`*`) and credentials on wildcards are forbidden.
+- [ ] **OIDC Provider Configuration & Secret Rotation**: Production signing keys or JWKS endpoints must be injected securely via KMS/secret manager (e.g., AWS Secrets Manager, Vault) and rotated on a defined schedule.
+- [ ] **Distributed Rate Limiting (Multi-Instance)**: When running behind a multi-instance load balancer, replace in-memory sliding window with a centralized rate limit cache (e.g., Redis) or enforce IP rate limiting at the reverse proxy/WAF tier.
+- [ ] **Log Retention & Access Isolation**: Production application logs must be shipped to a centralized monitoring system with access controls, encrypted at rest, and subject to a defined log retention window.
+- [ ] **Vulnerability & Secret Scanning**: Run static vulnerability analysis (e.g., `pip-audit`, `trivy`, `gitleaks`) on CI release pipelines before building container images.
