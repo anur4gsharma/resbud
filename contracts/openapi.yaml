@@ -1,0 +1,329 @@
+openapi: 3.1.0
+info:
+  title: Resbud API
+  version: 1.0.0
+  description: API for structured research-paper drafting and DOCX export. Research content is processed per request and is not persisted by default. Every response includes X-Request-ID; errors repeat it as request_id.
+servers:
+  - url: http://127.0.0.1:8000
+    description: Local development only; use HTTPS in deployed environments.
+paths:
+  /health/live:
+    get:
+      operationId: liveness
+      summary: Liveness check
+      responses:
+        '200':
+          description: The process is alive.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { const: alive }
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/RequestId' }
+  /health/ready:
+    get:
+      operationId: readiness
+      summary: Readiness check
+      responses:
+        '200':
+          description: Required configuration is available.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { const: ready }
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/RequestId' }
+        '503':
+          description: The service is not ready.
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [status]
+                properties:
+                  status: { const: not_ready }
+  /api/v1/generations:
+    post:
+      operationId: generatePaper
+      summary: Generate a structured paper draft
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerationRequest'
+      responses:
+        '200':
+          description: A schema-valid generated paper draft.
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationResponse'
+        '400': { $ref: '#/components/responses/ApiError' }
+        '401': { $ref: '#/components/responses/ApiError' }
+        '403': { $ref: '#/components/responses/ApiError' }
+        '405': { $ref: '#/components/responses/ApiError' }
+        '413': { $ref: '#/components/responses/ApiError' }
+        '415': { $ref: '#/components/responses/ApiError' }
+        '422': { $ref: '#/components/responses/ApiError' }
+        '429': { $ref: '#/components/responses/ApiError' }
+        '500': { $ref: '#/components/responses/ApiError' }
+        '502': { $ref: '#/components/responses/ApiError' }
+        '503': { $ref: '#/components/responses/ApiError' }
+        '504': { $ref: '#/components/responses/ApiError' }
+  /api/v1/generations/sections:
+    post:
+      operationId: regenerateSection
+      summary: Propose a replacement for one paper section
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SectionRegenerationRequest'
+      responses:
+        '200':
+          description: Proposed replacement. The client must preview before applying.
+          headers:
+            X-Request-ID: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SectionRegenerationResponse'
+        '400': { $ref: '#/components/responses/ApiError' }
+        '401': { $ref: '#/components/responses/ApiError' }
+        '403': { $ref: '#/components/responses/ApiError' }
+        '405': { $ref: '#/components/responses/ApiError' }
+        '413': { $ref: '#/components/responses/ApiError' }
+        '415': { $ref: '#/components/responses/ApiError' }
+        '422': { $ref: '#/components/responses/ApiError' }
+        '429': { $ref: '#/components/responses/ApiError' }
+        '500': { $ref: '#/components/responses/ApiError' }
+        '502': { $ref: '#/components/responses/ApiError' }
+        '503': { $ref: '#/components/responses/ApiError' }
+        '504': { $ref: '#/components/responses/ApiError' }
+  /api/v1/exports/docx:
+    post:
+      operationId: exportDocx
+      summary: Export the submitted current draft as a DOCX file
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaperDraft'
+      responses:
+        '200':
+          description: Generated DOCX document; not stored by the server.
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+            X-Request-ID: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+              schema:
+                type: string
+                format: binary
+        '400': { $ref: '#/components/responses/ApiError' }
+        '401': { $ref: '#/components/responses/ApiError' }
+        '403': { $ref: '#/components/responses/ApiError' }
+        '405': { $ref: '#/components/responses/ApiError' }
+        '413': { $ref: '#/components/responses/ApiError' }
+        '415': { $ref: '#/components/responses/ApiError' }
+        '422': { $ref: '#/components/responses/ApiError' }
+        '429': { $ref: '#/components/responses/ApiError' }
+        '500': { $ref: '#/components/responses/ApiError' }
+components:
+  headers:
+    RequestId:
+      description: Request correlation identifier. Also returned in ApiError.request_id for errors.
+      schema:
+        type: string
+        maxLength: 100
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Required in deployed environments. Local development may bypass auth only on loopback and only with explicit development configuration.
+  responses:
+    ApiError:
+      description: Stable application error response.
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+  schemas:
+    ProjectContext:
+      type: object
+      additionalProperties: false
+      required: [title, research_field, research_question, objectives, claimed_contribution, methodology_status, dataset_or_materials_status, results_status, limitations_status]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 300 }
+        research_field: { type: string, minLength: 1, maxLength: 200 }
+        research_question: { type: string, minLength: 1, maxLength: 4000 }
+        objectives:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items: { type: string, minLength: 1, maxLength: 1000 }
+        claimed_contribution: { type: string, maxLength: 4000 }
+        methodology_status: { type: string, enum: [provided, not_available, not_applicable] }
+        methodology: { type: [string, 'null'], maxLength: 12000 }
+        dataset_or_materials_status: { type: string, enum: [provided, not_available, not_applicable] }
+        dataset_or_materials: { type: [string, 'null'], maxLength: 8000 }
+        results_status: { type: string, enum: [provided, not_collected, not_available, not_applicable] }
+        results: { type: [string, 'null'], maxLength: 12000 }
+        limitations_status: { type: string, enum: [provided, not_identified, not_available, not_applicable] }
+        limitations: { type: [string, 'null'], maxLength: 8000 }
+    ReferenceInput:
+      type: object
+      additionalProperties: false
+      required: [id, text]
+      properties:
+        id: { type: string, pattern: '^[A-Za-z0-9_-]{1,40}$' }
+        text: { type: string, minLength: 1, maxLength: 2000 }
+    PaperPreferences:
+      type: object
+      additionalProperties: false
+      required: [target_word_count, desired_sections, citation_style]
+      properties:
+        target_word_count: { type: integer, minimum: 500, maximum: 8000 }
+        desired_sections:
+          type: array
+          maxItems: 15
+          uniqueItems: true
+          items: { type: string, pattern: '^[a-z][a-z0-9_]{1,39}$' }
+        citation_style: { type: string, enum: [user_supplied, apa_7, ieee, other] }
+    GenerationRequest:
+      type: object
+      additionalProperties: false
+      required: [schema_version, project, source_draft, references, preferences]
+      properties:
+        schema_version: { const: 1 }
+        project: { $ref: '#/components/schemas/ProjectContext' }
+        source_draft: { type: string, minLength: 1, maxLength: 50000, pattern: '.*\S.*', description: 'Non-whitespace source text; maximum 50,000 characters.' }
+        references:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/ReferenceInput' }
+        preferences: { $ref: '#/components/schemas/PaperPreferences' }
+    ReviewWarning:
+      type: object
+      additionalProperties: false
+      required: [code, severity, message]
+      properties:
+        code:
+          type: string
+          enum: [MISSING_METHOD, MISSING_DATASET_DETAILS, MISSING_RESULTS, MISSING_LIMITATIONS, CITATION_NEEDED, REFERENCE_INCOMPLETE, CLAIM_NEEDS_REVIEW, INPUT_CONFLICT, SECTION_NOT_APPLICABLE, GENERAL_REVIEW]
+        severity: { type: string, enum: [info, warning, critical] }
+        message: { type: string, minLength: 1, maxLength: 1000 }
+        section_id: { type: [string, 'null'], pattern: '^[a-z][a-z0-9_]{1,39}$' }
+    PaperSection:
+      type: object
+      additionalProperties: false
+      required: [id, heading, content, state]
+      properties:
+        id: { type: string, pattern: '^[a-z][a-z0-9_]{1,39}$' }
+        heading: { type: string, minLength: 1, maxLength: 150 }
+        content: { type: string, maxLength: 30000 }
+        state: { type: string, enum: [draft, needs_input, not_applicable] }
+    PaperDraft:
+      type: object
+      additionalProperties: false
+      required: [schema_version, title, abstract, keywords, sections, references, review_warnings]
+      properties:
+        schema_version: { const: 1 }
+        title: { type: string, minLength: 1, maxLength: 300 }
+        abstract: { type: string, maxLength: 6000 }
+        keywords:
+          type: array
+          maxItems: 10
+          items: { type: string, minLength: 1, maxLength: 100 }
+        sections:
+          type: array
+          minItems: 1
+          maxItems: 15
+          items: { $ref: '#/components/schemas/PaperSection' }
+        references:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/ReferenceInput' }
+        review_warnings:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/ReviewWarning' }
+    GenerationResponse:
+      type: object
+      additionalProperties: false
+      required: [schema_version, generation_id, paper, review_warnings, meta]
+      properties:
+        schema_version: { const: 1 }
+        generation_id: { type: string, format: uuid }
+        paper: { $ref: '#/components/schemas/PaperDraft' }
+        review_warnings:
+          type: array
+          items: { $ref: '#/components/schemas/ReviewWarning' }
+        meta:
+          type: object
+          additionalProperties: false
+          required: [provider_name, model_name, duration_ms]
+          properties:
+            provider_name: { type: string, maxLength: 100 }
+            model_name: { type: string, maxLength: 100 }
+            duration_ms: { type: integer, minimum: 0 }
+            input_tokens: { type: [integer, 'null'], minimum: 0 }
+            output_tokens: { type: [integer, 'null'], minimum: 0 }
+    SectionRegenerationRequest:
+      description: A proposal request. The section_id must occur exactly once in current_paper.sections; an unknown or duplicate ID is rejected with 422 VALIDATION_ERROR.
+      type: object
+      additionalProperties: false
+      required: [schema_version, generation_request, current_paper, section_id, user_instruction]
+      properties:
+        schema_version: { const: 1 }
+        generation_request: { $ref: '#/components/schemas/GenerationRequest' }
+        current_paper: { $ref: '#/components/schemas/PaperDraft' }
+        section_id: { type: string, pattern: '^[a-z][a-z0-9_]{1,39}$', description: 'ID of exactly one section in current_paper.sections.' }
+        user_instruction: { type: string, maxLength: 2000 }
+    SectionRegenerationResponse:
+      description: A proposed replacement only. section.id equals the requested section_id. The client previews it and applies it only after explicit user acceptance; all other sections and references remain unchanged until then.
+      type: object
+      additionalProperties: false
+      required: [schema_version, section, review_warnings]
+      properties:
+        schema_version: { const: 1 }
+        section: { $ref: '#/components/schemas/PaperSection' }
+        review_warnings:
+          type: array
+          items: { $ref: '#/components/schemas/ReviewWarning' }
+    ApiError:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, detail, code, request_id]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { type: string, pattern: '^[A-Z0-9_]+$' }
+        request_id: { type: string, maxLength: 100 }

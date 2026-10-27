@@ -1,0 +1,62 @@
+# 11 — Specification Audit and Decisions
+
+**Audit date:** 2026-10-27
+
+**Scope:** Prompt 01; documentation and machine-readable contracts only. No application implementation exists in this checkout.
+
+**Repository state at start:** `README.md` was modified and `PROMPTS_ALL_IN_ONE.md`, `PROMPT_PACK_README.md`, `SPEC_README_ORIGINAL.md`, `contracts/`, `docs/`, and `prompts/` were untracked. These supplied files were inspected and preserved; subsequent changes are additive or targeted documentation/contract edits.
+
+## Findings and reconciliation
+
+| Issue | Evidence/path | Risk | Resolution | Affected files | Test needed |
+|---|---|---|---|---|---|
+| README targets for local storage and ADRs were absent in the original specification README. | `SPEC_README_ORIGINAL.md` links `docs/05-data-model-and-storage.md` and `docs/adr/`; neither existed at audit start. Root `README.md` also omitted storage from its reading list. | Persistence semantics and migration safety would be guessed during implementation; broken links reduce discoverability. | Add a complete local storage/version/recovery specification and ADR directory; include storage in the root README reading list. All local Markdown links in the three repository README files now resolve. | `README.md`, `docs/05-data-model-and-storage.md`, `docs/adr/0002-local-first-versioned-storage.md` | Link checker; storage tests listed in section 3. |
+| Source import had no agreed extraction boundary or bounded malformed-file behavior. | P0 FR-003/016 in `docs/01-requirements-and-acceptance.md`; client import ownership in `docs/02-architecture.md`; no upload path in either OpenAPI copy. | An implementer might add an unnecessary backend upload and transmit file bytes just to extract text, or implement unsafe/unbounded parsing. | Resolve as on-device extraction with no import endpoint. Define UTF-8 TXT, non-encrypted DOCX, 10 MiB input cap, 1,000 ZIP-entry and 50 MiB expanded-size caps, extracted-content scope, errors, privacy, and tests. Record rationale in ADR 0001. | `docs/03-api-contract.md`, `docs/adr/0001-on-device-source-import.md` | Valid TXT/DOCX, raw-size boundary, invalid UTF-8, malformed/encrypted DOCX, missing main XML, ZIP expansion/entry limits, empty extraction, and project-preservation tests. |
+| Section regeneration did not state how the target relates to the current paper or guarantee identity/preservation in the wire contract. | `SectionRegenerationRequest`/`Response` in `contracts/openapi.yaml`; behavioral rule only in `docs/04-paper-schema.md`. | Client could accept a mismatched section or overwrite unrelated local edits. | Define target ID must occur exactly once; missing/duplicate target returns `422 VALIDATION_ERROR`; proposal contains one section whose ID matches target; no mutation; preview then explicit acceptance creates a version changing only target; cancel/failure preserves current version. | `contracts/openapi.yaml`, `docs/openapi.yaml`, `docs/03-api-contract.md`, `docs/04-paper-schema.md` | Target missing/duplicate/mismatched tests; byte-for-byte preservation of non-target sections and references before acceptance and after accepting the replacement; cancel/failure preservation. |
+| Whitespace-only source draft was rejected by prose but accepted by the request schemas. | AC-02 in `docs/01-requirements-and-acceptance.md`; `source_draft` schemas only had `minLength: 1`. | Schema-valid request could reach implementation/provider despite having no meaningful source. | Add a non-whitespace pattern and document boundary rejection. | `contracts/generation-request.schema.json`, `docs/generation-request.schema.json`, `contracts/openapi.yaml`, `docs/openapi.yaml`, `docs/03-api-contract.md` | Schema and API tests for empty, whitespace-only, and valid source. |
+| Local persistence, draft version semantics, paper-schema evolution, and recovery behavior lacked a standalone specification. | Existing SQLite/local-first mentions in `docs/02-architecture.md`, `docs/04-paper-schema.md`, and testing/milestone docs; referenced-but-missing document in original README. | Overwrite races, data loss on failed writes/migrations, and silent destruction of unsupported drafts. | Specify project and immutable paper snapshots, atomic current-version updates, numbered DB migrations, explicit schema migrations, unsupported-version recovery, corruption preservation, deletion, backup limitations, and tests. Record local-first choice in ADR 0002. | `docs/05-data-model-and-storage.md`, `docs/adr/0002-local-first-versioned-storage.md` | Create/reopen, ordering, rollback, immutable snapshots, target-only accepted replacement, migration success/failure, unsupported schema, corruption preservation, deletion, and content-free logs. |
+| Client cancellation could be mistaken for cancellation of an already submitted provider call. | FR-014 in `docs/01-requirements-and-acceptance.md`; no cancellation route in OpenAPI. | Misleading user expectation and duplicate paid calls after retry. | State that client cancellation abandons the wait/result only; it does not guarantee transport/provider cancellation. Preserve saved data and do not retry automatically. | `docs/03-api-contract.md` | Client cancellation/late-response test and documented UI copy; no server cancellation endpoint is in scope. |
+| Release controls existed across requirements/security/API docs but lacked a consolidated precise request ceiling and CORS/readiness behavior. | NFR-001–009, `docs/03-api-contract.md`, `docs/06-security-privacy.md`, and OpenAPI health/security sections. | Inconsistent proxy/app limits, unsafe browser configuration, or health responses that disclose configuration. | State a 4 MiB JSON body ceiling before parsing, accounting for escaped text and the largest schema-valid paper; retain field/provider budgets, restrict CORS to configured browser origins, and keep health responses secret-free and non-billable. Existing docs require remote authentication, rate/cost limits, HTTPS, server-side provider secrets, and content-free logs before beta. | `docs/06-security-privacy.md`, `docs/03-api-contract.md` | Boundary tests at and over body cap; CORS configuration tests; readiness/liveness response and no-secret/no-content log tests; auth/rate-limit deployment tests. |
+| Machine-readable contract copies existed in both `docs/` and `contracts/`. | `docs/openapi.yaml`, `contracts/openapi.yaml`, and duplicated request/paper JSON Schemas. | Copies can drift independently and confuse implementers about the canonical contract. | Declare `contracts/` canonical in existing docs and keep `docs/` copies byte-identical for the supplied README/documentation package. | `contracts/*`, `docs/*schema.json`, `docs/openapi.yaml`, `docs/03-api-contract.md` | `cmp` each duplicate pair in CI or repository validation. |
+| Deployment authentication provider and remote hosting/cost were not selected. | `docs/06-security-privacy.md` says choose managed auth before beta; local-first product scope defers accounts/cloud storage. | Choosing an auth/hosting vendor changes privacy, cost, and operations. | Leave unresolved; select a managed OIDC/auth and hosting plan in deployment planning before remote beta. Do not treat loopback development as production-ready. | `docs/06-security-privacy.md`, future deployment ADR | Release tests for validated issuer/audience/signature/expiry, revocation, per-user limits, and unsafe production startup after a provider is selected. |
+
+## P0 traceability
+
+At the time of this audit the checkout contained only the specification pack. Prompt 02/03 have since added repository tooling and backend health/configuration/error foundations; the P0 product workflows below remain unimplemented. Locations identify the intended boundaries from `docs/02-architecture.md`, and acceptance criteria live in `docs/01-requirements-and-acceptance.md`.
+
+| Requirement | Intended implementation location | Acceptance evidence/test |
+|---|---|---|
+| FR-001 create/rename/edit/delete project | Flutter project UI and local repository; `docs/05-data-model-and-storage.md` | AC-01; `project_create_update_delete_and_reopen` |
+| FR-002 structured project facts | Flutter project form; API/domain `ProjectContext` | AC-02; `project_context_validation` |
+| FR-003 pasted/imported TXT/DOCX | Flutter import service and input form; no API upload route | AC-06; `txt_docx_import_valid_and_invalid_cases` |
+| FR-004 explicit statuses and references | Flutter input form; API/domain schemas | AC-02/04; `evidence_status_and_reference_round_trip` |
+| FR-005 pre-generation validation/limits | Flutter validation plus API request boundary and provider budget | AC-02; `generation_input_limits_reject_before_provider` |
+| FR-006 generate paper | FastAPI route → generation use case → provider port/adapter | AC-03; `generation_fake_provider_success` |
+| FR-007 schema-valid output | generation service/domain output validator | AC-03; `generation_response_matches_paper_schema` |
+| FR-008 warnings shown | integrity/warning service and Flutter review UI | AC-04; `missing_information_warnings_render` |
+| FR-009 edit sections | Flutter editor and local version repository | AC-05; `manual_edit_creates_reopenable_version` |
+| FR-010 selected-section regeneration | section service/API plus Flutter preview/accept flow | AC-05; `regeneration_preview_preserves_non_target_sections` |
+| FR-011 local projects/versions survive restart | Flutter SQLite repository | AC-01; `project_and_versions_survive_restart` |
+| FR-012 DOCX export | FastAPI in-memory exporter and Flutter export action | AC-06; `docx_export_current_saved_paper` |
+| FR-013 stable actionable errors | API error mapper and Flutter error presentation | Error contract; `api_error_codes_map_to_actions` |
+| FR-014 leave/cancel pending screen safely | Flutter request state/repository; synchronous API has no cancel guarantee | AC-03; `cancelled_or_late_result_does_not_change_saved_draft` |
+| FR-015 review/source-verification disclosure | Flutter generation/review/export UI | Privacy/review gates; `review_disclosure_visible_before_send_and_on_output` |
+| FR-016 import failure preserves project | Flutter import service and transactional repository | AC-06; `failed_import_preserves_previous_project_content` |
+
+## Contract comparison
+
+- Both OpenAPI copies define generation request/response, paper, error, export, health, and section-regeneration request/response. No import HTTP route is intentional under ADR 0001.
+- The standalone `GenerationRequest` JSON Schema and OpenAPI `GenerationRequest` describe the same field set and limits after reconciliation, including the non-whitespace `source_draft` rule. The standalone paper schema aligns with the OpenAPI `PaperDraft`/`PaperSection`/`ReviewWarning` definitions.
+- Section-specific identity and acceptance are cross-field/client workflow invariants that JSON Schema cannot fully express; the OpenAPI descriptions and API behavior section now define them explicitly.
+- The generation response and API error schemas are currently defined in OpenAPI only. This is not a mismatch because no standalone response/error schema is referenced by the documentation; adding them can wait until a consumer requires separate artifacts.
+- Server privacy remains transient processing: generation content is sent to the configured provider; export content passes through the API; neither is persisted by default. Local project content resides on device.
+
+## Unresolved decisions
+
+1. Which managed identity/OIDC provider and hosting region/plan will serve a remote beta? Decide and record before remote deployment; it affects privacy, operating cost, and revocation procedures.
+2. What retention and access policy applies to operational metadata in the chosen deployment? The app must not log content; the hosting provider's platform-level log retention still needs to be documented.
+3. Whether a future portable, restorable project backup is needed. DOCX export is not a project backup; cloud sync remains out of MVP scope.
+
+## Validation performed
+
+Commands and actual outcomes for this audit are reported in the task completion message. Syntax validation proves only that JSON/YAML parses; it does not prove a running implementation conforms.

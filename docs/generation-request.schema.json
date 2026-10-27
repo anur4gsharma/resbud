@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://resbud.example/schemas/generation-request.schema.json",
+  "title": "Resbud Generation Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "project",
+    "source_draft",
+    "references",
+    "preferences"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "research_field",
+        "research_question",
+        "objectives",
+        "claimed_contribution",
+        "methodology_status",
+        "dataset_or_materials_status",
+        "results_status",
+        "limitations_status"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "research_field": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "research_question": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "objectives": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        },
+        "claimed_contribution": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "methodology_status": {
+          "type": "string",
+          "enum": [
+            "provided",
+            "not_available",
+            "not_applicable"
+          ]
+        },
+        "methodology": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 12000
+        },
+        "dataset_or_materials_status": {
+          "type": "string",
+          "enum": [
+            "provided",
+            "not_available",
+            "not_applicable"
+          ]
+        },
+        "dataset_or_materials": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 8000
+        },
+        "results_status": {
+          "type": "string",
+          "enum": [
+            "provided",
+            "not_collected",
+            "not_available",
+            "not_applicable"
+          ]
+        },
+        "results": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 12000
+        },
+        "limitations_status": {
+          "type": "string",
+          "enum": [
+            "provided",
+            "not_identified",
+            "not_available",
+            "not_applicable"
+          ]
+        },
+        "limitations": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 8000
+        }
+      }
+    },
+    "source_draft": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50000,
+      "pattern": ".*\\S.*",
+      "description": "Non-whitespace source text; maximum 50,000 characters."
+    },
+    "references": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "text"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,40}$"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        }
+      }
+    },
+    "preferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_word_count",
+        "desired_sections",
+        "citation_style"
+      ],
+      "properties": {
+        "target_word_count": {
+          "type": "integer",
+          "minimum": 500,
+          "maximum": 8000
+        },
+        "desired_sections": {
+          "type": "array",
+          "maxItems": 15,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,39}$"
+          }
+        },
+        "citation_style": {
+          "type": "string",
+          "enum": [
+            "user_supplied",
+            "apa_7",
+            "ieee",
+            "other"
+          ]
+        }
+      }
+    }
+  }
+}

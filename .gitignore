@@ -1,0 +1,44 @@
+# Python / uv
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Local data and generated documents
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.docx
+*.tmp
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+mobile/build/
+mobile/coverage/
+mobile/android/.gradle/
+mobile/ios/Flutter/.last_build_id
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
