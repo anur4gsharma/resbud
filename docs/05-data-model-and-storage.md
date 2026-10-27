@@ -16,12 +16,33 @@ Use SQLite with foreign keys enabled and a single database per app installation.
 
 Project input edits are saved transactionally. The current-version pointer is updated in the same transaction that inserts the corresponding paper version. Do not persist an in-flight generation proposal as the current paper.
 
-## 3. Version semantics
+## 3. Version semantics and save behavior
 
-- Every explicitly saved paper change creates a full snapshot with the next project-local version number. Generation results and section replacements are proposals until the user accepts/saves them.
-- Section acceptance starts from the current snapshot, replaces only the chosen section, preserves all other section fields and all references/warnings unless the user separately edits them, then inserts a new snapshot and advances the pointer atomically.
-- Cancelled, failed, or rejected generation/regeneration/export operations do not alter saved inputs, snapshots, version numbers, or current-version pointers.
-- Deleting a project requires an explicit confirmation and deletes its versions in one transaction. There is no trash or server recovery in the MVP; the confirmation must say that local project history will be removed.
+The version history model uses immutable, append-only snapshots. The version number increments monotonically per project (`max(version_number) + 1`).
+
+### Actions that create a paper version:
+1. **Full generation acceptance (`PaperVersionOrigin.generation`)**: When the user previews a full paper generated from project inputs and source material and explicitly chooses to accept it.
+2. **Explicit manual save (`PaperVersionOrigin.manualEdit`)**: When the user taps the save button in the paper editor or selects "Save & leave" upon exiting with unsaved changes. Keystrokes in text fields update in-memory controller state and toggle the editor status to `Unsaved`, but do **not** write to SQLite on each keystroke to prevent database thrashing and history pollution.
+3. **Section regeneration acceptance (`PaperVersionOrigin.sectionAcceptance`)**: When the user requests regeneration of a single section and accepts the proposed replacement. This atomically duplicates the active paper snapshot, replaces solely the target section content, updates section-scoped review warnings, and commits the new version.
+4. **Version restoration (`PaperVersionOrigin.manualEdit`)**: When the user chooses to restore an older version from the Version History sheet. Restoring **never destroys or rewrites existing versions**. Instead, it creates a new snapshot with the next version number containing the restored version's content, records metadata `{"restored_from_version_number": N, "restored_from_version_id": "<uuid>"}`, and atomically advances `projects.current_paper_version_id`.
+5. **Initial import / creation (`PaperVersionOrigin.import`)**: When a structured paper draft is initially imported into a project.
+
+### Preservation of original source draft:
+- When a project is created, its initial source draft is permanently recorded in `projects.original_draft`.
+- Subsequent edits to the project inputs update `projects.source_draft`, leaving `projects.original_draft` unaltered.
+- The paper editor provides a "Compare source draft" action allowing the author to inspect the original authoritative material alongside their working version.
+
+### Unsaved changes and export safety:
+- **Accurate dirty state**: Any difference between in-memory text controllers and the current version snapshot is reflected in the UI with an `Unsaved` badge.
+- **Exporting with unsaved changes**: The user is explicitly prompted to either "Save & export" (committing a new version first) or "Export saved (vX)" (exporting the last committed snapshot). Stale widget memory is never exported silently.
+- **Content validation**: Paper drafts are validated before sending to the export service (requiring non-empty title, valid sections within schema limits).
+- **Failure leaves content intact**: If an export fails (network timeout, invalid response, server 5xx error, or filesystem write failure), saved versions and current editor contents remain strictly untouched.
+
+### DOCX export and file saver platform considerations:
+- File saving is isolated behind the `DocxFileSaver` interface.
+- Filenames are sanitized to prevent directory traversal (`/`, `\`, `..`), control characters, null bytes, and reserved filesystem characters.
+- Duplicate filenames are handled monotonically: `paper.docx` -> `paper (1).docx` -> `paper (2).docx`.
+- **Platform limitations**: On desktop (Linux/macOS/Windows), files are saved directly to the designated directory. On mobile operating systems (Android/iOS), files written to internal app storage remain restricted to the app's sandbox. External viewing requires system file pickers, scoped storage permissions, or platform share sheets. Isolating file operations behind `DocxFileSaver` decouples these OS-specific boundaries from the editor core.
 
 ## 4. Migrations and schema evolution
 

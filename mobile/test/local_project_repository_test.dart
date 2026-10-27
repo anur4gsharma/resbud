@@ -143,6 +143,52 @@ void main() {
   );
 
   test(
+    'restorePaperVersion creates a new monotonically incremented version with restored metadata and preserves history',
+    () async {
+      final project = await repository.createProject(
+        title: 'Restore project',
+        projectContext: const {'field': 'Biology'},
+      );
+      final v1 = await repository.savePaperVersion(
+        projectId: project.id,
+        schemaVersion: 1,
+        paper: const {'schema_version': 1, 'title': 'Version 1 Draft'},
+        origin: PaperVersionOrigin.generation,
+      );
+      final v2 = await repository.savePaperVersion(
+        projectId: project.id,
+        schemaVersion: 1,
+        paper: const {'schema_version': 1, 'title': 'Version 2 Draft'},
+        origin: PaperVersionOrigin.manualEdit,
+      );
+
+      final restored = await repository.restorePaperVersion(
+        projectId: project.id,
+        targetVersionId: v1.id,
+      );
+
+      expect(restored.versionNumber, 3);
+      expect(restored.paper, v1.paper);
+      expect(restored.origin, PaperVersionOrigin.manualEdit);
+      expect(restored.metadata, {
+        'restored_from_version_number': 1,
+        'restored_from_version_id': v1.id,
+      });
+
+      final versions = await repository.listPaperVersions(project.id);
+      expect(versions.length, 3);
+      expect(versions.map((v) => v.versionNumber).toList(), [1, 2, 3]);
+      expect(versions[0].id, v1.id);
+      expect(versions[1].id, v2.id);
+      expect(versions[2].id, restored.id);
+
+      final current = await repository.getCurrentPaperVersion(project.id);
+      expect(current!.id, restored.id);
+      expect(current.paper['title'], 'Version 1 Draft');
+    },
+  );
+
+  test(
     'closing and reopening the repository restores project and current paper',
     () async {
       final project = await repository.createProject(

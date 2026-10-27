@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../data/local_project_repository.dart';
+import '../export/docx_export_client.dart';
+import '../export/docx_file_saver.dart';
 import '../generation/generation_api_client.dart';
 import '../generation/generation_models.dart';
 import '../../shared/design_tokens.dart';
@@ -14,12 +16,16 @@ class PaperEditorPage extends StatefulWidget {
     required this.generationApi,
     required this.project,
     required this.initialVersion,
+    this.exportApi,
+    this.fileSaver,
   });
 
   final LocalProjectRepository repository;
   final PaperGenerationApi generationApi;
   final LocalProject project;
   final PaperVersion initialVersion;
+  final PaperExportApi? exportApi;
+  final DocxFileSaver? fileSaver;
 
   @override
   State<PaperEditorPage> createState() => _PaperEditorPageState();
@@ -33,14 +39,19 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
   late final TextEditingController _abstractController;
   late final Map<String, TextEditingController> _sectionControllers;
   late final Map<String, GlobalKey> _sectionKeys;
+  late final PaperExportApi _exportApi;
+  late final DocxFileSaver _fileSaver;
 
   bool _isDirty = false;
   bool _isSaving = false;
+  bool _isExporting = false;
   String? _activeRegeneratingSectionId;
 
   @override
   void initState() {
     super.initState();
+    _exportApi = widget.exportApi ?? DocxExportApiClient.fromEnvironment();
+    _fileSaver = widget.fileSaver ?? LocalDocxFileSaver();
     _currentVersion = widget.initialVersion;
     _paper = PaperDraftPayload.fromJson(_currentVersion.paper);
     _titleController = TextEditingController(text: _paper.title);
@@ -372,6 +383,305 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
     );
   }
 
+  Future<void> _openVersionHistory() async {
+    final versions = await widget.repository.listPaperVersions(widget.project.id);
+    if (!mounted) return;
+
+    final selectedToRestore = await showModalBottomSheet<PaperVersion>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        initialChildSize: 0.65,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => Padding(
+          padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Version history',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      Text(
+                        '${versions.length} immutable snapshots recorded',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(sheetContext),
+                  ),
+                ],
+              ),
+              const Divider(height: 16),
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  itemCount: versions.length,
+                  itemBuilder: (context, index) {
+                    final version = versions.reversed.toList()[index];
+                    final isCurrent = version.id == _currentVersion.id;
+                    final restoredFrom = version.metadata?['restored_from_version_number'];
+
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      color: isCurrent ? Colors.teal.shade50 : null,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      'Version ${version.versionNumber}',
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                                    if (isCurrent) ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.teal.shade700,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: const Text(
+                                          'Active in editor',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                Text(
+                                  _formatDateTime(version.createdAt),
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Origin: ${_originLabel(version.origin)}${restoredFrom != null ? ' (restored from v$restoredFrom)' : ''}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            if (version.paper['title'] != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Title: ${version.paper['title']}',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                            const SizedBox(height: 8),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                OutlinedButton.icon(
+                                  key: ValueKey('button-restore-v${version.versionNumber}'),
+                                  onPressed: () => Navigator.pop(sheetContext, version),
+                                  icon: const Icon(Icons.restore, size: 16),
+                                  label: Text(isCurrent ? 'Revert to snapshot' : 'Restore this version'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (selectedToRestore == null || !mounted) return;
+    await _confirmAndRestoreVersion(selectedToRestore);
+  }
+
+  Future<void> _confirmAndRestoreVersion(PaperVersion targetVersion) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Restore Version ${targetVersion.versionNumber}?'),
+        content: Text(
+          'Restoring Version ${targetVersion.versionNumber} will create a new version containing its content. '
+          'All prior versions and history are preserved.\n\n'
+          '${_isDirty ? 'Warning: You have unsaved edits in the editor which will be replaced.' : ''}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const ValueKey('confirm-restore-button'),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Restore version'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final restored = await widget.repository.restorePaperVersion(
+        projectId: widget.project.id,
+        targetVersionId: targetVersion.id,
+      );
+      if (!mounted) return;
+      _loadVersion(restored);
+      _showFeedback(
+        'Restored Version ${targetVersion.versionNumber} as Version ${restored.versionNumber}.',
+      );
+    } on Object catch (error) {
+      if (!mounted) return;
+      _showFeedback('Failed to restore version: $error', isError: true);
+    }
+  }
+
+  void _loadVersion(PaperVersion version) {
+    _currentVersion = version;
+    _paper = PaperDraftPayload.fromJson(version.paper);
+
+    _titleController.removeListener(_markDirty);
+    _titleController.text = _paper.title;
+    _titleController.addListener(_markDirty);
+
+    _abstractController.removeListener(_markDirty);
+    _abstractController.text = _paper.abstractText;
+    _abstractController.addListener(_markDirty);
+
+    for (final section in _paper.sections) {
+      final controller = _sectionControllers[section.id];
+      if (controller != null) {
+        controller.removeListener(_markDirty);
+        controller.text = section.content;
+        controller.addListener(_markDirty);
+      } else {
+        final newController = TextEditingController(text: section.content);
+        newController.addListener(_markDirty);
+        _sectionControllers[section.id] = newController;
+        _sectionKeys[section.id] = GlobalKey();
+      }
+    }
+    _isDirty = false;
+    setState(() {});
+  }
+
+  Future<void> _exportDocx() async {
+    if (_isExporting) return;
+
+    PaperDraftPayload paperToExport = _paper;
+
+    if (_isDirty) {
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Unsaved edits'),
+          content: Text(
+            'You have unsaved changes in the editor. Save your changes before exporting, '
+            'or export the currently saved Version ${_currentVersion.versionNumber}?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, 'cancel'),
+              child: const Text('Cancel'),
+            ),
+            OutlinedButton(
+              key: const ValueKey('export-saved-button'),
+              onPressed: () => Navigator.pop(dialogContext, 'export_saved'),
+              child: Text('Export saved (v${_currentVersion.versionNumber})'),
+            ),
+            FilledButton(
+              key: const ValueKey('save-and-export-button'),
+              onPressed: () => Navigator.pop(dialogContext, 'save_and_export'),
+              child: const Text('Save & export'),
+            ),
+          ],
+        ),
+      );
+
+      if (!mounted || choice == null || choice == 'cancel') return;
+
+      if (choice == 'save_and_export') {
+        await _saveManualEdits();
+        if (_isDirty || !mounted) {
+          // Save failed or was cancelled
+          return;
+        }
+        paperToExport = _paper;
+      } else if (choice == 'export_saved') {
+        paperToExport = PaperDraftPayload.fromJson(_currentVersion.paper);
+      }
+    }
+
+    // Validate paper content before sending to export API
+    if (paperToExport.title.trim().isEmpty) {
+      _showFeedback('Cannot export: Paper title cannot be blank.', isError: true);
+      return;
+    }
+    if (paperToExport.sections.isEmpty) {
+      _showFeedback('Cannot export: Paper must contain at least one section.', isError: true);
+      return;
+    }
+
+    setState(() => _isExporting = true);
+
+    try {
+      final result = await _exportApi.exportDocx(paperToExport);
+      final savedPath = await _fileSaver.saveDocx(
+        bytes: result.bytes,
+        suggestedFilename: result.suggestedFilename,
+      );
+      if (!mounted) return;
+      setState(() => _isExporting = false);
+      _showFeedback('Exported DOCX: $savedPath');
+    } on DocxExportFailure catch (failure) {
+      if (!mounted) return;
+      setState(() => _isExporting = false);
+      _showFeedback(failure.supportDetail, isError: true);
+    } on DocxFileSaverException catch (saverError) {
+      if (!mounted) return;
+      setState(() => _isExporting = false);
+      _showFeedback('File save error: ${saverError.message}', isError: true);
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() => _isExporting = false);
+      _showFeedback('Export failed: $error', isError: true);
+    }
+  }
+
+  static String _formatDateTime(DateTime dt) {
+    final local = dt.toLocal();
+    final y = local.year;
+    final m = local.month.toString().padLeft(2, '0');
+    final d = local.day.toString().padLeft(2, '0');
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    return '$y-$m-$d $hh:$mm';
+  }
+
   Future<void> _handleBack() async {
     if (!_isDirty) {
       Navigator.pop(context);
@@ -429,10 +739,34 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                   'Paper draft',
                   overflow: TextOverflow.ellipsis,
                 ),
-                Text(
-                  'v${_currentVersion.versionNumber} · ${_originLabel(_currentVersion.origin)}',
-                  style: Theme.of(context).textTheme.bodySmall,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        _versionSubtitle(_currentVersion),
+                        style: Theme.of(context).textTheme.bodySmall,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: _isDirty ? Colors.amber.shade100 : Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        _isDirty ? 'Unsaved' : 'Saved',
+                        key: const ValueKey('save-status-badge'),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: _isDirty ? Colors.amber.shade900 : Colors.green.shade800,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -442,6 +776,24 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                 icon: const Icon(Icons.source_outlined),
                 tooltip: 'Compare source draft',
                 onPressed: _compareSourceDraft,
+              ),
+              IconButton(
+                key: const ValueKey('button-version-history'),
+                icon: const Icon(Icons.history),
+                tooltip: 'Version history',
+                onPressed: _openVersionHistory,
+              ),
+              IconButton(
+                key: const ValueKey('button-export-docx'),
+                icon: _isExporting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.file_download_outlined),
+                tooltip: 'Export DOCX',
+                onPressed: _isExporting ? null : _exportDocx,
               ),
               IconButton(
                 key: const ValueKey('button-save-edits'),
@@ -816,6 +1168,15 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
           ),
         ),
       );
+
+  static String _versionSubtitle(PaperVersion version) {
+    final restoredFrom = version.metadata?['restored_from_version_number'];
+    final origin = _originLabel(version.origin);
+    if (restoredFrom != null) {
+      return 'v${version.versionNumber} · $origin (restored from v$restoredFrom)';
+    }
+    return 'v${version.versionNumber} · $origin';
+  }
 
   static String _originLabel(PaperVersionOrigin origin) => switch (origin) {
         PaperVersionOrigin.generation => 'Full Generation',

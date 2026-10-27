@@ -285,6 +285,30 @@ class LocalProjectRepository {
     return rows.isEmpty ? null : PaperVersion.fromRow(rows.single);
   }
 
+  Future<PaperVersion> restorePaperVersion({
+    required String projectId,
+    required String targetVersionId,
+  }) async {
+    final rows = await _database.query(
+      'paper_versions',
+      where: 'id = ? AND project_id = ?',
+      whereArgs: [targetVersionId, projectId],
+      limit: 1,
+    );
+    if (rows.isEmpty) throw StateError('Target paper version not found');
+    final target = PaperVersion.fromRow(rows.single);
+    return savePaperVersion(
+      projectId: projectId,
+      schemaVersion: target.schemaVersion,
+      paper: target.paper,
+      origin: PaperVersionOrigin.manualEdit,
+      metadata: {
+        'restored_from_version_number': target.versionNumber,
+        'restored_from_version_id': target.id,
+      },
+    );
+  }
+
   static Future<void> _createCurrentSchema(DatabaseExecutor db) async {
     await db.execute('''
       CREATE TABLE projects (

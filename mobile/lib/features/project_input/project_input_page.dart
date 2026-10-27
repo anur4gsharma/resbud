@@ -4,6 +4,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/local_project_repository.dart';
+import '../export/docx_export_client.dart';
+import '../export/docx_file_saver.dart';
 import '../generation/generation_api_client.dart';
 import '../generation/generation_models.dart';
 import '../paper_editor/paper_editor_page.dart';
@@ -79,12 +81,16 @@ class ProjectInputPage extends StatefulWidget {
     required this.generationApi,
     required this.project,
     this.sourcePicker,
+    this.exportApi,
+    this.fileSaver,
   });
 
   final LocalProjectRepository repository;
   final PaperGenerationApi generationApi;
   final LocalProject project;
   final SourcePicker? sourcePicker;
+  final PaperExportApi? exportApi;
+  final DocxFileSaver? fileSaver;
 
   @override
   State<ProjectInputPage> createState() => _ProjectInputPageState();
@@ -1046,6 +1052,8 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                                 generationApi: widget.generationApi,
                                 project: widget.project,
                                 initialVersion: version,
+                                exportApi: widget.exportApi,
+                                fileSaver: widget.fileSaver,
                               ),
                             ),
                           );
