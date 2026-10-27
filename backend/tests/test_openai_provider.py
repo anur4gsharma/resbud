@@ -17,16 +17,20 @@ from openai import (
 )
 
 from resbud_api.core.settings import Settings
-from resbud_api.domain.models import GenerationRequest, PaperDraft
+from resbud_api.domain.models import GenerationRequest, PaperDraft, PaperSection
 from resbud_api.providers.base import (
     ProviderInvalidResponse,
     ProviderRateLimited,
     ProviderTimeout,
     ProviderUnavailable,
+    SectionRegenerationInput,
 )
 from resbud_api.providers.openai_provider import OpenAIProvider
 from resbud_api.services.generation import normalize_research_brief
-from resbud_api.services.prompt_builder import build_generation_input
+from resbud_api.services.prompt_builder import (
+    build_generation_input,
+    build_section_regeneration_input,
+)
 
 FIXTURES = Path(__file__).parent / "fixtures"
 REQUEST = json.loads((FIXTURES / "generation-request.valid.json").read_text())
@@ -92,6 +96,44 @@ def test_openai_adapter_uses_schema_mode_without_storing_and_normalizes_metadata
     assert responses.call["store"] is False
     assert responses.call["max_output_tokens"] == 12000
     assert responses.call["instructions"] == _input().prompt.system_instructions
+
+
+def test_openai_adapter_uses_section_schema_and_full_regeneration_context() -> None:
+    request = GenerationRequest.model_validate(REQUEST)
+    brief = normalize_research_brief(request)
+    current_paper = PaperDraft.model_validate(PAPER_DATA)
+    target = current_paper.sections[1]
+    regeneration_input: SectionRegenerationInput = build_section_regeneration_input(
+        brief,
+        current_paper,
+        target,
+        "Preserve the evidence and keep the original section ID.",
+    )
+    replacement = PaperSection(
+        id=target.id,
+        heading=target.heading,
+        content="[PROVIDE RESULTS DETAILS]",
+        state="needs_input",
+    )
+    response = SimpleNamespace(
+        status="completed",
+        output_parsed=replacement,
+        model="configured-test-model",
+        usage=SimpleNamespace(input_tokens=130, output_tokens=30),
+        _request_id="provider-section-request-123",
+    )
+    provider, responses = _provider_with_response(response)
+
+    result = asyncio.run(provider.regenerate_section(regeneration_input))
+
+    assert json.loads(result.structured_output) == replacement.model_dump(mode="json")
+    assert result.request_id == "provider-section-request-123"
+    assert responses.call["text_format"] is PaperSection
+    assert responses.call["store"] is False
+    assert "current_paper" in regeneration_input.prompt.user_message
+    assert "generation_request" not in regeneration_input.prompt.user_message
+    assert regeneration_input.target_section.id == target.id
+    assert "Preserve the evidence" in regeneration_input.prompt.user_message
 
 
 def test_openai_sdk_client_has_explicit_timeouts_and_retries_disabled() -> None:

@@ -18,14 +18,16 @@ from openai import (
 from pydantic import ValidationError
 
 from resbud_api.core.settings import Settings
-from resbud_api.domain.models import PaperDraft
+from resbud_api.domain.models import PaperDraft, PaperSection
 from resbud_api.providers.base import (
     GenerationInput,
+    GenerationPrompt,
     ProviderInvalidResponse,
     ProviderRateLimited,
     ProviderResult,
     ProviderTimeout,
     ProviderUnavailable,
+    SectionRegenerationInput,
 )
 
 
@@ -55,6 +57,18 @@ class OpenAIProvider:
             self._client = None
 
     async def generate_paper(self, generation_input: GenerationInput) -> ProviderResult:
+        return await self._request(generation_input.prompt, PaperDraft)
+
+    async def regenerate_section(
+        self, regeneration_input: SectionRegenerationInput
+    ) -> ProviderResult:
+        return await self._request(regeneration_input.prompt, PaperSection)
+
+    async def _request(
+        self,
+        prompt: GenerationPrompt,
+        output_model: type[PaperDraft] | type[PaperSection],
+    ) -> ProviderResult:
         if self._client is None or self._model is None:
             raise ProviderUnavailable
 
@@ -62,9 +76,9 @@ class OpenAIProvider:
         try:
             response = await self._client.responses.parse(
                 model=cast(Any, self._model),
-                instructions=generation_input.prompt.system_instructions,
-                input=generation_input.prompt.user_message,
-                text_format=PaperDraft,
+                instructions=prompt.system_instructions,
+                input=prompt.user_message,
+                text_format=cast(Any, output_model),
                 max_output_tokens=self._max_output_tokens,
                 store=False,
             )
@@ -90,7 +104,7 @@ class OpenAIProvider:
             raise ProviderInvalidResponse from exc
 
         parsed = getattr(response, "output_parsed", None)
-        if getattr(response, "status", None) != "completed" or not isinstance(parsed, PaperDraft):
+        if getattr(response, "status", None) != "completed" or not isinstance(parsed, output_model):
             raise ProviderInvalidResponse
 
         usage = getattr(response, "usage", None)

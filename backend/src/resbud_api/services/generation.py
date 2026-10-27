@@ -11,6 +11,9 @@ from resbud_api.domain.models import (
     GenerationRequest,
     GenerationResponse,
     PaperDraft,
+    PaperSection,
+    SectionRegenerationRequest,
+    SectionRegenerationResponse,
 )
 from resbud_api.providers.base import (
     GenerationProvider,
@@ -21,7 +24,10 @@ from resbud_api.providers.base import (
     ResearchBrief,
 )
 from resbud_api.services.integrity import has_meaningful_content, run_integrity_checks
-from resbud_api.services.prompt_builder import build_generation_input
+from resbud_api.services.prompt_builder import (
+    build_generation_input,
+    build_section_regeneration_input,
+)
 
 
 def normalize_research_brief(request: GenerationRequest) -> ResearchBrief:
@@ -80,3 +86,54 @@ async def generate_paper(
         )
     except ValidationError as exc:
         raise ResbudError(502) from exc
+
+
+async def regenerate_section(
+    request: SectionRegenerationRequest,
+    provider: GenerationProvider,
+) -> SectionRegenerationResponse:
+    brief = normalize_research_brief(request.generation_request)
+    target_section = next(
+        section for section in request.current_paper.sections if section.id == request.section_id
+    )
+    regeneration_input = build_section_regeneration_input(
+        brief,
+        request.current_paper,
+        target_section,
+        request.user_instruction,
+    )
+    try:
+        provider_result = await provider.regenerate_section(regeneration_input)
+    except ProviderTimeout as exc:
+        raise ResbudError(504) from exc
+    except ProviderUnavailable as exc:
+        raise ResbudError(503) from exc
+    except ProviderRateLimited as exc:
+        raise ResbudError(429) from exc
+    except ProviderInvalidResponse as exc:
+        raise ResbudError(502) from exc
+
+    try:
+        section = PaperSection.model_validate(json.loads(provider_result.structured_output))
+    except (json.JSONDecodeError, TypeError, ValidationError) as exc:
+        raise ResbudError(502) from exc
+
+    if section.id != request.section_id or not section.content.strip():
+        raise ResbudError(502)
+    if section.state == "not_applicable":
+        raise ResbudError(502)
+
+    integrity_context = request.current_paper.model_copy(
+        update={"sections": [section], "review_warnings": []}
+    )
+    warnings = run_integrity_checks(brief, integrity_context, provider_result.provider_name)
+    response = SectionRegenerationResponse(
+        schema_version=1,
+        section=section,
+        review_warnings=warnings,
+    )
+    try:
+        response.validate_for_request(request)
+    except ValueError as exc:
+        raise ResbudError(502) from exc
+    return response

@@ -3,7 +3,13 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-from resbud_api.domain.models import PaperPreferences, ProjectContext, ReferenceInput
+from resbud_api.domain.models import (
+    PaperDraft,
+    PaperPreferences,
+    PaperSection,
+    ProjectContext,
+    ReferenceInput,
+)
 
 
 @dataclass(frozen=True)
@@ -25,6 +31,15 @@ class GenerationPrompt:
 @dataclass(frozen=True)
 class GenerationInput:
     brief: ResearchBrief
+    prompt: GenerationPrompt
+
+
+@dataclass(frozen=True)
+class SectionRegenerationInput:
+    brief: ResearchBrief
+    current_paper: PaperDraft
+    target_section: PaperSection
+    user_instruction: str
     prompt: GenerationPrompt
 
 
@@ -59,7 +74,17 @@ class GenerationProvider(Protocol):
     async def generate_paper(self, generation_input: GenerationInput) -> ProviderResult:
         """Return structured output and provider-neutral operational metadata."""
 
+    async def regenerate_section(
+        self, regeneration_input: SectionRegenerationInput
+    ) -> ProviderResult:
+        """Return one schema-constrained section proposal without mutating the paper."""
+
 
 class DisabledProvider:
     async def generate_paper(self, _generation_input: GenerationInput) -> ProviderResult:
+        raise ProviderUnavailable
+
+    async def regenerate_section(
+        self, _regeneration_input: SectionRegenerationInput
+    ) -> ProviderResult:
         raise ProviderUnavailable

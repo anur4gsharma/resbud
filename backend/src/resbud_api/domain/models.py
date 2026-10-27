@@ -177,8 +177,14 @@ class SectionRegenerationRequest(ContractModel):
 
     @model_validator(mode="after")
     def target_section_must_exist(self) -> "SectionRegenerationRequest":
-        if not any(section.id == self.section_id for section in self.current_paper.sections):
+        target = next(
+            (section for section in self.current_paper.sections if section.id == self.section_id),
+            None,
+        )
+        if target is None:
             raise ValueError("section_id must identify a section in current_paper")
+        if target.state == "not_applicable":
+            raise ValueError("a not_applicable section cannot be regenerated")
         return self
 
 
@@ -186,6 +192,14 @@ class SectionRegenerationResponse(ContractModel):
     schema_version: Literal[1]
     section: PaperSection
     review_warnings: Annotated[list[ReviewWarning], Field(max_length=100)]
+
+    @model_validator(mode="after")
+    def replacement_content_must_be_nonblank(self) -> "SectionRegenerationResponse":
+        if not self.section.content.strip():
+            raise ValueError("replacement section content must not be empty")
+        if self.section.state == "not_applicable":
+            raise ValueError("replacement section cannot be not_applicable")
+        return self
 
     def validate_for_request(self, request: SectionRegenerationRequest) -> None:
         """Enforce the cross-object replacement identity declared by the API contract."""

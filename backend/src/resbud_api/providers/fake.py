@@ -11,6 +11,7 @@ from resbud_api.providers.base import (
     ProviderTimeout,
     ProviderUnavailable,
     ResearchBrief,
+    SectionRegenerationInput,
 )
 
 
@@ -46,6 +47,39 @@ class FakeProvider:
         paper = self._paper(generation_input.brief)
         return ProviderResult(
             structured_output=json.dumps(paper, ensure_ascii=False, separators=(",", ":")),
+            provider_name=self.provider_name,
+            model_name=self.model_name,
+            duration_ms=0,
+        )
+
+    async def regenerate_section(
+        self, regeneration_input: SectionRegenerationInput
+    ) -> ProviderResult:
+        self.call_count += 1
+        if self.outcome is FakeOutcome.TIMEOUT:
+            raise ProviderTimeout
+        if self.outcome is FakeOutcome.UNAVAILABLE:
+            raise ProviderUnavailable
+        if self.outcome is FakeOutcome.RATE_LIMITED:
+            raise ProviderRateLimited
+        if self.outcome is FakeOutcome.MALFORMED:
+            return ProviderResult("not-json", self.provider_name, self.model_name, 0)
+
+        content, state = _section_content(
+            regeneration_input.brief.project,
+            regeneration_input.target_section.id,
+            regeneration_input.brief.source_draft,
+        )
+        section = PaperSection(
+            id=regeneration_input.target_section.id,
+            heading=regeneration_input.target_section.heading,
+            content=content,
+            state=state,
+        )
+        return ProviderResult(
+            structured_output=json.dumps(
+                section.model_dump(mode="json"), ensure_ascii=False, separators=(",", ":")
+            ),
             provider_name=self.provider_name,
             model_name=self.model_name,
             duration_ms=0,

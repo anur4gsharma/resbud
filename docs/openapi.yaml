@@ -332,7 +332,7 @@ components:
             input_tokens: { type: [integer, 'null'], minimum: 0 }
             output_tokens: { type: [integer, 'null'], minimum: 0 }
     SectionRegenerationRequest:
-      description: A proposal request. The section_id must occur exactly once in current_paper.sections; an unknown or duplicate ID is rejected with 422 VALIDATION_ERROR.
+      description: A proposal request. The section_id must occur exactly once in current_paper.sections; an unknown or duplicate ID, or a target with state not_applicable, is rejected with 422 VALIDATION_ERROR.
       type: object
       additionalProperties: false
       required: [schema_version, generation_request, current_paper, section_id, user_instruction]
@@ -343,7 +343,7 @@ components:
         section_id: { type: string, pattern: '^[a-z][a-z0-9_]{1,39}$', description: 'ID of exactly one section in current_paper.sections.' }
         user_instruction: { type: string, maxLength: 2000 }
     SectionRegenerationResponse:
-      description: A proposed replacement only. section.id equals the requested section_id. The client previews it and applies it only after explicit user acceptance; all other sections and references remain unchanged until then.
+      description: A proposed replacement only. section.id equals the requested section_id and content is nonblank. The client previews it and applies it only after explicit user acceptance; all other sections and references remain unchanged until then.
       type: object
       additionalProperties: false
       required: [schema_version, section, review_warnings]
@@ -354,6 +354,12 @@ components:
           type: array
           maxItems: 100
           items: { $ref: '#/components/schemas/ReviewWarning' }
+      allOf:
+        - properties:
+            section:
+              properties:
+                content: { type: string, minLength: 1, pattern: '[\s\S]*\S[\s\S]*' }
+                state: { type: string, enum: [draft, needs_input] }
     ApiError:
       type: object
       additionalProperties: false
