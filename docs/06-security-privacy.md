@@ -127,3 +127,5 @@ The security controls are partitioned into code-enforced controls verified conti
 - [ ] **Distributed Rate Limiting (Multi-Instance)**: When running behind a multi-instance load balancer, replace in-memory sliding window with a centralized rate limit cache (e.g., Redis) or enforce IP rate limiting at the reverse proxy/WAF tier.
 - [ ] **Log Retention & Access Isolation**: Production application logs must be shipped to a centralized monitoring system with access controls, encrypted at rest, and subject to a defined log retention window.
 - [ ] **Vulnerability & Secret Scanning**: Run static vulnerability analysis (e.g., `pip-audit`, `trivy`, `gitleaks`) on CI release pipelines before building container images.
+
+For operational runbooks, incident response procedures, container deployment manifests, and rollback checklists, see [`docs/operations-and-incident-guide.md`](operations-and-incident-guide.md).

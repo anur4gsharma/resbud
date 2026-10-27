@@ -1,0 +1,31 @@
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: resbud-api:local
+    container_name: resbud-api
+    ports:
+      - "8000:8000"
+    environment:
+      RESBUD_ENV: ${RESBUD_ENV:-development}
+      RESBUD_GENERATION_PROVIDER: ${RESBUD_GENERATION_PROVIDER:-fake}
+      RESBUD_PROVIDER_MODEL: ${RESBUD_PROVIDER_MODEL:-}
+      RESBUD_PROVIDER_API_KEY: ${RESBUD_PROVIDER_API_KEY:-}
+      RESBUD_AUTH_ISSUER: ${RESBUD_AUTH_ISSUER:-}
+      RESBUD_AUTH_AUDIENCE: ${RESBUD_AUTH_AUDIENCE:-}
+      RESBUD_AUTH_SIGNING_KEY: ${RESBUD_AUTH_SIGNING_KEY:-}
+      RESBUD_RATE_LIMIT_PER_MINUTE: ${RESBUD_RATE_LIMIT_PER_MINUTE:-60}
+      RESBUD_CORS_ALLOWED_ORIGINS: ${RESBUD_CORS_ALLOWED_ORIGINS:-[]}
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1024M
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=4)\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

@@ -11,6 +11,7 @@ Read the product requirements, architecture, API, paper schema, local storage sp
 - `docs/`: intended product behavior, requirements, architecture, API behavior, research-integrity rules, security/privacy, testing, and academic evaluation.
 - `docs/smoke-test-guide.md`: repeatable manual smoke test guide for mobile client and local backend.
 - `docs/12-requirement-traceability-matrix.md`: requirement-to-test and evidence matrix for all P0 requirements.
+- `docs/operations-and-incident-guide.md`: operations runbook, container deployment, release packaging, and incident checklists.
 - `docs/adr/`: decisions made while reconciling the specification; unresolved deployment choices are recorded in the audit report.
 - `contracts/`: request/paper JSON Schemas and OpenAPI YAML.
 - `SPEC_README_ORIGINAL.md`: original specification package README preserved as supplied; reconciled paths are documented in the audit report.
@@ -54,3 +55,14 @@ Run `flutter analyze` and `flutter test` to execute the full automated mobile te
 ## Continuous integration
 
 GitHub Actions runs the backend lint, type, and test checks plus Flutter analysis and tests. CI does not deploy or require provider credentials. All automated checks run offline using deterministic test doubles and fake providers.
+
+## Deployment and operations
+
+To build and run the backend container locally or in staging:
+
+```bash
+docker compose build
+docker compose up -d
+```
+
+See the [Operations, Deployment, and Incident Guide](docs/operations-and-incident-guide.md) for production configuration, fail-closed readiness checks, Android release packaging (`flutter build apk --release`), rollback procedures, and incident response checklists.
