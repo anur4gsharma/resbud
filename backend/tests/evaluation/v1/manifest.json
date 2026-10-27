@@ -1,0 +1,105 @@
+{
+  "evaluation_set": "resbud-backend-ai-v1",
+  "paper_schema_version": 1,
+  "prompt_version": "paper-draft-v1",
+  "run_manifest": {
+    "date": "2026-10-27",
+    "provider": "fake",
+    "model": "deterministic-demo",
+    "model_settings": {
+      "temperature": null,
+      "output_token_limit": null,
+      "note": "The deterministic fake provider has no sampling or token settings."
+    },
+    "evaluator_notes": "Automated checks verify schemas and preservation invariants only. They do not establish scientific truth, source validity, or writing quality."
+  },
+  "cases": [
+    {
+      "id": "complete-input",
+      "input_overrides": {
+        "project": {
+          "dataset_or_materials_status": "provided",
+          "dataset_or_materials": "A synthetic validation set created for this fixture.",
+          "results_status": "provided",
+          "results": "Accuracy was 91% on the synthetic validation set.",
+          "limitations_status": "provided",
+          "limitations": "The fixture uses synthetic data."
+        },
+        "preferences": { "desired_sections": ["introduction", "methodology", "results"] }
+      },
+      "required_warning_codes": [],
+      "forbidden_warning_codes": ["MISSING_METHOD", "MISSING_RESULTS", "REFERENCE_INCOMPLETE"]
+    },
+    {
+      "id": "missing-results",
+      "input_overrides": {
+        "project": { "results_status": "unknown", "results": null },
+        "source_draft": "The workflow is implemented, but no measured outcomes are supplied.",
+        "preferences": { "desired_sections": ["introduction", "results"] }
+      },
+      "required_warning_codes": ["MISSING_RESULTS"],
+      "forbidden_warning_codes": []
+    },
+    {
+      "id": "missing-methods",
+      "input_overrides": {
+        "project": { "methodology_status": "unknown", "methodology": null },
+        "source_draft": "The prototype is described without a supplied evaluation method.",
+        "preferences": { "desired_sections": ["introduction", "methodology"] }
+      },
+      "required_warning_codes": ["MISSING_METHOD"],
+      "forbidden_warning_codes": []
+    },
+    {
+      "id": "conflicting-claims",
+      "input_overrides": {
+        "project": {
+          "results_status": "provided",
+          "results": "Accuracy was 91% in the final run."
+        },
+        "source_draft": "An earlier draft reports accuracy was 87%.",
+        "preferences": { "desired_sections": ["introduction", "results"] }
+      },
+      "required_warning_codes": ["INPUT_CONFLICT"],
+      "forbidden_warning_codes": []
+    },
+    {
+      "id": "incomplete-reference",
+      "input_overrides": {
+        "references": [{ "id": "ref_tbd", "text": "TBD: verify venue and year" }]
+      },
+      "required_warning_codes": ["REFERENCE_INCOMPLETE"],
+      "forbidden_warning_codes": []
+    },
+    {
+      "id": "non-experimental-research",
+      "input_overrides": {
+        "project": {
+          "methodology_status": "provided",
+          "methodology": "A conceptual analysis of the supplied framework.",
+          "dataset_or_materials_status": "not_applicable",
+          "dataset_or_materials": null,
+          "results_status": "not_applicable",
+          "results": null,
+          "limitations_status": "provided",
+          "limitations": "The analysis is conceptual and has not been empirically evaluated."
+        },
+        "source_draft": "This conceptual paper does not report an experiment or measured outcome.",
+        "preferences": { "desired_sections": ["introduction", "methodology", "results", "discussion"] }
+      },
+      "required_warning_codes": [],
+      "forbidden_warning_codes": ["MISSING_METHOD", "MISSING_RESULTS"]
+    },
+    {
+      "id": "unusual-academic-structure",
+      "input_overrides": {
+        "source_draft": "Preserve the specialist term β-lactam and the distinction between model and field notes.",
+        "preferences": {
+          "desired_sections": ["introduction", "case_study_context", "design_rationale", "ethics_notes"]
+        }
+      },
+      "required_warning_codes": [],
+      "forbidden_warning_codes": []
+    }
+  ]
+}

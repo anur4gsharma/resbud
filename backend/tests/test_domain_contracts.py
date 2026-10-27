@@ -310,3 +310,33 @@ def test_openapi_document_is_valid_and_matches_status_contracts() -> None:
     openapi_paper = spec["components"]["schemas"]["PaperDraft"]
     assert set(openapi_paper["properties"]) == set(PAPER_SCHEMA["properties"])
     assert set(openapi_paper["required"]) == set(PAPER_SCHEMA["required"])
+
+
+def test_checked_in_openapi_operations_match_running_fastapi_routes() -> None:
+    from resbud_api.core.settings import Settings
+    from resbud_api.main import create_app
+
+    checked_in = yaml.safe_load((ROOT / "contracts/openapi.yaml").read_text())
+    implemented = create_app(Settings(environment="test", _env_file=None)).openapi()
+    implemented_paths = implemented["paths"]
+
+    for path, path_item in checked_in["paths"].items():
+        assert path in implemented_paths
+        for method, expected_operation in path_item.items():
+            if method not in {"get", "post"}:
+                continue
+            actual_operation = implemented_paths[path][method]
+            assert actual_operation["operationId"] == expected_operation["operationId"]
+            if "requestBody" in expected_operation:
+                assert set(actual_operation["requestBody"]["content"]) == set(
+                    expected_operation["requestBody"]["content"]
+                )
+            if "200" in expected_operation["responses"]:
+                assert set(actual_operation["responses"]["200"]["content"]) == set(
+                    expected_operation["responses"]["200"]["content"]
+                )
+
+    checked_paper = checked_in["components"]["schemas"]["PaperDraft"]
+    implemented_paper = implemented["components"]["schemas"]["PaperDraft"]
+    assert set(checked_paper["properties"]) == set(implemented_paper["properties"])
+    assert set(checked_paper["required"]) == set(implemented_paper["required"])

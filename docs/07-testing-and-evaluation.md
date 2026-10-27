@@ -119,3 +119,41 @@ Mobile CI should run formatting, static analysis, unit/widget tests, and a build
 - DOCX export success rate.
 
 Do not report a precise p95 or success percentage from a tiny sample without giving the sample count and caveat.
+
+## 8. Backend P0 traceability
+
+This table covers requirements whose implementation boundary includes the backend. Client-owned persistence, interface, and device workflows are listed as gaps below rather than implied by API tests.
+
+| Requirement | Backend evidence |
+|---|---|
+| FR-002 — structured project facts | `test_generation_request_matches_contract_and_preserves_reference_text`, `test_provided_status_requires_nonblank_details` |
+| FR-004 — explicit evidence statuses and references | `test_unknown_and_explicit_unavailable_states_remain_distinct`, `test_generation_does_not_persist_or_log_source_content`, `test_provider_cannot_add_unprovided_references` |
+| FR-005 — validation and limits before generation | `test_invalid_request_is_rejected_before_provider_invocation`, `test_over_limit_source_draft_is_rejected_by_schema_and_model`, `test_streamed_body_limit_applies_without_content_length`, `test_provider_timeout_and_token_limits_are_bounded` |
+| FR-006 — generation from supplied material | `test_fake_provider_generates_contract_valid_deterministic_paper`, mocked OpenAI adapter tests in `test_openai_provider.py` |
+| FR-007 — schema-valid output | `test_paper_draft_matches_contract_and_serializes_deterministically`, `test_json_that_does_not_match_the_paper_contract_fails_closed` |
+| FR-008 — review warnings | missing-results, missing-method, conflict, incomplete-reference, and numeric-claim tests in `test_research_integrity.py` and `test_generation_api.py` |
+| FR-010 — single-section proposal | `test_success_returns_only_a_targeted_preview_and_integrity_warnings`, `test_accepting_preview_changes_only_target_and_preserves_paper_fields`, `test_mismatched_or_unsupported_provider_section_fails_closed` |
+| FR-012 — DOCX export | `test_export_returns_reopenable_docx_in_paper_order_with_safe_headers`, `test_export_filename_strips_path_control_and_non_ascii_characters`, export failure and size-limit cases in `test_docx_export_api.py` |
+| FR-013 — stable API errors | validation, provider failure, HTTP failure, export failure, and request-ID assertions across `test_http_foundation.py`, `test_generation_api.py`, `test_section_regeneration_api.py`, and `test_docx_export_api.py` |
+| NFR-001 — provider secrets stay server-side | `test_example_secret_placeholder_is_not_treated_as_a_credential`, `test_missing_provider_credentials_or_model_prevents_network_client_creation`, and the no-content log tests; mobile-bundle scanning remains a release task |
+| NFR-002 — content-free server logs | `test_generation_does_not_persist_or_log_source_content`, `test_unexpected_error_is_generic_and_logs_only_operational_metadata` |
+| NFR-003 — no backend content persistence | `test_generation_does_not_persist_or_log_source_content`; export is in-memory and the service contains no storage writes |
+| NFR-004 — boundary validation | domain/schema tests, malformed provider response tests, and invalid/oversized API request tests |
+| NFR-005 — failures preserve saved versions | the backend has no saved-version store to overwrite; service and export failure tests prove safe errors, while local-version preservation remains a client/repository test gap |
+| NFR-006 — safe errors | framework/provider/export failures use the fixed error catalog; UI next-action presentation is a client test gap |
+| NFR-007 — no paid network in ordinary tests | `FakeProvider` tests and mocked SDK tests; no live provider test is required by CI |
+| NFR-008 — critical paths have repeatable checks | API and document tests run in pytest; Flutter device/manual QA is not available in this environment |
+| NFR-009 — explicit request, input, timeout, and token bounds | `test_streamed_body_limit_applies_without_content_length`, `test_over_limit_source_draft_is_rejected_by_schema_and_model`, `test_provider_timeout_and_token_limits_are_bounded` |
+| NFR-010 — clean backend setup | the locked dependency set is checked with `uv lock --check` and `uv sync --locked --dev` |
+
+Static OpenAPI validity and operation/schema parity are checked by `test_openapi_document_is_valid_and_matches_status_contracts` and `test_checked_in_openapi_operations_match_running_fastapi_routes`.
+
+The following P0 requirements are client-owned and are not proven by backend tests: FR-001 project CRUD, FR-003 file picker/import UI, FR-009 editing UI, FR-011 local persistence, FR-014 pending-screen cancellation, FR-015 visible review disclosure, and FR-016 transactional project preservation. Prompt 09's importer tests are authored but have not been run in this environment because Dart and Flutter are unavailable. Local storage and the app flows are still future work.
+
+Authentication and rate limiting are not implemented in the backend yet. The API's bearer-auth declarations describe the intended deployed boundary but do not add enforcement; remote deployment remains blocked on the security work in section 6 of `06-security-privacy.md`. There are no auth or quota tests until an implementation and provider are selected.
+
+## 9. Deterministic evaluation fixture set
+
+`backend/tests/evaluation/v1/manifest.json` is evaluation set version 1. It includes complete input, missing results, missing method, conflicting numeric facts, an incomplete reference, non-experimental research, and an unusual section structure. `run_manifest` records the date, deterministic provider/model, model settings, paper schema version, prompt version, and limits of automated evaluation without storing secrets.
+
+`test_synthetic_evaluation_cases_preserve_contract_and_evidence_invariants` runs each profile through the fake provider and checks schema validity, reference equality, section identity/order, expected warning codes, and that output numbers occur somewhere in the supplied input. This last check is a narrow regression guard, not proof that a value is scientifically correct or supported in context. No automated test establishes truth, reference validity, technical faithfulness, or writing quality; those require human review under section 4. No real-model score, coverage percentage, or scientific-quality score is reported here.
