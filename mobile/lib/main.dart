@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 
 import 'data/local_project_repository.dart';
+import 'features/project_input/project_input_page.dart';
 import 'shared/design_tokens.dart';
 
 Future<void> main() async {
@@ -249,7 +250,7 @@ class _NewProjectDialogState extends State<_NewProjectDialog> {
   );
 }
 
-class ProjectDetailPage extends StatefulWidget {
+class ProjectDetailPage extends StatelessWidget {
   const ProjectDetailPage({
     super.key,
     required this.repository,
@@ -260,170 +261,8 @@ class ProjectDetailPage extends StatefulWidget {
   final LocalProject project;
 
   @override
-  State<ProjectDetailPage> createState() => _ProjectDetailPageState();
-}
-
-class _ProjectDetailPageState extends State<ProjectDetailPage> {
-  late final TextEditingController _titleController;
-  late final TextEditingController _sourceController;
-  late LocalProject _project;
-  late Future<List<PaperVersion>> _versions;
-  bool _saving = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _project = widget.project;
-    _titleController = TextEditingController(text: _project.title);
-    _sourceController = TextEditingController(text: _project.sourceDraft);
-    _loadVersions();
-  }
-
-  void _loadVersions() {
-    _versions = widget.repository.listPaperVersions(_project.id);
-  }
-
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _sourceController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    setState(() => _saving = true);
-    try {
-      final saved = await widget.repository.updateProjectInputs(
-        projectId: _project.id,
-        title: _titleController.text,
-        projectContext: _project.projectContext,
-        sourceDraft: _sourceController.text,
-      );
-      if (!mounted) return;
-      setState(() {
-        _project = saved;
-        _saving = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Project saved on this device.')),
-      );
-    } on Object {
-      if (!mounted) return;
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'The project was not saved. Your previous saved version remains available.',
-          ),
-        ),
-      );
-    }
-  }
-
-  Future<void> _delete() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Delete this project?'),
-        content: const Text(
-          'This permanently deletes the project and its local version history. There is no cloud backup or recovery.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    try {
-      await widget.repository.deleteProject(_project.id);
-      if (mounted) Navigator.pop(context);
-    } on Object {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'The project could not be deleted. Please try again.',
-            ),
-          ),
-        );
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const Text('Project'),
-      actions: [
-        IconButton(
-          onPressed: _delete,
-          icon: const Icon(Icons.delete_outline),
-          tooltip: 'Delete project',
-        ),
-      ],
-    ),
-    body: ListView(
-      padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
-      children: [
-        TextField(
-          controller: _titleController,
-          decoration: const InputDecoration(labelText: 'Working title'),
-        ),
-        const SizedBox(height: ResbudDesignTokens.contentSpacing),
-        TextField(
-          controller: _sourceController,
-          minLines: 8,
-          maxLines: 16,
-          decoration: const InputDecoration(
-            alignLabelWithHint: true,
-            labelText: 'Original research draft',
-            hintText: 'Paste or import your source material in a later step.',
-          ),
-        ),
-        const SizedBox(height: ResbudDesignTokens.contentSpacing),
-        FilledButton.icon(
-          onPressed: _saving ? null : _save,
-          icon: const Icon(Icons.save_outlined),
-          label: Text(_saving ? 'Saving…' : 'Save project'),
-        ),
-        const SizedBox(height: 28),
-        Text('Saved versions', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        FutureBuilder<List<PaperVersion>>(
-          future: _versions,
-          builder: (context, snapshot) {
-            if (snapshot.hasError)
-              return const Text('Version history could not be loaded.');
-            if (!snapshot.hasData) return const LinearProgressIndicator();
-            if (snapshot.data!.isEmpty)
-              return const Text('No paper versions saved yet.');
-            return Column(
-              children: [
-                for (final version in snapshot.data!)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text('Version ${version.versionNumber}'),
-                    subtitle: Text(
-                      '${version.origin.name} · schema ${version.schemaVersion}',
-                    ),
-                    trailing: version.id == _project.currentPaperVersionId
-                        ? const Icon(Icons.check_circle_outline)
-                        : null,
-                  ),
-              ],
-            );
-          },
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) =>
+      ProjectInputPage(repository: repository, project: project);
 }
 
 String _dateLabel(DateTime date) {

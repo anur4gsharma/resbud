@@ -34,7 +34,7 @@ void main() {
   });
 
   test('extracts body paragraphs and table cells in readable order', () {
-    final xml = '''<?xml version="1.0" encoding="UTF-8"?>
+    const xml = '''<?xml version="1.0" encoding="UTF-8"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
     <w:p><w:r><w:t>Opening claim stays intact.</w:t></w:r></w:p>
