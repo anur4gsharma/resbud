@@ -43,3 +43,7 @@ All research content in this database remains on the device until the user expli
 ## 7. Acceptance tests and traceability
 
 Storage tests must cover create/update/reopen, version ordering, immutable prior snapshots, atomic section acceptance, rollback on injected write failure, migration success and failure, unsupported paper schema recovery, corrupt database preservation, project deletion, and the absence of content in logs. See `07-testing-and-evaluation.md` for end-to-end paths and `01-requirements-and-acceptance.md` for the P0 traceability matrix.
+
+## 8. Current Flutter implementation
+
+The Flutter client currently uses SQLite schema version 2. Its v1-to-v2 migration adds `original_draft` (initialized from the existing source draft) and per-version metadata JSON. A project's original draft is captured when the project is created; later source-draft edits do not replace it. Saved paper maps, including any warning list, are serialized as complete immutable version snapshots. Deleting a project removes its versions through SQLite foreign-key cascade after confirmation. The app displays that projects remain on the device, have no cloud backup, and may be lost when the app is uninstalled.
