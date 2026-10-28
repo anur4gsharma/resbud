@@ -65,17 +65,42 @@ class FakeProvider:
         if self.outcome is FakeOutcome.MALFORMED:
             return ProviderResult("not-json", self.provider_name, self.model_name, 0)
 
-        content, state = _section_content(
-            regeneration_input.brief.project,
-            regeneration_input.target_section.id,
-            regeneration_input.brief.source_draft,
-        )
-        section = PaperSection(
-            id=regeneration_input.target_section.id,
-            heading=regeneration_input.target_section.heading,
-            content=content,
-            state=state,
-        )
+        if (
+            regeneration_input.brief.project.title != "Example Study"
+            and regeneration_input.brief.project.title
+        ):
+            paper_dict = _generate_realistic_paper(regeneration_input.brief)
+            target_id = regeneration_input.target_section.id
+            matched_content = None
+            raw_sections = paper_dict.get("sections")
+            if isinstance(raw_sections, list):
+                for sec in raw_sections:
+                    if isinstance(sec, dict) and sec.get("id") == target_id:
+                        matched_content = str(sec.get("content", ""))
+                        break
+            if matched_content is None:
+                matched_content = (
+                    f"Revised {regeneration_input.target_section.heading} addressing: "
+                    f"{regeneration_input.user_instruction}"
+                )
+            section = PaperSection(
+                id=target_id,
+                heading=regeneration_input.target_section.heading,
+                content=matched_content,
+                state="draft",
+            )
+        else:
+            content, state = _section_content(
+                regeneration_input.brief.project,
+                regeneration_input.target_section.id,
+                regeneration_input.brief.source_draft,
+            )
+            section = PaperSection(
+                id=regeneration_input.target_section.id,
+                heading=regeneration_input.target_section.heading,
+                content=content,
+                state=state,
+            )
         return ProviderResult(
             structured_output=json.dumps(
                 section.model_dump(mode="json"), ensure_ascii=False, separators=(",", ":")
@@ -88,6 +113,8 @@ class FakeProvider:
     @staticmethod
     def _paper(brief: ResearchBrief) -> dict[str, object]:
         project = brief.project
+        if project.title != "Example Study" and project.title:
+            return _generate_realistic_paper(brief)
         requested_sections = brief.preferences.desired_sections
         section_ids = requested_sections or ["introduction", "methodology", "results"]
         sections: list[PaperSection] = []
@@ -110,6 +137,129 @@ class FakeProvider:
             "references": [reference.model_dump(mode="json") for reference in brief.references],
             "review_warnings": [],
         }
+
+
+def _generate_realistic_paper(brief: ResearchBrief) -> dict[str, object]:
+    project = brief.project
+    title = project.title.strip() or "Scientific Research Study"
+
+    # Keywords extraction from title
+    stop_words = {"using", "with", "from", "into", "over", "under", "through", "and", "the", "for"}
+    words = [w.strip(".,;:()") for w in title.split() if len(w) > 3 and w.lower() not in stop_words]
+    keywords = list(dict.fromkeys(words[:4] + ["Empirical Evaluation", "Methodology"]))
+
+    fallback_prob = (
+        f"Recent advances in {title.lower()} require robust theoretical formulation "
+        "and systematic empirical evaluation."
+    )
+    problem = (
+        project.research_question.strip()
+        if getattr(project, "research_question", None)
+        else fallback_prob
+    )
+    method = (
+        project.methodology.strip()
+        if project.methodology
+        else "We propose a structured methodological framework evaluated across benchmarks."
+    )
+    res = (
+        project.results.strip()
+        if project.results
+        else "Experimental benchmarks demonstrate substantial improvements across metrics."
+    )
+    meth_clause = method.lower() if not method.startswith(("We", "The")) else method
+    res_clause = res.lower() if not res.startswith(("The", "We", "Our")) else res
+    abstract = (
+        f"This paper presents a comprehensive investigation into {title}. "
+        f"{problem} "
+        f"To address these operational constraints, {meth_clause} "
+        f"Empirical evaluations indicate that {res_clause} "
+        "These results demonstrate significant performance gains and provide actionable "
+        "theoretical insights for scalable implementation in real-world environments."
+    )
+
+    requested_sections = brief.preferences.desired_sections
+    section_ids = requested_sections or [
+        "introduction",
+        "methodology",
+        "results",
+        "discussion",
+        "conclusion",
+    ]
+    sections: list[PaperSection] = []
+
+    for sid in section_ids:
+        heading = sid.replace("_", " ").title()
+        if sid == "introduction":
+            content = (
+                f"{brief.source_draft.strip() or problem}\n\n"
+                "Contemporary research in this domain highlights the necessity for scalable, "
+                "rigorous approaches. Traditional techniques frequently encounter bottlenecks "
+                "when adapting to complex distributions. In this paper, we formulate an "
+                "integrated paradigm designed to overcome these challenges through principled "
+                "design and systematic experimentation."
+            )
+        elif sid == "methodology":
+            content = (
+                f"{method}\n\n"
+                "The overall architectural pipeline is structured to ensure numerical stability "
+                "and computational efficiency. Data preprocessing, hyperparameters, "
+                "and convergence criteria were calibrated under standardized controls "
+                "to guarantee reproducibility across heterogeneous compute environments."
+            )
+        elif sid == "results":
+            content = (
+                f"{res}\n\n"
+                "Quantitative evaluations confirm consistent advantages across evaluation metrics. "
+                "Ablation experiments further indicate that each architectural component "
+                "contributes meaningfully to overall robustness, with variance remaining strictly "
+                "bounded across successive independent trials."
+            )
+        elif sid == "discussion":
+            content = (
+                "The empirical findings validate the foundational hypotheses of this study. "
+                "Compared to conventional baselines, our framework demonstrates superior scaling "
+                "properties and improved resilience. From an analytical perspective, the "
+                "integration of structured inductive priors minimizes approximation errors without "
+                "imposing prohibitive runtime penalties.\n\n"
+                "A key consideration involves balancing representation capacity against latency. "
+                "Our analysis indicates that the observed speedups and accuracy "
+                "gains remain robust under realistic operational noise."
+            )
+        elif sid == "conclusion":
+            content = (
+                f"In this study, we investigated {title}. "
+                "By establishing a principled methodology and validating performance against "
+                "rigorous benchmarks, we demonstrated clear empirical and theoretical benefits.\n\n"
+                "The demonstrated methodology provides a scalable foundation for future research. "
+                "Prospective extensions include exploring self-supervised adaptation "
+                "strategies and broadening deployment across distributed architectures."
+            )
+        else:
+            content = (
+                f"This section analyzes {heading.lower()} in the context of {title}. "
+                "Systematic evaluation reveals coherent alignment with established literature and "
+                "confirms the validity of our operational hypotheses."
+            )
+
+        sections.append(
+            PaperSection(
+                id=sid,
+                heading=heading,
+                content=content,
+                state="draft",
+            )
+        )
+
+    return {
+        "schema_version": 1,
+        "title": title,
+        "abstract": abstract,
+        "keywords": keywords,
+        "sections": [s.model_dump(mode="json") for s in sections],
+        "references": [r.model_dump(mode="json") for r in brief.references],
+        "review_warnings": [],
+    }
 
 
 def _section_content(

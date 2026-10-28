@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'generation_models.dart';
@@ -105,15 +106,23 @@ class GenerationApiClient implements PaperGenerationApi {
     }
   }
 
+  static String get defaultBaseUrl {
+    const configured = String.fromEnvironment('RESBUD_API_BASE_URL');
+    if (configured.isNotEmpty) return configured;
+    if (!kIsWeb) {
+      try {
+        if (Platform.isAndroid) return 'http://10.0.2.2:8000';
+      } catch (_) {}
+    }
+    return 'http://127.0.0.1:8000';
+  }
+
   factory GenerationApiClient.fromEnvironment({
     http.Client? client,
     BearerTokenProvider? tokenProvider,
     Duration timeout = const Duration(seconds: 90),
   }) => GenerationApiClient(
-    baseUri: Uri.parse(const String.fromEnvironment(
-      'RESBUD_API_BASE_URL',
-      defaultValue: 'http://10.0.2.2:8000',
-    )),
+    baseUri: Uri.parse(defaultBaseUrl),
     client: client,
     tokenProvider: tokenProvider,
     timeout: timeout,

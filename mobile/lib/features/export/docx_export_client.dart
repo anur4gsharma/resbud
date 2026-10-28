@@ -106,10 +106,7 @@ class DocxExportApiClient implements PaperExportApi {
     BearerTokenProvider? tokenProvider,
     Duration timeout = const Duration(seconds: 90),
   }) => DocxExportApiClient(
-    baseUri: Uri.parse(const String.fromEnvironment(
-      'RESBUD_API_BASE_URL',
-      defaultValue: 'http://10.0.2.2:8000',
-    )),
+    baseUri: Uri.parse(GenerationApiClient.defaultBaseUrl),
     client: client,
     tokenProvider: tokenProvider,
     timeout: timeout,

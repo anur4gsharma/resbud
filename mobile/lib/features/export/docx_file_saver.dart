@@ -1,6 +1,7 @@
 import 'dart:io';
-import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 /// Platform and OS considerations:
@@ -42,10 +43,12 @@ class LocalDocxFileSaver implements DocxFileSaver {
   LocalDocxFileSaver({
     this.targetDirectory,
     this.directoryResolver,
+    this.webSaveHandler,
   });
 
   final Directory? targetDirectory;
   final Future<Directory> Function()? directoryResolver;
+  final Future<void> Function({required String fileName, required Uint8List bytes})? webSaveHandler;
 
   @override
   Future<String> saveDocx({
@@ -54,6 +57,26 @@ class LocalDocxFileSaver implements DocxFileSaver {
   }) async {
     if (bytes.isEmpty) {
       throw const DocxFileSaverException('Cannot save an empty DOCX document.');
+    }
+
+    final sanitized = sanitizeDocxFilename(suggestedFilename);
+
+    if (kIsWeb) {
+      try {
+        if (webSaveHandler != null) {
+          await webSaveHandler!(fileName: sanitized, bytes: bytes);
+        } else {
+          await FilePicker.saveFile(
+            fileName: sanitized,
+            bytes: bytes,
+            mimeType:
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          );
+        }
+        return sanitized;
+      } on Object catch (error) {
+        throw DocxFileSaverException('Could not save exported DOCX: $error');
+      }
     }
 
     try {
@@ -66,7 +89,6 @@ class LocalDocxFileSaver implements DocxFileSaver {
         await dir.create(recursive: true);
       }
 
-      final sanitized = sanitizeDocxFilename(suggestedFilename);
       final uniqueFile = resolveUniqueFile(dir, sanitized);
 
       await uniqueFile.writeAsBytes(bytes, flush: true);

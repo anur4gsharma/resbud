@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "project": {
+    "title": "Quantum Error Correction Using Neural Graph States",
+    "research_field": "Quantum Information and Computing",
+    "research_question": "Can graph neural networks improve decoder threshold efficiency under correlated depolarizing noise?",
+    "objectives": [
+      "Benchmark GNN-based decoders against minimum-weight perfect matching (MWPM).",
+      "Evaluate syndrome extraction latency across code distances 3, 5, and 7."
+    ],
+    "claimed_contribution": "A real-time neural decoding architecture achieving 1.8% threshold under circuit-level noise.",
+    "methodology_status": "provided",
+    "methodology": "We simulate toric and surface codes using Stim, train message passing neural networks on syndrome hypergraphs, and benchmark decoding throughput on GPU accelerators.",
+    "dataset_or_materials_status": "provided",
+    "dataset_or_materials": "Synthetic syndrome measurement dataset consisting of 100,000 Monte Carlo error trajectories generated at error rates p=0.001 to 0.02.",
+    "results_status": "provided",
+    "results": "The neural decoder improves logical error rates by 23% over MWPM at distance 5 while reducing decoding runtime from 4.2ms to 0.8ms per measurement round.",
+    "limitations_status": "provided",
+    "limitations": "Training overhead scales with code distance, and decoding accuracy degrades slightly under asymmetric drift noise."
+  },
+  "source_draft": "Quantum computers require active error correction to protect qubits against decoherence. Conventional decoders like MWPM and union-find are scalable but suboptimal for correlated multi-qubit noise. We train an equivariant graph neural network directly on topological syndrome graphs. Our results show substantial latency improvements and lower logical failure probabilities across varied physical error rates.",
+  "references": [
+    {
+      "id": "fowler2012",
+      "text": "Fowler, A. G., et al. (2012). Surface codes: Towards practical large-scale quantum computation. Physical Review A, 86(3), 032324."
+    },
+    {
+      "id": "dennis2002",
+      "text": "Dennis, E., et al. (2002). Topological quantum memory. Journal of Mathematical Physics, 43(9), 4452-4505."
+    }
+  ],
+  "preferences": {
+    "target_word_count": 2500,
+    "desired_sections": [
+      "introduction",
+      "methodology",
+      "results",
+      "discussion",
+      "conclusion"
+    ],
+    "citation_style": "apa_7"
+  }
+}

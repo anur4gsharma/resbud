@@ -16,6 +16,7 @@ from resbud_api.core.safe_errors import SafeUnexpectedErrorMiddleware
 from resbud_api.core.settings import Settings, get_settings
 from resbud_api.providers.base import DisabledProvider, GenerationProvider
 from resbud_api.providers.fake import FakeProvider
+from resbud_api.providers.gemini_provider import GeminiProvider
 from resbud_api.providers.openai_provider import OpenAIProvider
 
 
@@ -53,7 +54,17 @@ def create_app(
     elif runtime_settings.generation_provider == "fake":
         app.state.generation_provider = FakeProvider()
     elif runtime_settings.generation_provider == "openai":
-        app.state.generation_provider = OpenAIProvider(runtime_settings)
+        if (
+            runtime_settings.provider_model and runtime_settings.provider_model.startswith("gemini")
+        ) or (
+            runtime_settings.provider_api_key
+            and runtime_settings.provider_api_key.get_secret_value().startswith("AIza")
+        ):
+            app.state.generation_provider = GeminiProvider(runtime_settings)
+        else:
+            app.state.generation_provider = OpenAIProvider(runtime_settings)
+    elif runtime_settings.generation_provider == "gemini":
+        app.state.generation_provider = GeminiProvider(runtime_settings)
     else:
         app.state.generation_provider = DisabledProvider()
     install_error_handlers(app)
@@ -61,13 +72,21 @@ def create_app(
     app.include_router(generations_router)
     app.include_router(exports_router)
 
-    if runtime_settings.cors_allowed_origins:
+    cors_origins = list(runtime_settings.cors_allowed_origins)
+    if not cors_origins and runtime_settings.environment == "development":
+        cors_origins = ["*"]
+
+    if cors_origins:
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=runtime_settings.cors_allowed_origins,
+            allow_origins=cors_origins,
             allow_credentials=False,
-            allow_methods=["GET", "POST", "OPTIONS"],
-            allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
+            allow_methods=["*"] if cors_origins == ["*"] else ["GET", "POST", "OPTIONS"],
+            allow_headers=(
+                ["*"]
+                if cors_origins == ["*"]
+                else ["Authorization", "Content-Type", "X-Request-ID"]
+            ),
             expose_headers=["X-Request-ID"],
         )
 

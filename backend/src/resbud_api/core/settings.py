@@ -9,7 +9,7 @@ from pydantic import AnyHttpUrl, Field, SecretStr, TypeAdapter, field_validator,
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "test", "production"]
-GenerationProvider = Literal["fake", "openai", "disabled"]
+GenerationProvider = Literal["fake", "openai", "gemini", "disabled"]
 MAX_REQUEST_BODY_BYTES = 4 * 1024 * 1024
 _HTTP_URL = TypeAdapter(AnyHttpUrl)
 
@@ -127,7 +127,7 @@ class Settings(BaseSettings):
         missing: list[str] = []
         if self.generation_provider == "disabled":
             missing.append("generation_provider")
-        if self.generation_provider == "openai":
+        if self.generation_provider in {"openai", "gemini"}:
             if (
                 self.provider_api_key is None
                 or not self.provider_api_key.get_secret_value().strip()

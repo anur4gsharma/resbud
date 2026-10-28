@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 
 import 'data/local_project_repository.dart';
 import 'features/export/docx_export_client.dart';
@@ -10,7 +12,8 @@ import 'shared/design_tokens.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(ResbudBootstrap(databaseFactory: databaseFactory));
+  final DatabaseFactory factory = kIsWeb ? databaseFactoryFfiWeb : databaseFactory;
+  runApp(ResbudBootstrap(databaseFactory: factory));
 }
 
 class ResbudBootstrap extends StatefulWidget {

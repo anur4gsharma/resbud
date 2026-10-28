@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
@@ -103,7 +104,7 @@ class LocalProjectRepository {
   }) async {
     final databaseBackend = factory ?? databaseFactory;
     final resolvedPath =
-        path ?? p.join(await getDatabasesPath(), _databaseFileName);
+        path ?? (kIsWeb ? _databaseFileName : p.join(await getDatabasesPath(), _databaseFileName));
     final database = await databaseBackend.openDatabase(
       resolvedPath,
       options: OpenDatabaseOptions(
