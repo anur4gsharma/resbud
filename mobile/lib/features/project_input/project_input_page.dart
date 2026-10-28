@@ -10,6 +10,7 @@ import '../generation/generation_api_client.dart';
 import '../generation/generation_models.dart';
 import '../paper_editor/paper_editor_page.dart';
 import '../../import/source_document_importer.dart';
+import '../../import/document_project_extractor.dart';
 import '../../shared/design_tokens.dart';
 
 typedef PickedSource = ({String name, Uint8List bytes});
@@ -612,14 +613,14 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   Future<PickedSource?> _pickSource() async {
     final result = await FilePicker.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['txt', 'docx'],
+      allowedExtensions: ['txt', 'md', 'markdown', 'docx'],
     );
     if (result.isEmpty) return null;
     final file = result.single;
     return (name: file.name, bytes: await file.readAsBytes());
   }
 
-  Future<void> _importSource() async {
+  Future<void> _importSource({bool autoFillAll = false}) async {
     setState(() {
       _importing = true;
       _importMessage = null;
@@ -635,6 +636,47 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         fileName: picked.name,
         bytes: picked.bytes,
       );
+
+      if (autoFillAll) {
+        final extracted = const DocumentProjectExtractor().extract(
+          fileName: picked.name,
+          rawText: imported.text,
+        );
+        _controllers['title']!.text = extracted.title;
+        _controllers['research_field']!.text = extracted.researchField;
+        _controllers['research_question']!.text = extracted.researchQuestion;
+        _controllers['objectives']!.text = extracted.objectives.join('\n');
+        _controllers['claimed_contribution']!.text = extracted.claimedContribution;
+        if (extracted.methodology != null && extracted.methodology!.isNotEmpty) {
+          _controllers['methodology']!.text = extracted.methodology!;
+        }
+        if (extracted.results != null && extracted.results!.isNotEmpty) {
+          _controllers['results']!.text = extracted.results!;
+        }
+        if (extracted.limitations != null && extracted.limitations!.isNotEmpty) {
+          _controllers['limitations']!.text = extracted.limitations!;
+        }
+        _controllers['source_draft']!.text = extracted.sourceDraft;
+        if (extracted.references.isNotEmpty) {
+          _controllers['references']!.text = extracted.references.join('\n');
+        }
+        _statuses['methodology_status'] = extracted.methodologyStatus;
+        _statuses['dataset_or_materials_status'] = extracted.datasetStatus;
+        _statuses['results_status'] = extracted.resultsStatus;
+        _statuses['limitations_status'] = extracted.limitationsStatus;
+
+        await _save(showMessage: false);
+        if (!mounted) return;
+        setState(() {
+          _importing = false;
+          _fieldErrors.clear();
+          _importMessage =
+              'Extracted research inputs from "${picked.name}". Ready to generate paper!';
+        });
+        _showMessage('Information extracted from ${picked.name} and auto-populated!');
+        return;
+      }
+
       final existing = _controllers['source_draft']!.text;
       var replace = existing.isEmpty;
       if (existing.isNotEmpty) {
@@ -859,6 +901,12 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         ),
         actions: [
           IconButton(
+            key: const ValueKey('button-upload-file-auto-fill-appbar'),
+            onPressed: _importing ? null : () => _importSource(autoFillAll: true),
+            icon: const Icon(Icons.auto_awesome),
+            tooltip: 'Auto-fill from .txt or .md file',
+          ),
+          IconButton(
             onPressed: _deleteProject,
             icon: const Icon(Icons.delete_outline),
             tooltip: 'Delete project',
@@ -921,12 +969,26 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: _importing ? null : _importSource,
-              icon: const Icon(Icons.file_open_outlined),
-              label: Text(
-                _importing ? 'Reading file…' : 'Import .txt or .docx',
-              ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.tonalIcon(
+                  key: const ValueKey('button-upload-file-auto-fill'),
+                  onPressed: _importing ? null : () => _importSource(autoFillAll: true),
+                  icon: const Icon(Icons.auto_awesome),
+                  label: Text(
+                    _importing ? 'Processing file…' : 'Auto-Fill from File (.txt/.md)',
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _importing ? null : () => _importSource(autoFillAll: false),
+                  icon: const Icon(Icons.file_open_outlined),
+                  label: Text(
+                    _importing ? 'Reading file…' : 'Import .txt or .docx',
+                  ),
+                ),
+              ],
             ),
             if (_importMessage != null)
               Padding(

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -165,7 +166,7 @@ void main() {
       await scrollTo(tester, find.text('Import .txt or .docx'));
       await tester.tap(find.text('Import .txt or .docx'));
       await tester.pumpAndSettle();
-      expect(find.text('Choose a UTF-8 .txt or .docx file.'), findsOneWidget);
+      expect(find.text('Choose a UTF-8 .txt, .md, or .docx file.'), findsOneWidget);
     },
   );
 
@@ -416,5 +417,65 @@ void main() {
       find.textContaining('Resbud does not store drafts on the server'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('auto-fills project inputs and references from uploaded markdown file', (
+    tester,
+  ) async {
+    const markdownContent = '''
+# Neural Graph Decoders
+
+Field: Quantum Computing
+Research Question: How do graph neural networks scale on surface codes?
+
+## Objectives
+- Measure latency
+- Benchmark fidelity
+
+## Contribution
+We demonstrate superior syndrome graph decoding throughput.
+
+## Methodology
+Stim simulations on GPU.
+
+## Results
+23% lower logical errors.
+
+## Limitations
+Depolarizing noise only.
+
+## References
+1. Dennis et al. (2002). Topological quantum memory.
+''';
+
+    await pumpInput(
+      tester,
+      sourcePicker: () async => (
+        name: 'experiment_notes.md',
+        bytes: Uint8List.fromList(utf8.encode(markdownContent)),
+      ),
+    );
+
+    final autoFillBtn = find.byKey(const ValueKey('button-upload-file-auto-fill'));
+    await scrollTo(tester, autoFillBtn);
+    await tester.tap(autoFillBtn);
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 150)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.textContaining('Extracted research inputs from "experiment_notes.md"'),
+      findsOneWidget,
+    );
+    await tester.drag(find.byType(ListView), const Offset(0, 1500));
+    await tester.pumpAndSettle();
+
+    final titleWidget = tester.widget<TextFormField>(field('title'));
+    expect(titleWidget.controller?.text, 'Neural Graph Decoders');
+
+    final fieldWidget = tester.widget<TextFormField>(field('research_field'));
+    expect(fieldWidget.controller?.text, 'Quantum Computing');
   });
 }

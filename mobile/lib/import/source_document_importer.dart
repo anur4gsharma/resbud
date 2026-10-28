@@ -66,10 +66,11 @@ class SourceDocumentImporter {
     }
 
     final extension = _extension(fileName);
-    if (extension != 'txt' && extension != 'docx') {
+    final isText = extension == 'txt' || extension == 'md' || extension == 'markdown';
+    if (!isText && extension != 'docx') {
       throw const SourceImportException(
         SourceImportErrorCode.unsupportedFormat,
-        'Choose a UTF-8 .txt or .docx file.',
+        'Choose a UTF-8 .txt, .md, or .docx file.',
       );
     }
     _validateMediaType(extension, contentType);
@@ -80,7 +81,7 @@ class SourceDocumentImporter {
       );
     }
 
-    final text = extension == 'txt' ? _readText(bytes) : _readDocx(bytes);
+    final text = isText ? _readText(bytes) : _readDocx(bytes);
     if (text.trim().isEmpty) {
       throw const SourceImportException(
         SourceImportErrorCode.emptyDocument,
@@ -152,14 +153,18 @@ class SourceDocumentImporter {
     if (normalized == null || normalized.isEmpty || normalized == 'application/octet-stream') {
       return;
     }
-    final valid = extension == 'txt'
-        ? normalized == 'text/plain'
-        : normalized == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-              normalized == 'application/zip';
+    final isText = extension == 'txt' || extension == 'md' || extension == 'markdown';
+    final valid = isText
+        ? normalized == 'text/plain' ||
+            normalized == 'text/markdown' ||
+            normalized == 'text/x-markdown'
+        : normalized ==
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+            normalized == 'application/zip';
     if (!valid) {
       throw const SourceImportException(
         SourceImportErrorCode.unsupportedMediaType,
-        'The selected file type does not match its .txt or .docx extension.',
+        'The selected file type does not match its file extension.',
       );
     }
   }
