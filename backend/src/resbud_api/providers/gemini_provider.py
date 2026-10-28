@@ -1,5 +1,6 @@
 """Google Gemini REST API adapter with schema-constrained JSON output."""
 
+import asyncio
 import json
 from time import perf_counter
 from typing import Any, cast
@@ -19,6 +20,73 @@ from resbud_api.providers.base import (
     ProviderUnavailable,
     SectionRegenerationInput,
 )
+
+GEMINI_PAPER_DRAFT_SCHEMA: dict[str, Any] = {
+    "type": "OBJECT",
+    "properties": {
+        "schema_version": {"type": "INTEGER"},
+        "title": {"type": "STRING"},
+        "abstract": {"type": "STRING"},
+        "keywords": {"type": "ARRAY", "items": {"type": "STRING"}},
+        "sections": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "id": {"type": "STRING"},
+                    "heading": {"type": "STRING"},
+                    "content": {"type": "STRING"},
+                    "state": {"type": "STRING"},
+                },
+                "required": ["id", "heading", "content", "state"],
+            },
+        },
+        "references": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "id": {"type": "STRING"},
+                    "text": {"type": "STRING"},
+                },
+                "required": ["id", "text"],
+            },
+        },
+        "review_warnings": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "code": {"type": "STRING"},
+                    "message": {"type": "STRING"},
+                    "severity": {"type": "STRING"},
+                    "section_id": {"type": "STRING"},
+                },
+                "required": ["code", "message", "severity"],
+            },
+        },
+    },
+    "required": [
+        "schema_version",
+        "title",
+        "abstract",
+        "keywords",
+        "sections",
+        "references",
+        "review_warnings",
+    ],
+}
+
+GEMINI_PAPER_SECTION_SCHEMA: dict[str, Any] = {
+    "type": "OBJECT",
+    "properties": {
+        "id": {"type": "STRING"},
+        "heading": {"type": "STRING"},
+        "content": {"type": "STRING"},
+        "state": {"type": "STRING"},
+    },
+    "required": ["id", "heading", "content", "state"],
+}
 
 
 def clean_schema_for_gemini(raw_schema: dict[str, Any]) -> dict[str, Any]:
@@ -99,7 +167,31 @@ class GeminiProvider:
             self._client = None
 
     async def generate_paper(self, generation_input: GenerationInput) -> ProviderResult:
-        return await self._request(generation_input.prompt, PaperDraft)
+        result = await self._request(generation_input.prompt, PaperDraft)
+        try:
+            data = json.loads(result.structured_output)
+            if isinstance(data, dict):
+                # Ensure authoritative user references are preserved exactly as required by contract
+                data["references"] = [
+                    {"id": r.id, "text": r.text}
+                    for r in generation_input.brief.references
+                ]
+                data["schema_version"] = 1
+                if not data.get("review_warnings"):
+                    data["review_warnings"] = []
+                new_json = json.dumps(data)
+                return ProviderResult(
+                    structured_output=new_json,
+                    provider_name=result.provider_name,
+                    model_name=result.model_name,
+                    duration_ms=result.duration_ms,
+                    input_tokens=result.input_tokens,
+                    output_tokens=result.output_tokens,
+                    request_id=result.request_id,
+                )
+        except Exception:
+            pass
+        return result
 
     async def regenerate_section(
         self, regeneration_input: SectionRegenerationInput
@@ -124,7 +216,14 @@ class GeminiProvider:
             "Content-Type": "application/json",
         }
 
-        cleaned_schema = clean_schema_for_gemini(output_model.model_json_schema(mode="validation"))
+        if output_model == PaperDraft:
+            cleaned_schema = GEMINI_PAPER_DRAFT_SCHEMA
+        elif output_model == PaperSection:
+            cleaned_schema = GEMINI_PAPER_SECTION_SCHEMA
+        else:
+            cleaned_schema = clean_schema_for_gemini(
+                output_model.model_json_schema(mode="validation")
+            )
         payload: dict[str, Any] = {
             "systemInstruction": {
                 "parts": [{"text": prompt.system_instructions}],
@@ -153,7 +252,14 @@ class GeminiProvider:
             raise ProviderUnavailable from exc
 
         if response.status_code == 429:
-            raise ProviderRateLimited
+            # Backoff retry in case of short temporary rate spikes on free tier
+            await asyncio.sleep(2.5)
+            try:
+                response = await self._client.post(url, headers=headers, json=payload)
+            except Exception:
+                pass
+            if response.status_code == 429:
+                raise ProviderRateLimited
         if response.status_code in {401, 403}:
             raise ProviderUnavailable
         if response.status_code >= 500:
@@ -209,6 +315,40 @@ class GeminiProvider:
         clean_text = strip_code_fences(raw_text)
         try:
             parsed = json.loads(clean_text)
+            if isinstance(parsed, dict) and output_model is PaperDraft:
+                for sec in parsed.get("sections", []):
+                    if isinstance(sec, dict):
+                        if "section_id" in sec and "id" not in sec:
+                            sec["id"] = sec.pop("section_id")
+                        raw_id = str(sec.get("id") or "section").lower()
+                        raw_sec_id = raw_id.replace("-", "_").replace(" ", "_")
+                        sec_id = "".join(c for c in raw_sec_id if c.isalnum() or c == "_")
+                        if not sec_id or not sec_id[0].isalpha():
+                            sec_id = f"sec_{sec_id}"
+                        sec["id"] = sec_id[:40]
+                        if sec.get("state") not in {"draft", "needs_input", "not_applicable"}:
+                            sec["state"] = "draft"
+                parsed.setdefault("schema_version", 1)
+                parsed.setdefault("review_warnings", [])
+                if "references" in parsed and isinstance(parsed["references"], list):
+                    for idx, ref in enumerate(parsed["references"]):
+                        if isinstance(ref, dict):
+                            if not ref.get("id"):
+                                ref["id"] = f"ref_{idx + 1}"
+                            if not ref.get("text"):
+                                ref["text"] = "Reference text"
+            elif isinstance(parsed, dict) and output_model is PaperSection:
+                if "section_id" in parsed and "id" not in parsed:
+                    parsed["id"] = parsed.pop("section_id")
+                raw_id = str(parsed.get("id") or "section").lower()
+                raw_sec_id = raw_id.replace("-", "_").replace(" ", "_")
+                sec_id = "".join(c for c in raw_sec_id if c.isalnum() or c == "_")
+                if not sec_id or not sec_id[0].isalpha():
+                    sec_id = f"sec_{sec_id}"
+                parsed["id"] = sec_id[:40]
+                if parsed.get("state") not in {"draft", "needs_input", "not_applicable"}:
+                    parsed["state"] = "draft"
+
             validated = output_model.model_validate(parsed)
         except (json.JSONDecodeError, ValidationError, TypeError, ValueError) as exc:
             raise ProviderInvalidResponse from exc

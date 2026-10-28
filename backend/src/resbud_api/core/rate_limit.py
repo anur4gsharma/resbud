@@ -44,6 +44,10 @@ class InMemoryRateLimiter:
 
 async def check_rate_limit(request: Request) -> None:
     """Route dependency to enforce per-caller rate limits on cost-intensive endpoints."""
+    settings = getattr(request.app.state, "settings", None)
+    if settings is not None and settings.environment == "development":
+        return
+
     limiter = getattr(request.app.state, "rate_limiter", None)
     if limiter is None:
         return

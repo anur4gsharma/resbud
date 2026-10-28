@@ -1,6 +1,7 @@
 """Test targeted section regeneration using the latest generated paper."""
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -57,6 +58,7 @@ def test_user_section_regeneration() -> None:
         probe = httpx.get("http://127.0.0.1:8000/health/live", timeout=2.0)
         if probe.status_code == 200:
             print("📡 Sending to live server at http://127.0.0.1:8000...")
+            time.sleep(3.0)
             resp = httpx.post(
                 "http://127.0.0.1:8000/api/v1/generations/sections",
                 json=payload,
