@@ -120,6 +120,21 @@ def clean_schema_for_gemini(raw_schema: dict[str, Any]) -> dict[str, Any]:
     return cast(dict[str, Any], resolve(raw_schema))
 
 
+VALID_WARNING_CODES = {
+    "MISSING_METHOD",
+    "MISSING_DATASET_DETAILS",
+    "MISSING_RESULTS",
+    "MISSING_LIMITATIONS",
+    "CITATION_NEEDED",
+    "REFERENCE_INCOMPLETE",
+    "CLAIM_NEEDS_REVIEW",
+    "INPUT_CONFLICT",
+    "SECTION_NOT_APPLICABLE",
+    "GENERAL_REVIEW",
+}
+VALID_SEVERITIES = {"info", "warning", "critical"}
+
+
 def strip_code_fences(text: str) -> str:
     """Extract raw JSON text if wrapped inside Markdown code blocks."""
     stripped = text.strip()
@@ -316,6 +331,7 @@ class GeminiProvider:
         try:
             parsed = json.loads(clean_text)
             if isinstance(parsed, dict) and output_model is PaperDraft:
+                seen_ids: set[str] = set()
                 for sec in parsed.get("sections", []):
                     if isinstance(sec, dict):
                         if "section_id" in sec and "id" not in sec:
@@ -325,11 +341,46 @@ class GeminiProvider:
                         sec_id = "".join(c for c in raw_sec_id if c.isalnum() or c == "_")
                         if not sec_id or not sec_id[0].isalpha():
                             sec_id = f"sec_{sec_id}"
-                        sec["id"] = sec_id[:40]
+                        original_id = sec_id[:40]
+                        final_id = original_id
+                        counter = 1
+                        while final_id in seen_ids:
+                            counter += 1
+                            suffix = f"_{counter}"
+                            final_id = f"{original_id[:40 - len(suffix)]}{suffix}"
+                        seen_ids.add(final_id)
+                        sec["id"] = final_id
                         if sec.get("state") not in {"draft", "needs_input", "not_applicable"}:
                             sec["state"] = "draft"
                 parsed.setdefault("schema_version", 1)
                 parsed.setdefault("review_warnings", [])
+                for warning in parsed.get("review_warnings", []):
+                    if isinstance(warning, dict):
+                        code = str(warning.get("code") or "GENERAL_REVIEW").upper().strip()
+                        if code not in VALID_WARNING_CODES:
+                            if "DATASET" in code or "MATERIAL" in code:
+                                code = "MISSING_DATASET_DETAILS"
+                            elif "METHOD" in code:
+                                code = "MISSING_METHOD"
+                            elif "RESULT" in code:
+                                code = "MISSING_RESULTS"
+                            elif "LIMITATION" in code:
+                                code = "MISSING_LIMITATIONS"
+                            elif "CITE" in code or "CITATION" in code:
+                                code = "CITATION_NEEDED"
+                            elif "REF" in code:
+                                code = "REFERENCE_INCOMPLETE"
+                            elif "CONFLICT" in code:
+                                code = "INPUT_CONFLICT"
+                            else:
+                                code = "GENERAL_REVIEW"
+                        warning["code"] = code
+                        sev = str(warning.get("severity") or "warning").lower().strip()
+                        if sev not in VALID_SEVERITIES:
+                            sev = "warning"
+                        warning["severity"] = sev
+                        if not warning.get("message"):
+                            warning["message"] = "Review recommended for this section."
                 if "references" in parsed and isinstance(parsed["references"], list):
                     for idx, ref in enumerate(parsed["references"]):
                         if isinstance(ref, dict):
