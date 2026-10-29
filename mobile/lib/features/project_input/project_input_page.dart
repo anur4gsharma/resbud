@@ -118,15 +118,22 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   bool _importError = false;
   String? _sectionError;
   final Map<String, String> _fieldErrors = {};
+  bool _documentMode = false;
 
   @override
   void initState() {
     super.initState();
     final context = widget.project.projectContext;
     _versions = widget.repository.listPaperVersions(widget.project.id);
+    final creationMode = context['creation_mode'];
+    _documentMode = creationMode == 'document' ||
+        (context['description'] != null &&
+            (context['description'] as String).isNotEmpty &&
+            _stringValue(context['research_question'], '').isEmpty);
     _controllers = {
       for (final key in [
         'title',
+        'description',
         'research_field',
         'research_question',
         'objectives',
@@ -177,6 +184,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   ) {
     if (key == 'title') return _stringValue(context[key], project.title);
     if (key == 'source_draft') return project.sourceDraft;
+    if (key == 'description') return _stringValue(context[key], '');
     final value = context[key];
     if (value is List) {
       if (key == 'references') {
@@ -221,35 +229,67 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     ..._nonblankLines(_customSectionsController.text),
   ];
 
-  Map<String, Object?> _buildContext() => {
-    'title': _controllers['title']!.text.trim(),
-    'research_field': _controllers['research_field']!.text.trim(),
-    'research_question': _controllers['research_question']!.text.trim(),
-    'objectives': _nonblankLines(_controllers['objectives']!.text),
-    'claimed_contribution': _controllers['claimed_contribution']!.text.trim(),
-    for (final entry in _statusDetails.entries) ...{
-      entry.key: _statuses[entry.key],
-      entry.value: _controllers[entry.value]!.text.trim().isEmpty
-          ? null
-          : _controllers[entry.value]!.text.trim(),
-    },
-    'references': [
-      for (
-        var index = 0;
-        index < _nonblankLines(_controllers['references']!.text).length;
-        index++
-      )
-        {
-          'id': 'ref_${index + 1}',
-          'text': _nonblankLines(_controllers['references']!.text)[index],
-        },
-    ],
-    'preferences': {
-      'target_word_count': _targetWordCount,
-      'desired_sections': _requestedSections,
-      'citation_style': _citationStyle,
-    },
-  };
+  Map<String, Object?> _buildContext() {
+    final title = _controllers['title']!.text.trim();
+    final desc = _controllers['description']?.text.trim() ?? '';
+
+    final researchQuestion = _documentMode && _controllers['research_question']!.text.trim().isEmpty
+        ? (desc.isNotEmpty ? desc : 'How can the research in "$title" be systematically formalized and evaluated?')
+        : _controllers['research_question']!.text.trim();
+
+    final researchField = _documentMode && _controllers['research_field']!.text.trim().isEmpty
+        ? 'Scientific & Academic Research'
+        : _controllers['research_field']!.text.trim();
+
+    final objectives = _documentMode && _nonblankLines(_controllers['objectives']!.text).isEmpty
+        ? [
+            if (desc.isNotEmpty) desc,
+            'Synthesize and evaluate the research claims presented in the source document.',
+          ]
+        : _nonblankLines(_controllers['objectives']!.text);
+
+    final claimedContribution = _documentMode && _controllers['claimed_contribution']!.text.trim().isEmpty
+        ? desc
+        : _controllers['claimed_contribution']!.text.trim();
+
+    final statusEntries = <String, Object?>{};
+    for (final entry in _statusDetails.entries) {
+      final currentStatus = _statuses[entry.key];
+      final statusVal = (_documentMode && (currentStatus == null || currentStatus == 'unknown'))
+          ? 'not_available'
+          : currentStatus;
+      statusEntries[entry.key] = statusVal;
+      final textVal = _controllers[entry.value]!.text.trim();
+      statusEntries[entry.value] = textVal.isEmpty ? null : textVal;
+    }
+
+    return {
+      'title': title,
+      'description': desc,
+      'creation_mode': _documentMode ? 'document' : 'manual',
+      'research_field': researchField,
+      'research_question': researchQuestion,
+      'objectives': objectives,
+      'claimed_contribution': claimedContribution,
+      ...statusEntries,
+      'references': [
+        for (
+          var index = 0;
+          index < _nonblankLines(_controllers['references']!.text).length;
+          index++
+        )
+          {
+            'id': 'ref_${index + 1}',
+            'text': _nonblankLines(_controllers['references']!.text)[index],
+          },
+      ],
+      'preferences': {
+        'target_word_count': _targetWordCount,
+        'desired_sections': _requestedSections,
+        'citation_style': _citationStyle,
+      },
+    };
+  }
 
   List<String> _nonblankLines(String value) => value
       .split('\n')
@@ -260,6 +300,24 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   String? _validateContext() {
     _fieldErrors.clear();
     _sectionError = null;
+
+    if (_documentMode) {
+      if (_controllers['title']!.text.trim().isEmpty) {
+        _fieldErrors['title'] = 'Working title is required.';
+      }
+      if ((_controllers['description']?.text.trim() ?? '').isEmpty) {
+        _fieldErrors['description'] = 'Paper description is required.';
+      }
+      if (_controllers['source_draft']!.text.trim().isEmpty) {
+        _fieldErrors['source_draft'] = 'Please choose a .txt or .md file.';
+      }
+      _formKey.currentState?.validate();
+      if (_fieldErrors.isNotEmpty) {
+        return 'Complete the highlighted fields.';
+      }
+      return null;
+    }
+
     const requiredInputs = <String, String>{
       'title': 'Working title',
       'research_field': 'Research field',
@@ -319,6 +377,214 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       return 'Section IDs must start with a lowercase letter and use lowercase letters, numbers, or underscores.';
     }
     return null;
+  }
+
+  List<Widget> _buildDocumentModeWidgets() {
+    final hasContent = _controllers['source_draft']!.text.trim().isNotEmpty;
+    final charCount = _controllers['source_draft']!.text.length;
+
+    return [
+      Card(
+        elevation: 0,
+        color: Colors.blue.shade50.withAlpha(140),
+        margin: const EdgeInsets.only(bottom: 16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.info_outline, color: Colors.blue.shade800),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Upload your .txt or .md research notes. Provide a title and description, and the AI will synthesize your research paper directly. Any parts not found in your document will include a clear guidance note for your input.',
+                  style: TextStyle(color: Colors.blue.shade900, fontSize: 13, height: 1.4),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      Text(
+        'Project brief',
+        style: Theme.of(context).textTheme.titleLarge,
+      ),
+      const SizedBox(height: 16),
+      _textField(
+        'title',
+        'Working title',
+        maxLength: 300,
+        requiredField: true,
+      ),
+      _textField(
+        'description',
+        'Paper description',
+        maxLength: 4000,
+        minLines: 3,
+        requiredField: true,
+        helper: 'What is this paper about? Summarize the scope, problem, and focus.',
+        hintText: 'e.g. This research develops equivariant neural graph decoders for surface code quantum error correction...',
+      ),
+      const SizedBox(height: 16),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    hasContent ? Icons.check_circle_outline : Icons.upload_file,
+                    color: hasContent ? Colors.green.shade700 : Colors.blue.shade700,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      hasContent
+                          ? 'Document attached ($charCount characters)'
+                          : 'Research document (.txt or .md)',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  FilledButton.tonalIcon(
+                    key: const ValueKey('button-choose-doc-file'),
+                    onPressed: _importing ? null : () => _importSource(autoFillAll: false),
+                    icon: _importing
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.folder_open),
+                    label: Text(hasContent ? 'Change file' : 'Choose file'),
+                  ),
+                ],
+              ),
+              if (_fieldErrors.containsKey('source_draft')) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _fieldErrors['source_draft']!,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+              if (hasContent) ...[
+                const SizedBox(height: 12),
+                Container(
+                  height: 140,
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: SingleChildScrollView(
+                    child: SelectableText(
+                      _controllers['source_draft']!.text,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 16),
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Paper preferences',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              Text('Target word count: $_targetWordCount words'),
+              Slider(
+                value: _targetWordCount.toDouble(),
+                min: 500,
+                max: 8000,
+                divisions: 15,
+                label: '$_targetWordCount words',
+                onChanged: (value) => setState(() => _targetWordCount = value.round()),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                initialValue: _citationStyle,
+                decoration: const InputDecoration(labelText: 'Citation style'),
+                items: const [
+                  DropdownMenuItem(value: 'user_supplied', child: Text('Authoritative user citations')),
+                  DropdownMenuItem(value: 'ieee', child: Text('IEEE style [1]')),
+                  DropdownMenuItem(value: 'apa_7', child: Text('APA 7th edition')),
+                ],
+                onChanged: (val) {
+                  if (val != null) setState(() => _citationStyle = val);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+      if (_generationFailure != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 16),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.red.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _generationFailure!.userMessage,
+                  style: TextStyle(color: Colors.red.shade900),
+                ),
+                const SizedBox(height: 4),
+                TextButton(
+                  onPressed: _retryGeneration,
+                  child: const Text('Retry generation'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      const SizedBox(height: 24),
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          key: const ValueKey('button-generate-paper-docmode'),
+          onPressed: _generationPhase == GenerationPhase.generating ? null : _generate,
+          icon: _generationPhase == GenerationPhase.generating
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : const Icon(Icons.auto_awesome),
+          label: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Text(
+              _generationPhase == GenerationPhase.generating ? 'Generating paper…' : 'Generate Paper with AI',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+      ),
+      const SizedBox(height: 32),
+    ];
   }
 
   Future<bool> _save({bool showMessage = true}) async {
@@ -920,10 +1186,33 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
           children: [
-            Text(
-              'Project brief',
-              style: Theme.of(context).textTheme.titleLarge,
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: SegmentedButton<bool>(
+                key: const ValueKey('segmented-project-mode'),
+                segments: const [
+                  ButtonSegment<bool>(
+                    value: true,
+                    label: Text('Generate from File (.txt/.md)'),
+                    icon: Icon(Icons.description_outlined),
+                  ),
+                  ButtonSegment<bool>(
+                    value: false,
+                    label: Text('Manual Form Details'),
+                    icon: Icon(Icons.edit_note_outlined),
+                  ),
+                ],
+                selected: {_documentMode},
+                onSelectionChanged: (selected) =>
+                    setState(() => _documentMode = selected.first),
+              ),
             ),
+            if (_documentMode) ..._buildDocumentModeWidgets()
+            else ...[
+              Text(
+                'Project brief',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
             const SizedBox(height: 8),
             const Text(
               'Required research facts are checked on this device. “Unknown” means you have not supplied the information yet; the other status choices record an explicit answer.',
@@ -1200,6 +1489,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
               },
             ),
             const SizedBox(height: 120),
+            ],
           ],
         ),
       ),
@@ -1314,6 +1604,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     String key,
     String label, {
     String? helper,
+    String? hintText,
     required int maxLength,
     bool requiredField = false,
     int minLines = 1,
@@ -1329,6 +1620,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       decoration: InputDecoration(
         labelText: label,
         helperText: helper,
+        hintText: hintText,
         errorText: _fieldErrors[key],
         alignLabelWithHint: minLines > 1,
       ),

@@ -478,4 +478,48 @@ Depolarizing noise only.
     final fieldWidget = tester.widget<TextFormField>(field('research_field'));
     expect(fieldWidget.controller?.text, 'Quantum Computing');
   });
+
+  testWidgets('supports document mode with file upload and direct generation without autofill', (tester) async {
+    const rawNotes = '# Notes on Error Correction\nWe investigate topological syndrome decoders.';
+    final docProject = await repository.createProject(
+      title: 'Neural Decoder Research',
+      projectContext: const {'creation_mode': 'document'},
+      sourceDraft: rawNotes,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ProjectInputPage(
+          repository: repository,
+          generationApi: fakeApi,
+          project: docProject,
+        ),
+      ),
+    );
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify document mode is active
+    expect(find.text('Generate from File (.txt/.md)'), findsOneWidget);
+    expect(find.text('Paper description'), findsOneWidget);
+    expect(find.textContaining('Document attached'), findsOneWidget);
+    expect(find.byKey(const ValueKey('button-generate-paper-docmode')), findsOneWidget);
+
+    // Enter paper description
+    await tester.enterText(field('description'), 'Evaluating equivariant graph neural networks for fast quantum decoding.');
+    await tester.pumpAndSettle();
+
+    // Tap generate
+    await tester.tap(find.byKey(const ValueKey('button-generate-paper-docmode')));
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
+    await tester.pumpAndSettle();
+
+    // Expect preview dialog to appear
+    expect(find.text('Review generated draft'), findsOneWidget);
+  });
 }

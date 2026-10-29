@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
@@ -8,6 +9,7 @@ import 'features/export/docx_export_client.dart';
 import 'features/export/docx_file_saver.dart';
 import 'features/generation/generation_api_client.dart';
 import 'features/project_input/project_input_page.dart';
+import 'import/source_document_importer.dart';
 import 'shared/design_tokens.dart';
 
 Future<void> main() async {
@@ -140,16 +142,38 @@ class _ProjectListPageState extends State<ProjectListPage> {
   }
 
   Future<void> _createProject() async {
-    final title = await showDialog<String>(
+    final result = await showDialog<dynamic>(
       context: context,
-      builder: (_) => const _NewProjectDialog(),
+      builder: (_) => _NewProjectDialog(sourcePicker: widget.sourcePicker),
     );
-    if (!mounted || title == null || title.trim().isEmpty) return;
+    if (!mounted || result == null) return;
+    final String title;
+    final String description;
+    final String sourceDraft;
+    final bool isDocumentMode;
+    if (result is _NewProjectResult) {
+      title = result.title;
+      description = result.description;
+      sourceDraft = result.sourceDraft;
+      isDocumentMode = result.isDocumentMode;
+    } else if (result is String) {
+      title = result;
+      description = '';
+      sourceDraft = '';
+      isDocumentMode = false;
+    } else {
+      return;
+    }
+    if (title.trim().isEmpty) return;
 
     try {
       final project = await widget.repository.createProject(
         title: title,
-        projectContext: const {},
+        projectContext: {
+          'description': description,
+          'creation_mode': isDocumentMode ? 'document' : 'manual',
+        },
+        sourceDraft: sourceDraft,
       );
       if (!mounted) return;
       await Navigator.of(context).push<void>(
@@ -388,8 +412,24 @@ class _ProjectListPageState extends State<ProjectListPage> {
   );
 }
 
+class _NewProjectResult {
+  const _NewProjectResult({
+    required this.title,
+    this.description = '',
+    this.sourceDraft = '',
+    this.isDocumentMode = true,
+  });
+
+  final String title;
+  final String description;
+  final String sourceDraft;
+  final bool isDocumentMode;
+}
+
 class _NewProjectDialog extends StatefulWidget {
-  const _NewProjectDialog();
+  const _NewProjectDialog({this.sourcePicker});
+
+  final SourcePicker? sourcePicker;
 
   @override
   State<_NewProjectDialog> createState() => _NewProjectDialogState();
@@ -397,21 +437,155 @@ class _NewProjectDialog extends StatefulWidget {
 
 class _NewProjectDialogState extends State<_NewProjectDialog> {
   final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
+  bool _isDocumentMode = false;
+  String _sourceDraft = '';
+  String? _sourceFileName;
+  bool _readingFile = false;
 
   @override
   void dispose() {
     _titleController.dispose();
+    _descriptionController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickFile() async {
+    setState(() => _readingFile = true);
+    try {
+      final picker = widget.sourcePicker;
+      PickedSource? picked;
+      if (picker != null) {
+        picked = await picker();
+      } else {
+        final result = await FilePicker.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['txt', 'md', 'markdown'],
+        );
+        if (result.isNotEmpty) {
+          final file = result.single;
+          picked = (name: file.name, bytes: await file.readAsBytes());
+        }
+      }
+      if (picked != null) {
+        final imported = const SourceDocumentImporter().importBytes(
+          fileName: picked.name,
+          bytes: picked.bytes,
+        );
+        setState(() {
+          _sourceDraft = imported.text;
+          _sourceFileName = picked!.name;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not read file: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _readingFile = false);
+    }
+  }
+
+  void _submit() {
+    final title = _titleController.text.trim();
+    if (title.isEmpty) return;
+    Navigator.pop(
+      context,
+      _NewProjectResult(
+        title: title,
+        description: _descriptionController.text.trim(),
+        sourceDraft: _sourceDraft,
+        isDocumentMode: _isDocumentMode,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('New project'),
-    content: TextField(
-      controller: _titleController,
-      autofocus: true,
-      decoration: const InputDecoration(labelText: 'Working title'),
-      onSubmitted: (value) => Navigator.pop(context, value),
+    content: SizedBox(
+      width: 480,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _titleController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Working title',
+                hintText: 'e.g. Scalable Quantum Error Correction',
+              ),
+              onSubmitted: (_) => _submit(),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'How do you want to create your paper?',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment<bool>(
+                  value: true,
+                  label: Text('From File (.txt/.md)'),
+                  icon: Icon(Icons.description_outlined),
+                ),
+                ButtonSegment<bool>(
+                  value: false,
+                  label: Text('Manual Form Details'),
+                  icon: Icon(Icons.edit_note_outlined),
+                ),
+              ],
+              selected: {_isDocumentMode},
+              onSelectionChanged: (selected) => setState(() => _isDocumentMode = selected.first),
+            ),
+            if (_isDocumentMode) ...[
+              const SizedBox(height: 16),
+              TextField(
+                controller: _descriptionController,
+                maxLines: 2,
+                decoration: const InputDecoration(
+                  labelText: 'Paper description',
+                  hintText: 'What is this paper about? Focus, scope, and objectives...',
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _sourceFileName != null
+                          ? 'Attached: $_sourceFileName (${_sourceDraft.length} chars)'
+                          : (_sourceDraft.isNotEmpty
+                              ? 'Document loaded (${_sourceDraft.length} chars)'
+                              : 'No document attached yet'),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _sourceDraft.isNotEmpty ? Colors.green.shade800 : Colors.grey.shade600,
+                        fontWeight: _sourceDraft.isNotEmpty ? FontWeight.bold : FontWeight.normal,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _readingFile ? null : _pickFile,
+                    icon: _readingFile
+                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.attach_file, size: 16),
+                    label: Text(_sourceDraft.isNotEmpty ? 'Replace file' : 'Attach file'),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
     ),
     actions: [
       TextButton(
@@ -419,7 +593,7 @@ class _NewProjectDialogState extends State<_NewProjectDialog> {
         child: const Text('Cancel'),
       ),
       FilledButton(
-        onPressed: () => Navigator.pop(context, _titleController.text),
+        onPressed: _submit,
         child: const Text('Create'),
       ),
     ],

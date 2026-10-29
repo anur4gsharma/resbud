@@ -22,7 +22,9 @@ class GenerationRequest {
   }) {
     final context = Map<String, Object?>.from(project)
       ..remove('references')
-      ..remove('preferences');
+      ..remove('preferences')
+      ..remove('description')
+      ..remove('creation_mode');
     final projectPayload = ProjectContextPayload.fromJson(context);
     final references = _list(project['references'], 'project.references')
         .map((value) => ReferencePayload.fromJson(_map(value, 'reference')))
