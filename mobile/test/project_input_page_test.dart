@@ -41,6 +41,7 @@ void main() {
 
   Future<void> pumpInput(
     WidgetTester tester, {
+    LocalProject? targetProject,
     SourcePicker? sourcePicker,
   }) async {
     await tester.pumpWidget(
@@ -48,7 +49,7 @@ void main() {
         home: ProjectInputPage(
           repository: repository,
           generationApi: fakeApi,
-          project: project,
+          project: targetProject ?? project,
           sourcePicker: sourcePicker,
         ),
       ),
@@ -480,26 +481,21 @@ Depolarizing noise only.
   });
 
   testWidgets('supports document mode with file upload and direct generation without autofill', (tester) async {
-    const rawNotes = '# Notes on Error Correction\nWe investigate topological syndrome decoders.';
-    final docProject = await repository.createProject(
-      title: 'Neural Decoder Research',
-      projectContext: const {'creation_mode': 'document'},
-      sourceDraft: rawNotes,
-    );
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: ProjectInputPage(
-          repository: repository,
-          generationApi: fakeApi,
-          project: docProject,
-        ),
+    const rawNotes = '# Notes on Error Correction\nWe investigate topological syndrome decoders.';
+    final docProject = await tester.runAsync(
+      () => repository.createProject(
+        title: 'Neural Decoder Research',
+        projectContext: const {'creation_mode': 'document'},
+        sourceDraft: rawNotes,
       ),
     );
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
-    await tester.pumpAndSettle();
+
+    await pumpInput(tester, targetProject: docProject!);
 
     // Verify document mode is active
     expect(find.text('Generate from File (.txt/.md)'), findsOneWidget);
@@ -511,15 +507,44 @@ Depolarizing noise only.
     await tester.enterText(field('description'), 'Evaluating equivariant graph neural networks for fast quantum decoding.');
     await tester.pumpAndSettle();
 
-    // Tap generate
-    await tester.tap(find.byKey(const ValueKey('button-generate-paper-docmode')));
+    final genBtn = find.byKey(const ValueKey('button-generate-paper-docmode'));
+    await tester.tap(genBtn);
     await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 200)),
-    );
     await tester.pumpAndSettle();
 
     // Expect preview dialog to appear
     expect(find.text('Review generated draft'), findsOneWidget);
+  });
+
+  testWidgets('supports document mode review before generation', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const rawNotes = '# Notes on Error Correction\nWe investigate topological syndrome decoders.';
+    final docProject = await tester.runAsync(
+      () => repository.createProject(
+        title: 'Neural Decoder Research',
+        projectContext: const {'creation_mode': 'document'},
+        sourceDraft: rawNotes,
+      ),
+    );
+
+    await pumpInput(tester, targetProject: docProject!);
+
+    final reviewBtn = find.byKey(const ValueKey('button-review-before-generation-docmode'));
+    expect(reviewBtn, findsOneWidget);
+    await tester.tap(reviewBtn);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Before generation'), findsOneWidget);
+    expect(find.textContaining('Working title: "Neural Decoder Research"'), findsOneWidget);
+    expect(find.textContaining('Manuscript source text'), findsOneWidget);
+    expect(find.textContaining('does not send your research anywhere'), findsOneWidget);
+
+    await tester.tap(find.text('Done'));
+    await tester.pumpAndSettle();
+    expect(find.text('Before generation'), findsNothing);
   });
 }

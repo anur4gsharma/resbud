@@ -76,7 +76,7 @@ class _ResbudBootstrapState extends State<ResbudBootstrap> {
   );
 }
 
-class ResbudApp extends StatelessWidget {
+class ResbudApp extends StatefulWidget {
   ResbudApp({
     super.key,
     required this.repository,
@@ -84,6 +84,7 @@ class ResbudApp extends StatelessWidget {
     PaperExportApi? exportApi,
     DocxFileSaver? fileSaver,
     this.sourcePicker,
+    this.initialThemeMode = ThemeMode.system,
   }) : generationApi = generationApi ?? GenerationApiClient.fromEnvironment(),
        exportApi = exportApi ?? DocxExportApiClient.fromEnvironment(),
        fileSaver = fileSaver ?? LocalDocxFileSaver();
@@ -93,17 +94,47 @@ class ResbudApp extends StatelessWidget {
   final PaperExportApi exportApi;
   final DocxFileSaver fileSaver;
   final SourcePicker? sourcePicker;
+  final ThemeMode initialThemeMode;
+
+  @override
+  State<ResbudApp> createState() => _ResbudAppState();
+}
+
+class _ResbudAppState extends State<ResbudApp> {
+  late ThemeMode _themeMode;
+
+  @override
+  void initState() {
+    super.initState();
+    _themeMode = widget.initialThemeMode;
+  }
+
+  void _toggleTheme() {
+    setState(() {
+      if (_themeMode == ThemeMode.light) {
+        _themeMode = ThemeMode.dark;
+      } else if (_themeMode == ThemeMode.dark) {
+        _themeMode = ThemeMode.system;
+      } else {
+        _themeMode = ThemeMode.light;
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Resbud',
     theme: ResbudDesignTokens.lightTheme(),
+    darkTheme: ResbudDesignTokens.darkTheme(),
+    themeMode: _themeMode,
     home: ProjectListPage(
-      repository: repository,
-      generationApi: generationApi,
-      exportApi: exportApi,
-      fileSaver: fileSaver,
-      sourcePicker: sourcePicker,
+      repository: widget.repository,
+      generationApi: widget.generationApi,
+      exportApi: widget.exportApi,
+      fileSaver: widget.fileSaver,
+      sourcePicker: widget.sourcePicker,
+      currentThemeMode: _themeMode,
+      onToggleTheme: _toggleTheme,
     ),
   );
 }
@@ -116,6 +147,8 @@ class ProjectListPage extends StatefulWidget {
     required this.exportApi,
     required this.fileSaver,
     this.sourcePicker,
+    this.currentThemeMode = ThemeMode.system,
+    this.onToggleTheme,
   });
 
   final LocalProjectRepository repository;
@@ -123,6 +156,8 @@ class ProjectListPage extends StatefulWidget {
   final PaperExportApi exportApi;
   final DocxFileSaver fileSaver;
   final SourcePicker? sourcePicker;
+  final ThemeMode currentThemeMode;
+  final VoidCallback? onToggleTheme;
 
   @override
   State<ProjectListPage> createState() => _ProjectListPageState();
@@ -130,6 +165,7 @@ class ProjectListPage extends StatefulWidget {
 
 class _ProjectListPageState extends State<ProjectListPage> {
   late Future<List<LocalProject>> _projects;
+  bool _showGuide = true;
 
   @override
   void initState() {
@@ -263,153 +299,404 @@ class _ProjectListPageState extends State<ProjectListPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Resbud')),
-    floatingActionButton: FloatingActionButton.extended(
-      onPressed: _createProject,
-      icon: const Icon(Icons.add),
-      label: const Text('New project'),
-    ),
-    body: FutureBuilder<List<LocalProject>>(
-      future: _projects,
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                  const SizedBox(height: 12),
-                  const Text('Projects could not be loaded. Try again.'),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    onPressed: () => setState(_refresh),
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Retry'),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final projects = snapshot.data!;
-        if (projects.isEmpty) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.description_outlined, size: 48, color: ResbudDesignTokens.seedColor),
-                  const SizedBox(height: ResbudDesignTokens.contentSpacing),
-                  Text(
-                    'Your projects will appear here.',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Create a project to start saving your research locally.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  FilledButton.icon(
-                    onPressed: _createProject,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Create your first project'),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-        return ListView(
-          padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            for (final project in projects)
-              Card(
-                child: ListTile(
-                  title: Text(
-                    project.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text('Updated ${_dateLabel(project.updatedAt)}'),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      PopupMenuButton<String>(
-                        key: ValueKey('project-menu-${project.id}'),
-                        tooltip: 'Project options',
-                        icon: const Icon(Icons.more_vert),
-                        onSelected: (action) {
-                          if (action == 'rename') {
-                            _renameProject(project);
-                          } else if (action == 'delete') {
-                            _deleteProjectFromList(project);
-                          }
-                        },
-                        itemBuilder: (_) => [
-                          const PopupMenuItem(
-                            value: 'rename',
-                            child: Row(
-                              children: [
-                                Icon(Icons.edit_outlined, size: 20),
-                                SizedBox(width: 8),
-                                Text('Rename'),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Row(
-                              children: [
-                                Icon(Icons.delete_outline, size: 20, color: Colors.red),
-                                SizedBox(width: 8),
-                                Text('Delete', style: TextStyle(color: Colors.red)),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Icon(Icons.chevron_right),
-                    ],
-                  ),
-                  onTap: () async {
-                    await Navigator.of(context).push<void>(
-                      MaterialPageRoute<void>(
-                        builder: (_) => ProjectDetailPage(
-                          repository: widget.repository,
-                          generationApi: widget.generationApi,
-                          exportApi: widget.exportApi,
-                          fileSaver: widget.fileSaver,
-                          sourcePicker: widget.sourcePicker,
-                          project: project,
-                        ),
-                      ),
-                    );
-                    if (mounted) setState(_refresh);
-                  },
+            const Text('Resbud'),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withAlpha(25),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: theme.colorScheme.primary.withAlpha(50)),
+              ),
+              child: Text(
+                'Local-first',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
+            ),
           ],
-        );
-      },
+        ),
+        actions: [
+          IconButton(
+            key: const ValueKey('button-toggle-guide'),
+            tooltip: _showGuide ? 'Hide guide' : 'Research guide',
+            icon: Icon(_showGuide ? Icons.lightbulb : Icons.lightbulb_outline),
+            onPressed: () => setState(() => _showGuide = !_showGuide),
+          ),
+          if (widget.onToggleTheme != null)
+            IconButton(
+              key: const ValueKey('button-toggle-theme'),
+              tooltip: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+              icon: Icon(isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined),
+              onPressed: widget.onToggleTheme,
+            ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _createProject,
+        icon: const Icon(Icons.add),
+        label: const Text('New project'),
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 960),
+          child: FutureBuilder<List<LocalProject>>(
+            future: _projects,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                        const SizedBox(height: 12),
+                        const Text('Projects could not be loaded. Try again.'),
+                        const SizedBox(height: 16),
+                        FilledButton.icon(
+                          onPressed: () => setState(_refresh),
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final projects = snapshot.data!;
+              if (projects.isEmpty) {
+                return Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.description_outlined, size: 48, color: ResbudDesignTokens.seedColor),
+                        const SizedBox(height: ResbudDesignTokens.contentSpacing),
+                        Text(
+                          'Your projects will appear here.',
+                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Create a project to start saving your research locally.',
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
+                        FilledButton.icon(
+                          onPressed: _createProject,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Create your first project'),
+                        ),
+                        if (_showGuide) ...[
+                          const SizedBox(height: 32),
+                          _buildOnboardingGuide(theme),
+                        ],
+                      ],
+                    ),
+                  ),
+                );
+              }
+              return ListView(
+                padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
+                children: [
+                  if (_showGuide) ...[
+                    _buildOnboardingGuide(theme),
+                    const SizedBox(height: 12),
+                  ],
+                  for (final project in projects)
+                    _buildProjectCard(project, theme),
+                  const SizedBox(height: 48),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+      bottomNavigationBar: const SafeArea(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Text(
+            'Projects stay on this device. There is no cloud backup; uninstalling the app may delete them.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOnboardingGuide(ThemeData theme) => Card(
+    key: const ValueKey('onboarding-guide-card'),
+    elevation: 0,
+    margin: const EdgeInsets.only(bottom: 12),
+    color: theme.colorScheme.primaryContainer.withAlpha(40),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(10),
+      side: BorderSide(color: theme.colorScheme.primary.withAlpha(50)),
     ),
-    bottomNavigationBar: const SafeArea(
+    child: InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: () => _showPhilosophyGuide(theme),
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Text(
-          'Projects stay on this device. There is no cloud backup; uninstalling the app may delete them.',
-          textAlign: TextAlign.center,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            Icon(Icons.school_outlined, color: theme.colorScheme.primary, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Resbud Academic Writing Philosophy',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  Text(
+                    'Strictly grounded in your notes · Zero hallucination · 100% Local SQLite',
+                    style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.info_outline, size: 18, color: theme.colorScheme.primary),
+          ],
         ),
       ),
     ),
   );
+
+  void _showPhilosophyGuide(ThemeData theme) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.school_outlined, color: theme.colorScheme.primary),
+            const SizedBox(width: 8),
+            const Expanded(child: Text('Research Integrity & Writing Philosophy')),
+          ],
+        ),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Resbud is built for serious academic writing where factual accuracy, provenance, and privacy are non-negotiable.',
+                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.4),
+                ),
+                const SizedBox(height: 16),
+                _guideBullet(
+                  theme,
+                  Icons.verified_outlined,
+                  'Strictly Non-Hallucinatory Grounding',
+                  'Every claim, experiment, and reference must come from material you provide. If data is absent, Resbud explicitly notes it as unperformed or missing rather than inventing findings.',
+                ),
+                const SizedBox(height: 12),
+                _guideBullet(
+                  theme,
+                  Icons.description_outlined,
+                  'Two Input Workflows',
+                  '• Document Mode: Upload raw lab notes, outline, or source text (.txt/.md). AI synthesizes the draft directly.\n• Structured Brief: Fill in field-by-field research question, methodology, objectives, and findings.',
+                ),
+                const SizedBox(height: 12),
+                _guideBullet(
+                  theme,
+                  Icons.lock_outline,
+                  'Zero Cloud Retention',
+                  'Manuscripts, versions, and edits are stored strictly in local SQLite on your machine. API calls to LLM providers are stateless and ephemeral.',
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Understood'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _guideBullet(ThemeData theme, IconData icon, String title, String body) => Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(icon, size: 18, color: theme.colorScheme.primary),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            const SizedBox(height: 2),
+            Text(body, style: theme.textTheme.bodySmall?.copyWith(height: 1.35)),
+          ],
+        ),
+      ),
+    ],
+  );
+
+  Widget _buildProjectCard(LocalProject project, ThemeData theme) {
+    final projectContext = project.projectContext;
+    final isDocMode = projectContext['creation_mode'] == 'document' ||
+        (projectContext['description'] != null &&
+            (projectContext['description'] as String).isNotEmpty &&
+            (projectContext['research_question'] == null ||
+                (projectContext['research_question'] as String).isEmpty));
+    final researchField = projectContext['research_field'] as String?;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: isDocMode
+                ? Colors.blue.withAlpha(24)
+                : theme.colorScheme.primary.withAlpha(24),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            isDocMode ? Icons.description_outlined : Icons.edit_note_outlined,
+            color: isDocMode ? Colors.blue.shade700 : theme.colorScheme.primary,
+            size: 22,
+          ),
+        ),
+        title: Text(
+          project.title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: -0.1,
+          ),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              Text(
+                'Updated ${_dateLabel(project.updatedAt)}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              if (researchField != null && researchField.trim().isNotEmpty)
+                Text(
+                  researchField.trim(),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: isDocMode
+                      ? Colors.blue.withAlpha(22)
+                      : theme.colorScheme.secondaryContainer.withAlpha(60),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  isDocMode ? 'Document Mode' : 'Structured',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: isDocMode ? Colors.blue.shade800 : theme.colorScheme.secondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            PopupMenuButton<String>(
+              key: ValueKey('project-menu-${project.id}'),
+              tooltip: 'Project options',
+              icon: const Icon(Icons.more_vert),
+              onSelected: (action) {
+                if (action == 'rename') {
+                  _renameProject(project);
+                } else if (action == 'delete') {
+                  _deleteProjectFromList(project);
+                }
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'rename',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_outlined, size: 20),
+                      SizedBox(width: 8),
+                      Text('Rename'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('Delete', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const Icon(Icons.chevron_right),
+          ],
+        ),
+        onTap: () async {
+          await Navigator.of(context).push<void>(
+            MaterialPageRoute<void>(
+              builder: (_) => ProjectDetailPage(
+                repository: widget.repository,
+                generationApi: widget.generationApi,
+                exportApi: widget.exportApi,
+                fileSaver: widget.fileSaver,
+                sourcePicker: widget.sourcePicker,
+                project: project,
+              ),
+            ),
+          );
+          if (mounted) setState(_refresh);
+        },
+      ),
+    );
+  }
 }
 
 class _NewProjectResult {

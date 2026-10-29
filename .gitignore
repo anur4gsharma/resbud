@@ -24,7 +24,6 @@ build/
 *.sqlite3
 *.docx
 *.tmp
-backend/tests/custom/output_paper.json
 
 # Flutter / Dart
 .dart_tool/

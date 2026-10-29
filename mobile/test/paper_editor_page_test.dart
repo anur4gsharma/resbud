@@ -661,4 +661,102 @@ void main() {
     expect(find.text('Important unsaved thoughts.'), findsOneWidget);
     expect(find.text('Unsaved'), findsOneWidget);
   });
+
+  testWidgets('outline rail renders on wide viewport and allows section navigation', (
+    tester,
+  ) async {
+    await pumpEditor(
+      tester,
+      surfaceSize: const Size(1200, 900),
+    );
+
+    // Outline rail is visible on wide viewport
+    expect(find.text('Manuscript Outline'), findsOneWidget);
+    expect(find.text('Title & Abstract'), findsOneWidget);
+    expect(find.text('References (1)'), findsAtLeastNWidgets(1));
+
+    // Tap Methodology in outline
+    await tester.tap(find.widgetWithText(ListTile, 'Methodology'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Methodology'), findsAtLeastNWidgets(1));
+  });
+
+  testWidgets('outline sheet opens via button on mobile viewport', (
+    tester,
+  ) async {
+    await pumpEditor(
+      tester,
+      surfaceSize: const Size(420, 800),
+    );
+
+    // Scroll to outline button
+    final outlineBtn = find.byKey(const ValueKey('button-manuscript-outline'));
+    await scrollTo(tester, outlineBtn);
+    expect(outlineBtn, findsOneWidget);
+
+    await tester.tap(outlineBtn);
+    await tester.pumpAndSettle();
+
+    // Outline bottom sheet appears
+    expect(find.text('Manuscript Outline'), findsOneWidget);
+    expect(find.widgetWithText(ListTile, 'Results'), findsOneWidget);
+
+    // Tap Results item
+    await tester.tap(find.widgetWithText(ListTile, 'Results'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('section-content-results')), findsOneWidget);
+  });
+
+  testWidgets('displays inline contextual review warning with academic guidance on affected section', (
+    tester,
+  ) async {
+    await pumpEditor(tester);
+
+    final warningFinder = find.byKey(const ValueKey('inline-warning-results'));
+    await scrollTo(tester, warningFinder);
+
+    expect(warningFinder, findsOneWidget);
+    expect(
+      find.descendant(
+        of: warningFinder,
+        matching: find.textContaining('Results section needs user-supplied data.'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: warningFinder,
+        matching: find.textContaining('Academic Guidance: Supply verifiable methodology'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('revert section restores text from version snapshot', (
+    tester,
+  ) async {
+    await pumpEditor(tester);
+
+    final introField = find.byKey(const ValueKey('section-content-introduction'));
+    await scrollTo(tester, introField);
+
+    final originalContent = tester.widget<TextFormField>(introField).controller?.text;
+
+    // Enter temporary text
+    await tester.enterText(introField, 'Temporary experimental notes to be reverted.');
+    await tester.pumpAndSettle();
+    expect(find.text('Temporary experimental notes to be reverted.'), findsOneWidget);
+
+    // Tap Revert
+    final revertBtn = find.byKey(const ValueKey('button-revert-introduction'));
+    await scrollTo(tester, revertBtn);
+    await tester.tap(revertBtn);
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Reverted "Introduction" to version snapshot.'), findsOneWidget);
+    expect(find.text('Temporary experimental notes to be reverted.'), findsNothing);
+    expect(tester.widget<TextFormField>(introField).controller?.text, originalContent);
+  });
 }

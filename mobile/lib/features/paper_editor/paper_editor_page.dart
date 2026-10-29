@@ -5,6 +5,8 @@ import '../export/docx_export_client.dart';
 import '../export/docx_file_saver.dart';
 import '../generation/generation_api_client.dart';
 import '../generation/generation_models.dart';
+import '../readiness/manuscript_readiness_service.dart';
+import '../readiness/manuscript_readiness_sheet.dart';
 import '../../shared/design_tokens.dart';
 
 enum _RegenerationReviewChoice { reject, accept }
@@ -46,6 +48,9 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
   bool _isSaving = false;
   bool _isExporting = false;
   String? _activeRegeneratingSectionId;
+
+  final _referencesKey = GlobalKey();
+  final _abstractKey = GlobalKey();
 
   @override
   void initState() {
@@ -89,6 +94,25 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
   }
 
   void _jumpToSection(String sectionId) {
+    if (sectionId == 'abstract' || sectionId == 'title') {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeInOut,
+      );
+      return;
+    }
+    if (sectionId == 'references') {
+      if (_referencesKey.currentContext != null) {
+        Scrollable.ensureVisible(
+          _referencesKey.currentContext!,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeInOut,
+          alignment: 0.1,
+        );
+      }
+      return;
+    }
     final key = _sectionKeys[sectionId];
     if (key?.currentContext != null) {
       Scrollable.ensureVisible(
@@ -262,25 +286,71 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Proposed replacement content:',
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: Colors.teal.shade200),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  constraints: const BoxConstraints(maxHeight: 250),
-                  child: SingleChildScrollView(
-                    child: Text(
-                      replacement.content,
-                      style: Theme.of(context).textTheme.bodyMedium,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Current content:',
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            key: const ValueKey('regen-current-content'),
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.surfaceContainerHighest.withAlpha(80),
+                              border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            constraints: const BoxConstraints(maxHeight: 220),
+                            child: SingleChildScrollView(
+                              child: Text(
+                                currentSection.content.isEmpty
+                                    ? '[Section had no content]'
+                                    : currentSection.content,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Proposed replacement content:',
+                            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              color: Colors.teal.shade800,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            key: const ValueKey('regen-proposed-content'),
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.teal.withAlpha(25),
+                              border: Border.all(color: Colors.teal.shade300),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            constraints: const BoxConstraints(maxHeight: 220),
+                            child: SingleChildScrollView(
+                              child: Text(
+                                replacement.content,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
                 if (result.response.reviewWarnings.isNotEmpty) ...[
                   const SizedBox(height: 12),
@@ -384,6 +454,247 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
         content: Text(message),
         backgroundColor: isError ? Theme.of(context).colorScheme.error : null,
       ),
+    );
+  }
+
+  void _revertSection(PaperSectionPayload section) {
+    final controller = _sectionControllers[section.id];
+    if (controller != null && controller.text != section.content) {
+      controller.text = section.content;
+      _showFeedback('Reverted "${section.heading}" to version snapshot.');
+      setState(() {});
+    } else {
+      _showFeedback('"${section.heading}" has not been modified.');
+    }
+  }
+
+  void _openReadinessReview() {
+    final updatedSections = _paper.sections.map((section) {
+      final controller = _sectionControllers[section.id];
+      final newContent = controller?.text ?? section.content;
+      return section.copyWith(content: newContent);
+    }).toList(growable: false);
+
+    final currentPaper = _paper.copyWith(
+      title: _titleController.text.trim(),
+      abstractText: _abstractController.text.trim(),
+      sections: updatedSections,
+    );
+
+    final report = const ManuscriptReadinessService().evaluate(
+      paper: currentPaper,
+      projectContext: widget.project.projectContext,
+    );
+
+    ManuscriptReadinessSheet.show(
+      context: context,
+      report: report,
+      onNavigateToSection: _jumpToSection,
+    );
+  }
+
+  void _openOutlineSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        initialChildSize: 0.65,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => Padding(
+          padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Manuscript Outline',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(sheetContext),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  key: const ValueKey('button-readiness-sheet-shortcut'),
+                  onPressed: () {
+                    Navigator.pop(sheetContext);
+                    _openReadinessReview();
+                  },
+                  icon: const Icon(Icons.fact_check_outlined, size: 18),
+                  label: const Text('Open Readiness Review'),
+                ),
+              ),
+              const Divider(),
+              Expanded(
+                child: _buildOutlineList(
+                  scrollController: scrollController,
+                  onSelect: () => Navigator.pop(sheetContext),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOutlineRail(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surfaceContainerLow.withAlpha(80),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Icon(Icons.menu_book_outlined, size: 20, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Manuscript Outline',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.2,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: InkWell(
+              key: const ValueKey('button-readiness-rail'),
+              onTap: _openReadinessReview,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withAlpha(20),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: theme.colorScheme.primary.withAlpha(50)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.fact_check_outlined, size: 18, color: theme.colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Readiness Review',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            'Checklist & findings',
+                            style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, size: 16),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: _buildOutlineList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOutlineList({
+    ScrollController? scrollController,
+    VoidCallback? onSelect,
+  }) {
+    final theme = Theme.of(context);
+
+    return ListView(
+      controller: scrollController,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      children: [
+        ListTile(
+          dense: true,
+          leading: const Icon(Icons.article_outlined, size: 18),
+          title: const Text('Title & Abstract', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+          onTap: () {
+            _jumpToSection('abstract');
+            onSelect?.call();
+          },
+        ),
+        for (final section in _paper.sections) ...[
+          Builder(builder: (context) {
+            final hasWarning = _paper.reviewWarnings.any((w) => w.sectionId == section.id);
+            final isNeedsInput = section.state == 'needs_input';
+            final isNotApplicable = section.state == 'not_applicable';
+            final controller = _sectionControllers[section.id];
+            final isEdited = controller != null && controller.text != section.content;
+
+            final iconColor = hasWarning || isNeedsInput
+                ? Colors.amber.shade800
+                : (isNotApplicable ? Colors.grey.shade500 : theme.colorScheme.primary);
+
+            return ListTile(
+              dense: true,
+              leading: Icon(
+                hasWarning || isNeedsInput
+                    ? Icons.warning_amber_rounded
+                    : (isNotApplicable ? Icons.remove_circle_outline : Icons.subject),
+                size: 18,
+                color: iconColor,
+              ),
+              title: Text(
+                section.heading,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: hasWarning || isNeedsInput ? FontWeight.bold : FontWeight.w500,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: isEdited
+                  ? const Text('Edited · Unsaved', style: TextStyle(fontSize: 10, color: Colors.blue))
+                  : (isNeedsInput
+                      ? Text('Needs input', style: TextStyle(fontSize: 10, color: Colors.amber.shade900))
+                      : null),
+              onTap: () {
+                _jumpToSection(section.id);
+                onSelect?.call();
+              },
+            );
+          }),
+        ],
+        ListTile(
+          dense: true,
+          leading: const Icon(Icons.format_list_numbered, size: 18),
+          title: Text(
+            'References (${_paper.references.length})',
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+          ),
+          onTap: () {
+            _jumpToSection('references');
+            onSelect?.call();
+          },
+        ),
+      ],
     );
   }
 
@@ -735,7 +1046,10 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
         },
         child: Scaffold(
           appBar: AppBar(
+            titleSpacing: 0,
             leading: IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
               icon: const Icon(Icons.arrow_back),
               tooltip: 'Back',
               onPressed: _handleBack,
@@ -749,16 +1063,16 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Flexible(
+                    Expanded(
                       child: Text(
                         _versionSubtitle(_currentVersion),
                         style: Theme.of(context).textTheme.bodySmall,
                         overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                       decoration: BoxDecoration(
@@ -785,59 +1099,100 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
             ),
             actions: [
               IconButton(
+                key: const ValueKey('button-readiness-review'),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                icon: const Icon(Icons.fact_check_outlined, size: 20),
+                tooltip: 'Manuscript readiness review',
+                onPressed: _openReadinessReview,
+              ),
+              IconButton(
                 key: const ValueKey('button-compare-source'),
-                icon: const Icon(Icons.source_outlined),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                icon: const Icon(Icons.source_outlined, size: 20),
                 tooltip: 'Compare source draft',
                 onPressed: _compareSourceDraft,
               ),
               IconButton(
                 key: const ValueKey('button-version-history'),
-                icon: const Icon(Icons.history),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                icon: const Icon(Icons.history, size: 20),
                 tooltip: 'Version history',
                 onPressed: _openVersionHistory,
               ),
               IconButton(
                 key: const ValueKey('button-export-docx'),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
                 icon: _isExporting
                     ? const SizedBox(
-                        width: 20,
-                        height: 20,
+                        width: 18,
+                        height: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.file_download_outlined),
+                    : const Icon(Icons.file_download_outlined, size: 20),
                 tooltip: 'Export DOCX',
                 onPressed: _isExporting ? null : _exportDocx,
               ),
               IconButton(
                 key: const ValueKey('button-save-edits'),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
                 icon: _isSaving
                     ? const SizedBox(
-                        width: 20,
-                        height: 20,
+                        width: 18,
+                        height: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.save_outlined),
+                    : const Icon(Icons.save_outlined, size: 20),
                 tooltip: 'Save edits',
                 onPressed: _isSaving ? null : _saveManualEdits,
               ),
             ],
           ),
-          body: ListView(
-            controller: _scrollController,
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
-            children: [
-              _buildIntegrityBanner(),
-              const SizedBox(height: ResbudDesignTokens.contentSpacing),
-              _buildReviewWarningsSummary(),
-              const SizedBox(height: ResbudDesignTokens.contentSpacing),
-              _buildPaperHeaderCard(),
-              const SizedBox(height: ResbudDesignTokens.contentSpacing),
-              _buildSectionsList(),
-              const SizedBox(height: ResbudDesignTokens.contentSpacing),
-              _buildReferencesCard(),
-              const SizedBox(height: 32),
-            ],
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 960;
+              final editorContent = Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 840),
+                  child: ListView(
+                    controller: _scrollController,
+                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
+                    children: [
+                      _buildIntegrityBanner(),
+                      const SizedBox(height: ResbudDesignTokens.contentSpacing),
+                      _buildReviewWarningsSummary(),
+                      const SizedBox(height: ResbudDesignTokens.contentSpacing),
+                      _buildPaperHeaderCard(),
+                      const SizedBox(height: ResbudDesignTokens.contentSpacing),
+                      _buildSectionsList(),
+                      const SizedBox(height: ResbudDesignTokens.contentSpacing),
+                      _buildReferencesCard(),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
+                ),
+              );
+
+              if (isWide) {
+                return Row(
+                  children: [
+                    SizedBox(
+                      width: 250,
+                      child: _buildOutlineRail(context),
+                    ),
+                    const VerticalDivider(width: 1, thickness: 1),
+                    Expanded(child: editorContent),
+                  ],
+                );
+              }
+
+              return editorContent;
+            },
           ),
         ),
       );
@@ -960,6 +1315,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
   }
 
   Widget _buildPaperHeaderCard() => Card(
+        key: _abstractKey,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -1009,9 +1365,23 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              'Paper sections (${_paper.sections.length})',
-              style: Theme.of(context).textTheme.titleLarge,
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                Text(
+                  'Paper sections (${_paper.sections.length})',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                TextButton.icon(
+                  key: const ValueKey('button-manuscript-outline'),
+                  onPressed: () => _openOutlineSheet(context),
+                  icon: const Icon(Icons.list_alt, size: 18),
+                  label: const Text('Outline / Jump'),
+                ),
+              ],
             ),
           ),
           for (final section in _paper.sections) _buildSectionCard(section),
@@ -1023,6 +1393,8 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
     final controller = _sectionControllers[section.id];
     final isNeedsInput = section.state == 'needs_input';
     final isNotApplicable = section.state == 'not_applicable';
+    final isEdited = controller != null && controller.text != section.content;
+    final sectionWarnings = _paper.reviewWarnings.where((w) => w.sectionId == section.id).toList();
 
     return Card(
       key: _sectionKeys[section.id],
@@ -1043,6 +1415,20 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                         ),
                   ),
                 ),
+                if (isEdited) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    margin: const EdgeInsets.only(right: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withAlpha(30),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'Edited',
+                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue),
+                    ),
+                  ),
+                ],
                 _sectionStateBadge(section.state),
               ],
             ),
@@ -1053,7 +1439,68 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                     color: Colors.grey.shade600,
                   ),
             ),
-            if (isNeedsInput) ...[
+            if (sectionWarnings.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              for (final warning in sectionWarnings)
+                Container(
+                  key: ValueKey('inline-warning-${section.id}'),
+                  padding: const EdgeInsets.all(10),
+                  margin: const EdgeInsets.only(bottom: 6),
+                  decoration: BoxDecoration(
+                    color: warning.severity == 'critical'
+                        ? Colors.red.withAlpha(20)
+                        : Colors.amber.withAlpha(25),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: warning.severity == 'critical'
+                          ? Colors.red.shade300
+                          : Colors.amber.shade400,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            size: 16,
+                            color: warning.severity == 'critical'
+                                ? Colors.red.shade800
+                                : Colors.amber.shade900,
+                          ),
+                          const SizedBox(width: 6),
+                          _severityBadge(warning.severity),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              warning.message,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                                color: warning.severity == 'critical'
+                                    ? Colors.red.shade900
+                                    : Colors.amber.shade900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Academic Guidance: Supply verifiable methodology or experimental results from your study. Resbud will never fabricate ungrounded measurements.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: warning.severity == 'critical'
+                              ? Colors.red.shade800
+                              : Colors.amber.shade900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+            if (isNeedsInput && sectionWarnings.isEmpty) ...[
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.all(8),
@@ -1091,10 +1538,18 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
               ),
             ),
             const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 6,
               children: [
-                if (!isNotApplicable)
+                if (!isNotApplicable) ...[
+                  TextButton.icon(
+                    key: ValueKey('button-revert-${section.id}'),
+                    onPressed: () => _revertSection(section),
+                    icon: const Icon(Icons.undo, size: 16),
+                    label: const Text('Revert to saved'),
+                  ),
                   FilledButton.tonalIcon(
                     key: ValueKey('button-regen-${section.id}'),
                     onPressed: isRegenerating
@@ -1111,6 +1566,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                       isRegenerating ? 'Regenerating…' : 'Regenerate section',
                     ),
                   ),
+                ],
               ],
             ),
           ],
@@ -1144,6 +1600,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
   }
 
   Widget _buildReferencesCard() => Card(
+        key: _referencesKey,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(

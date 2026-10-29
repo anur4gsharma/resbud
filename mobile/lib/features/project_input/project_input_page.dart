@@ -115,6 +115,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   GenerationResult? _generationResult;
   GenerationApiFailure? _generationFailure;
   String? _importMessage;
+  String? _importedSummaryDetails;
   bool _importError = false;
   String? _sectionError;
   final Map<String, String> _fieldErrors = {};
@@ -561,7 +562,14 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
             ),
           ),
         ),
-      const SizedBox(height: 24),
+      const SizedBox(height: 20),
+      OutlinedButton.icon(
+        key: const ValueKey('button-review-before-generation-docmode'),
+        onPressed: _showSummary,
+        icon: const Icon(Icons.fact_check_outlined),
+        label: const Text('Review before generation'),
+      ),
+      const SizedBox(height: 12),
       SizedBox(
         width: double.infinity,
         child: FilledButton.icon(
@@ -938,6 +946,8 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           _fieldErrors.clear();
           _importMessage =
               'Extracted research inputs from "${picked.name}". Ready to generate paper!';
+          _importedSummaryDetails =
+              'Extracted: "${picked.name}" (${imported.text.length} chars) · Suggested title: "${extracted.title}". Notice: Populated fields are heuristic suggestions from document structure; inspect and edit them before generation.';
         });
         _showMessage('Information extracted from ${picked.name} and auto-populated!');
         return;
@@ -982,12 +992,15 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         _importing = false;
         _importMessage =
             'Imported ${picked.name}. Save the project to keep this draft.';
+        _importedSummaryDetails =
+            'Imported ${picked.name} (${imported.text.length} characters) into existing draft.';
       });
     } on SourceImportException catch (error) {
       if (mounted) {
         setState(() {
           _importing = false;
           _importMessage = error.message;
+          _importedSummaryDetails = null;
           _importError = true;
         });
       }
@@ -996,6 +1009,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         setState(() {
           _importing = false;
           _importMessage = 'The selected file could not be opened.';
+          _importedSummaryDetails = null;
           _importError = true;
         });
       }
@@ -1014,87 +1028,153 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   }
 
   Future<void> _showSummary() async {
-    final supplied = <String>[
-      if (_controllers['research_field']!.text.trim().isNotEmpty)
-        'Research field',
-      if (_controllers['research_question']!.text.trim().isNotEmpty)
-        'Research question',
-      if (_nonblankLines(_controllers['objectives']!.text).isNotEmpty)
-        'Objectives',
-      if (_controllers['claimed_contribution']!.text.trim().isNotEmpty)
-        'Claimed contribution',
-      if (_controllers['source_draft']!.text.trim().isNotEmpty)
-        'Existing draft',
-      if (_nonblankLines(_controllers['references']!.text).isNotEmpty)
-        'References',
-      for (final key in _statusChoices.keys)
-        if (_statuses[key] != 'unknown')
-          '${_label(_statusDetails[key]!)}: ${_statusLabels[_statuses[key]!]!.toLowerCase()}',
-    ];
-    final warnings = <String>[
-      if (_controllers['research_field']!.text.trim().isEmpty)
-        'Research field is missing.',
-      if (_controllers['research_question']!.text.trim().isEmpty)
-        'Research question is missing.',
-      if (_nonblankLines(_controllers['objectives']!.text).isEmpty)
-        'No research objectives have been supplied.',
-      if (_controllers['claimed_contribution']!.text.trim().isEmpty)
-        'No claimed contribution has been supplied.',
-      if (_controllers['source_draft']!.text.trim().isEmpty)
-        'No existing draft has been supplied.',
-      if (_nonblankLines(_controllers['references']!.text).isEmpty)
-        'No user-supplied references; citations must not be assumed verified.',
-    ];
-    for (final key in _statusChoices.keys) {
-      final status = _statuses[key]!;
-      if (status == 'unknown') {
-        warnings.add(
-          '${_label(_statusDetails[key]!)} status is unknown; add the details or choose an explicit status.',
-        );
-      } else if ([
-        'not_available',
-        'not_collected',
-        'not_identified',
-      ].contains(status)) {
-        warnings.add(
-          '${_label(_statusDetails[key]!)} is explicitly ${_statusLabels[status]!.toLowerCase()}.',
-        );
+    final supplied = <String>[];
+    final workNotConducted = <String>[];
+    final infoNotAvailable = <String>[];
+    final warnings = <String>[];
+
+    if (_documentMode) {
+      if (_controllers['title']!.text.trim().isNotEmpty) {
+        supplied.add('Working title: "${_controllers['title']!.text.trim()}"');
+      } else {
+        warnings.add('Working title is missing.');
+      }
+      if ((_controllers['description']?.text.trim() ?? '').isNotEmpty) {
+        supplied.add('Description provided');
+      }
+      if (_controllers['source_draft']!.text.trim().isNotEmpty) {
+        supplied.add('Manuscript source text (${_controllers['source_draft']!.text.length} characters)');
+      } else {
+        warnings.add('No document text supplied yet.');
+      }
+      warnings.add('No user-supplied references; citations must not be assumed verified.');
+    } else {
+      if (_controllers['research_field']!.text.trim().isNotEmpty) {
+        supplied.add('Research field');
+      }
+      if (_controllers['research_question']!.text.trim().isNotEmpty) {
+        supplied.add('Research question');
+      }
+      if (_nonblankLines(_controllers['objectives']!.text).isNotEmpty) {
+        supplied.add('Objectives');
+      }
+      if (_controllers['claimed_contribution']!.text.trim().isNotEmpty) {
+        supplied.add('Claimed contribution');
+      }
+      if (_controllers['source_draft']!.text.trim().isNotEmpty) {
+        supplied.add('Existing draft');
+      }
+      if (_nonblankLines(_controllers['references']!.text).isNotEmpty) {
+        supplied.add('References');
+      }
+      for (final key in _statusChoices.keys) {
+        final status = _statuses[key]!;
+        final label = _label(_statusDetails[key]!);
+        if (status == 'provided') {
+          supplied.add('$label: ${_statusLabels[status]!.toLowerCase()}');
+        } else if (status == 'not_conducted' || status == 'not_applicable') {
+          workNotConducted.add('$label is explicitly ${_statusLabels[status]!.toLowerCase()}.');
+        } else if (['not_available', 'not_collected', 'not_identified'].contains(status)) {
+          infoNotAvailable.add('$label is explicitly ${_statusLabels[status]!.toLowerCase()}.');
+        } else if (status == 'unknown') {
+          infoNotAvailable.add('$label status is unknown; add the details or choose an explicit status.');
+        }
+      }
+
+      if (_controllers['research_field']!.text.trim().isEmpty) {
+        warnings.add('Research field is missing.');
+      }
+      if (_controllers['research_question']!.text.trim().isEmpty) {
+        warnings.add('Research question is missing.');
+      }
+      if (_nonblankLines(_controllers['objectives']!.text).isEmpty) {
+        warnings.add('No research objectives have been supplied.');
+      }
+      if (_controllers['claimed_contribution']!.text.trim().isEmpty) {
+        warnings.add('No claimed contribution has been supplied.');
+      }
+      if (_controllers['source_draft']!.text.trim().isEmpty) {
+        warnings.add('No existing draft has been supplied.');
+      }
+      if (_nonblankLines(_controllers['references']!.text).isEmpty) {
+        warnings.add('No user-supplied references; citations must not be assumed verified.');
       }
     }
+
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Before generation'),
         content: SizedBox(
-          width: 500,
+          width: 520,
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Supplied information (${supplied.length})',
-                  style: Theme.of(context).textTheme.titleSmall,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
                   supplied.isEmpty
                       ? 'No optional information supplied yet.'
                       : supplied.join(' · '),
                 ),
-                const SizedBox(height: 16),
+                if (workNotConducted.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Text(
+                    'Work explicitly not conducted (${workNotConducted.length})',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blueGrey.shade800,
+                        ),
+                  ),
+                  const SizedBox(height: 6),
+                  for (final item in workNotConducted)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text('• $item'),
+                    ),
+                ],
+                if (infoNotAvailable.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Text(
+                    'Information not available (${infoNotAvailable.length})',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange.shade800,
+                        ),
+                  ),
+                  const SizedBox(height: 6),
+                  for (final item in infoNotAvailable)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text('• $item'),
+                    ),
+                ],
+                const SizedBox(height: 14),
                 Text(
                   'Review these points',
-                  style: Theme.of(context).textTheme.titleSmall,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 for (final warning in warnings)
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.only(bottom: 6),
                     child: Text('• $warning'),
                   ),
-                const SizedBox(height: 8),
-                Text(
-                  'Target: $_targetWordCount words · ${_citationStyle.replaceAll('_', ' ')} citations · ${_requestedSections.length} sections',
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Target: $_targetWordCount words · ${_citationStyle.replaceAll('_', ' ')} citations · ${_requestedSections.length} sections',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -1279,7 +1359,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                 ),
               ],
             ),
-            if (_importMessage != null)
+            if (_importMessage != null) ...[
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
@@ -1291,6 +1371,24 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                   ),
                 ),
               ),
+              if (!_importError && _importedSummaryDetails != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Container(
+                    key: const ValueKey('import-summary-banner'),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blueGrey.shade50,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.blueGrey.shade200),
+                    ),
+                    child: Text(
+                      _importedSummaryDetails!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12),
+                    ),
+                  ),
+                ),
+            ],
             _textField(
               'source_draft',
               'Existing draft',
@@ -1616,7 +1714,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       maxLength: maxLength,
       minLines: minLines,
       maxLines: minLines == 1 ? 1 : null,
-      keyboardType: minLines > 1 ? TextInputType.multiline : TextInputType.text,
+      keyboardType: minLines > 1 ? null : TextInputType.text,
       decoration: InputDecoration(
         labelText: label,
         helperText: helper,

@@ -188,8 +188,7 @@ class GeminiProvider:
             if isinstance(data, dict):
                 # Ensure authoritative user references are preserved exactly as required by contract
                 data["references"] = [
-                    {"id": r.id, "text": r.text}
-                    for r in generation_input.brief.references
+                    {"id": r.id, "text": r.text} for r in generation_input.brief.references
                 ]
                 data["schema_version"] = 1
                 if not data.get("review_warnings"):
@@ -347,7 +346,7 @@ class GeminiProvider:
                         while final_id in seen_ids:
                             counter += 1
                             suffix = f"_{counter}"
-                            final_id = f"{original_id[:40 - len(suffix)]}{suffix}"
+                            final_id = f"{original_id[: 40 - len(suffix)]}{suffix}"
                         seen_ids.add(final_id)
                         sec["id"] = final_id
                         if sec.get("state") not in {"draft", "needs_input", "not_applicable"}:
