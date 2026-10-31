@@ -7,9 +7,12 @@ import '../generation/generation_api_client.dart';
 import '../generation/generation_models.dart';
 import '../readiness/manuscript_readiness_service.dart';
 import '../readiness/manuscript_readiness_sheet.dart';
+import '../docx_viewer/docx_viewer.dart';
 import '../../shared/design_tokens.dart';
 
 enum _RegenerationReviewChoice { reject, accept }
+
+enum PaperWorkspaceMode { document, editor }
 
 class PaperEditorPage extends StatefulWidget {
   const PaperEditorPage({
@@ -18,6 +21,7 @@ class PaperEditorPage extends StatefulWidget {
     required this.generationApi,
     required this.project,
     required this.initialVersion,
+    this.initialMode = PaperWorkspaceMode.editor,
     this.exportApi,
     this.fileSaver,
   });
@@ -26,6 +30,7 @@ class PaperEditorPage extends StatefulWidget {
   final PaperGenerationApi generationApi;
   final LocalProject project;
   final PaperVersion initialVersion;
+  final PaperWorkspaceMode initialMode;
   final PaperExportApi? exportApi;
   final DocxFileSaver? fileSaver;
 
@@ -35,6 +40,8 @@ class PaperEditorPage extends StatefulWidget {
 
 class _PaperEditorPageState extends State<PaperEditorPage> {
   final _scrollController = ScrollController();
+  late PaperWorkspaceMode _workspaceMode;
+  late Future<List<PaperVersion>> _versionsFuture;
   late PaperVersion _currentVersion;
   late PaperDraftPayload _paper;
   late final TextEditingController _titleController;
@@ -55,6 +62,8 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
   @override
   void initState() {
     super.initState();
+    _workspaceMode = widget.initialMode;
+    _versionsFuture = widget.repository.listPaperVersions(widget.project.id);
     _exportApi = widget.exportApi ?? DocxExportApiClient.fromEnvironment();
     _fileSaver = widget.fileSaver ?? LocalDocxFileSaver();
     _currentVersion = widget.initialVersion;
@@ -160,6 +169,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
       setState(() {
         _currentVersion = savedVersion;
         _paper = updatedPaper;
+        _versionsFuture = widget.repository.listPaperVersions(widget.project.id);
         _isDirty = false;
         _isSaving = false;
       });
@@ -431,6 +441,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
       setState(() {
         _currentVersion = savedVersion;
         _paper = updatedPaper;
+        _versionsFuture = widget.repository.listPaperVersions(widget.project.id);
         _sectionControllers[currentSection.id]?.text = replacement.content;
         _isDirty = false;
       });
@@ -865,6 +876,9 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
         targetVersionId: targetVersion.id,
       );
       if (!mounted) return;
+      setState(() {
+        _versionsFuture = widget.repository.listPaperVersions(widget.project.id);
+      });
       _loadVersion(restored);
       _showFeedback(
         'Restored Version ${targetVersion.versionNumber} as Version ${restored.versionNumber}.',
@@ -902,6 +916,138 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
     }
     _isDirty = false;
     setState(() {});
+  }
+
+  Future<void> _switchVersion(PaperVersion targetVersion) async {
+    if (targetVersion.id == _currentVersion.id) return;
+
+    if (_isDirty) {
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Unsaved edits'),
+          content: Text(
+            'You have unsaved edits in Version ${_currentVersion.versionNumber}. '
+            'Switching to Version ${targetVersion.versionNumber} will discard unsaved edits unless you save them first.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, 'cancel'),
+              child: const Text('Cancel'),
+            ),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(dialogContext, 'discard'),
+              child: const Text('Discard edits'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, 'save'),
+              child: const Text('Save first'),
+            ),
+          ],
+        ),
+      );
+
+      if (!mounted || choice == null || choice == 'cancel') return;
+      if (choice == 'save') {
+        await _saveManualEdits();
+        if (_isDirty || !mounted) return;
+      }
+    }
+
+    setState(() {
+      _loadVersion(targetVersion);
+      _isDirty = false;
+    });
+
+    _showFeedback('Viewing Version ${targetVersion.versionNumber}');
+  }
+
+  Widget _buildCompactVersionSelector() {
+    return FutureBuilder<List<PaperVersion>>(
+      future: _versionsFuture,
+      builder: (context, snapshot) {
+        final versions = snapshot.data ?? [_currentVersion];
+
+        return PopupMenuButton<PaperVersion>(
+          key: const ValueKey('compact-version-selector'),
+          tooltip: 'Select document version',
+          offset: const Offset(0, 36),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: Colors.grey.shade400),
+          ),
+          onSelected: _switchVersion,
+          itemBuilder: (context) {
+            return [
+              for (final v in versions.reversed)
+                PopupMenuItem<PaperVersion>(
+                  key: ValueKey('version-selector-item-${v.versionNumber}'),
+                  value: v,
+                  child: Row(
+                    children: [
+                      Icon(
+                        v.id == _currentVersion.id ? Icons.check_circle : Icons.circle_outlined,
+                        size: 16,
+                        color: v.id == _currentVersion.id ? Colors.teal : Colors.grey.shade500,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Version ${v.versionNumber}${v.id == versions.last.id ? ' (Latest)' : ''}',
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontWeight: v.id == _currentVersion.id ? FontWeight.bold : FontWeight.w500,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  _formatDateTime(v.createdAt),
+                                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              _originLabel(v.origin),
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ];
+          },
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  _versionSubtitle(_currentVersion),
+                  key: const ValueKey('current-version-label'),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+              ),
+              const Icon(Icons.arrow_drop_down, size: 14),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _exportDocx() async {
@@ -1065,12 +1211,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        _versionSubtitle(_currentVersion),
-                        style: Theme.of(context).textTheme.bodySmall,
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
-                      ),
+                      child: _buildCompactVersionSelector(),
                     ),
                     const SizedBox(width: 4),
                     Container(
@@ -1097,11 +1238,58 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                 ),
               ],
             ),
+            bottom: PreferredSize(
+              preferredSize: const Size.fromHeight(38),
+              child: Container(
+                height: 38,
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(
+                      color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
+                      width: 0.5,
+                    ),
+                  ),
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: SegmentedButton<PaperWorkspaceMode>(
+                    key: const ValueKey('segmented-workspace-mode'),
+                    showSelectedIcon: false,
+                    style: ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      padding: WidgetStateProperty.all(
+                        const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                    ),
+                    segments: const [
+                      ButtonSegment(
+                        value: PaperWorkspaceMode.document,
+                        label: Text('Read (DOCX)', style: TextStyle(fontSize: 12)),
+                        icon: Icon(Icons.article_outlined, size: 16),
+                      ),
+                      ButtonSegment(
+                        value: PaperWorkspaceMode.editor,
+                        label: Text('Edit & Outline', style: TextStyle(fontSize: 12)),
+                        icon: Icon(Icons.edit_note, size: 16),
+                      ),
+                    ],
+                    selected: {_workspaceMode},
+                    onSelectionChanged: (newSelection) {
+                      setState(() => _workspaceMode = newSelection.first);
+                    },
+                  ),
+                ),
+              ),
+            ),
             actions: [
               IconButton(
                 key: const ValueKey('button-readiness-review'),
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 icon: const Icon(Icons.fact_check_outlined, size: 20),
                 tooltip: 'Manuscript readiness review',
                 onPressed: _openReadinessReview,
@@ -1109,7 +1297,8 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
               IconButton(
                 key: const ValueKey('button-compare-source'),
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 icon: const Icon(Icons.source_outlined, size: 20),
                 tooltip: 'Compare source draft',
                 onPressed: _compareSourceDraft,
@@ -1117,7 +1306,8 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
               IconButton(
                 key: const ValueKey('button-version-history'),
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 icon: const Icon(Icons.history, size: 20),
                 tooltip: 'Version history',
                 onPressed: _openVersionHistory,
@@ -1125,7 +1315,8 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
               IconButton(
                 key: const ValueKey('button-export-docx'),
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 icon: _isExporting
                     ? const SizedBox(
                         width: 18,
@@ -1139,7 +1330,8 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
               IconButton(
                 key: const ValueKey('button-save-edits'),
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 icon: _isSaving
                     ? const SizedBox(
                         width: 18,
@@ -1152,47 +1344,61 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
               ),
             ],
           ),
-          body: LayoutBuilder(
-            builder: (context, constraints) {
-              final isWide = constraints.maxWidth >= 960;
-              final editorContent = Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 840),
-                  child: ListView(
-                    controller: _scrollController,
-                    keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-                    padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
-                    children: [
-                      _buildIntegrityBanner(),
-                      const SizedBox(height: ResbudDesignTokens.contentSpacing),
-                      _buildReviewWarningsSummary(),
-                      const SizedBox(height: ResbudDesignTokens.contentSpacing),
-                      _buildPaperHeaderCard(),
-                      const SizedBox(height: ResbudDesignTokens.contentSpacing),
-                      _buildSectionsList(),
-                      const SizedBox(height: ResbudDesignTokens.contentSpacing),
-                      _buildReferencesCard(),
-                      const SizedBox(height: 32),
-                    ],
-                  ),
-                ),
-              );
-
-              if (isWide) {
-                return Row(
-                  children: [
-                    SizedBox(
-                      width: 250,
-                      child: _buildOutlineRail(context),
+          body: IndexedStack(
+            key: const ValueKey('workspace-indexed-stack'),
+            index: _workspaceMode == PaperWorkspaceMode.document ? 1 : 0,
+            children: [
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth >= 960;
+                  final editorContent = Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 840),
+                      child: ListView(
+                        controller: _scrollController,
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                        padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
+                        children: [
+                          _buildIntegrityBanner(),
+                          const SizedBox(height: ResbudDesignTokens.contentSpacing),
+                          _buildReviewWarningsSummary(),
+                          const SizedBox(height: ResbudDesignTokens.contentSpacing),
+                          _buildPaperHeaderCard(),
+                          const SizedBox(height: ResbudDesignTokens.contentSpacing),
+                          _buildSectionsList(),
+                          const SizedBox(height: ResbudDesignTokens.contentSpacing),
+                          _buildReferencesCard(),
+                          const SizedBox(height: 32),
+                        ],
+                      ),
                     ),
-                    const VerticalDivider(width: 1, thickness: 1),
-                    Expanded(child: editorContent),
-                  ],
-                );
-              }
+                  );
 
-              return editorContent;
-            },
+                  if (isWide) {
+                    return Row(
+                      children: [
+                        SizedBox(
+                          width: 250,
+                          child: _buildOutlineRail(context),
+                        ),
+                        const VerticalDivider(width: 1, thickness: 1),
+                        Expanded(child: editorContent),
+                      ],
+                    );
+                  }
+
+                  return editorContent;
+                },
+              ),
+              DocxViewer(
+                key: ValueKey('docx-viewer-${_currentVersion.id}'),
+                paper: _paper,
+                exportApi: _exportApi,
+                fileSaver: _fileSaver,
+                onDownload: _exportDocx,
+                onSwitchToEdit: () => setState(() => _workspaceMode = PaperWorkspaceMode.editor),
+              ),
+            ],
           ),
         ),
       );

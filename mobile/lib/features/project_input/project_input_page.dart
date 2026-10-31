@@ -438,6 +438,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Expanded(
                               child: Text(
@@ -445,8 +446,10 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                                   fontWeight: FontWeight.bold,
                                 ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
+                            const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
@@ -722,7 +725,10 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     ];
   }
 
-  Future<void> _viewVersion(PaperVersion version) async {
+  Future<void> _viewVersion(
+    PaperVersion version, {
+    PaperWorkspaceMode mode = PaperWorkspaceMode.editor,
+  }) async {
     final latestProject =
         await widget.repository.getProject(widget.project.id) ?? widget.project;
     if (!mounted) return;
@@ -733,6 +739,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           generationApi: widget.generationApi,
           project: latestProject,
           initialVersion: version,
+          initialMode: mode,
           exportApi: widget.exportApi,
           fileSaver: widget.fileSaver,
         ),
