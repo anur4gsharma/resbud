@@ -747,7 +747,7 @@ class _NewProjectDialogState extends State<_NewProjectDialog> {
       } else {
         final result = await FilePicker.pickFiles(
           type: FileType.custom,
-          allowedExtensions: ['txt', 'md', 'markdown'],
+          allowedExtensions: ['txt', 'md', 'markdown', 'docx', 'pdf'],
         );
         if (result.isNotEmpty) {
           final file = result.single;
@@ -758,6 +758,7 @@ class _NewProjectDialogState extends State<_NewProjectDialog> {
         final imported = const SourceDocumentImporter().importBytes(
           fileName: picked.name,
           bytes: picked.bytes,
+          allowPdf: true,
         );
         setState(() {
           _sourceDraft = imported.text;

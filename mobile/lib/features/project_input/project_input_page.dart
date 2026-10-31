@@ -120,6 +120,12 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   String? _sectionError;
   final Map<String, String> _fieldErrors = {};
   bool _documentMode = false;
+  ResearchAnalysisResponsePayload? _analysisResponse;
+  bool _showAdditionalInfoInterface = false;
+  bool _isAnalyzing = false;
+  final Map<String, TextEditingController> _clarificationControllers = {};
+  bool _clarificationsConfirmed = false;
+  final List<({String name, int size})> _attachedFiles = [];
 
   @override
   void initState() {
@@ -207,6 +213,9 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   void dispose() {
     _scrollController.dispose();
     for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+    for (final controller in _clarificationControllers.values) {
       controller.dispose();
     }
     _customSectionsController.dispose();
@@ -303,14 +312,16 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     _sectionError = null;
 
     if (_documentMode) {
-      if (_controllers['title']!.text.trim().isEmpty) {
-        _fieldErrors['title'] = 'Working title is required.';
-      }
-      if ((_controllers['description']?.text.trim() ?? '').isEmpty) {
-        _fieldErrors['description'] = 'Paper description is required.';
-      }
       if (_controllers['source_draft']!.text.trim().isEmpty) {
-        _fieldErrors['source_draft'] = 'Please choose a .txt or .md file.';
+        _fieldErrors['source_draft'] = 'Please upload a .txt, .md, .docx, or .pdf file.';
+      }
+      if (_controllers['title']!.text.trim().isEmpty && _controllers['source_draft']!.text.trim().isNotEmpty) {
+        _controllers['title']!.text = _analysisResponse?.inferredTitle.isNotEmpty == true
+            ? _analysisResponse!.inferredTitle
+            : 'Scientific Research Study';
+      }
+      if ((_controllers['description']?.text.trim() ?? '').isEmpty && _controllers['source_draft']!.text.trim().isNotEmpty) {
+        _controllers['description']!.text = 'Synthesize and evaluate the research claims presented in the source document.';
       }
       _formKey.currentState?.validate();
       if (_fieldErrors.isNotEmpty) {
@@ -385,72 +396,92 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     final charCount = _controllers['source_draft']!.text.length;
 
     return [
+      // 1. Primary Upload-First Hero Card
       Card(
         elevation: 0,
-        color: Colors.blue.shade50.withAlpha(140),
-        margin: const EdgeInsets.only(bottom: 16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.info_outline, color: Colors.blue.shade800),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Upload your .txt or .md research notes. Provide a title and description, and the AI will synthesize your research paper directly. Any parts not found in your document will include a clear guidance note for your input.',
-                  style: TextStyle(color: Colors.blue.shade900, fontSize: 13, height: 1.4),
-                ),
-              ),
-            ],
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: hasContent ? Colors.green.shade300 : Theme.of(context).colorScheme.outlineVariant,
+            width: hasContent ? 1.5 : 1.0,
           ),
         ),
-      ),
-      Text(
-        'Project brief',
-        style: Theme.of(context).textTheme.titleLarge,
-      ),
-      const SizedBox(height: 16),
-      _textField(
-        'title',
-        'Working title',
-        maxLength: 300,
-        requiredField: true,
-      ),
-      _textField(
-        'description',
-        'Paper description',
-        maxLength: 4000,
-        minLines: 3,
-        requiredField: true,
-        helper: 'What is this paper about? Summarize the scope, problem, and focus.',
-        hintText: 'e.g. This research develops equivariant neural graph decoders for surface code quantum error correction...',
-      ),
-      const SizedBox(height: 16),
-      Card(
+        color: hasContent ? Colors.green.shade50.withValues(alpha: 0.3) : Theme.of(context).colorScheme.surface,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    hasContent ? Icons.check_circle_outline : Icons.upload_file,
-                    color: hasContent ? Colors.green.shade700 : Colors.blue.shade700,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      hasContent
-                          ? 'Document attached ($charCount characters)'
-                          : 'Research document (.txt or .md)',
-                      style: Theme.of(context).textTheme.titleMedium,
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: hasContent ? Colors.green.shade100 : Colors.indigo.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      hasContent ? Icons.check_circle_outline : Icons.upload_file_outlined,
+                      color: hasContent ? Colors.green.shade800 : Colors.indigo.shade700,
+                      size: 28,
                     ),
                   ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Upload Research Material',
+                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Upload notes, experimental results, manuscripts, or drafts. The AI will extract content, analyze research quality, and synthesize the paper.',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Supported format chips
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [
+                  for (final ext in ['.txt', '.md', '.docx', '.pdf'])
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Text(
+                        ext,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
                   FilledButton.tonalIcon(
                     key: const ValueKey('button-choose-doc-file'),
-                    onPressed: _importing ? null : () => _importSource(autoFillAll: false),
+                    onPressed: _importing ? null : () => _importFiles(),
                     icon: _importing
                         ? const SizedBox(
                             width: 14,
@@ -458,10 +489,62 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.folder_open),
-                    label: Text(hasContent ? 'Change file' : 'Choose file'),
+                    label: Text(
+                      _importing
+                          ? 'Extracting…'
+                          : (hasContent ? 'Change file' : 'Choose file'),
+                    ),
                   ),
+                  if (hasContent) ...[
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _controllers['source_draft']!.clear();
+                          _attachedFiles.clear();
+                          _analysisResponse = null;
+                          _showAdditionalInfoInterface = false;
+                        });
+                      },
+                      icon: const Icon(Icons.clear, size: 16),
+                      label: const Text('Clear'),
+                    ),
+                  ],
                 ],
               ),
+              if (_importMessage != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: _importError ? Colors.red.shade50 : Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: _importError ? Colors.red.shade300 : Colors.green.shade300,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _importError ? Icons.error_outline : Icons.check_circle_outline,
+                        size: 16,
+                        color: _importError ? Colors.red.shade900 : Colors.green.shade900,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _importMessage!,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _importError ? Colors.red.shade900 : Colors.green.shade900,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               if (_fieldErrors.containsKey('source_draft')) ...[
                 const SizedBox(height: 8),
                 Text(
@@ -473,7 +556,12 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                 ),
               ],
               if (hasContent) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
+                Text(
+                  'Document attached ($charCount characters)',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+                const SizedBox(height: 6),
                 Container(
                   height: 140,
                   width: double.infinity,
@@ -499,6 +587,58 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         ),
       ),
       const SizedBox(height: 16),
+      // 2. Paper brief details
+      Text(
+        'Project brief',
+        style: Theme.of(context).textTheme.titleLarge,
+      ),
+      const SizedBox(height: 16),
+      _textField(
+        'title',
+        'Working title',
+        maxLength: 300,
+        requiredField: false,
+      ),
+      _textField(
+        'description',
+        'Paper description',
+        maxLength: 4000,
+        minLines: 3,
+        requiredField: false,
+        helper: '(Optional) What is this paper about? Summarize the scope, problem, and focus.',
+        hintText: 'e.g. This research develops equivariant neural graph decoders for surface code quantum error correction...',
+      ),
+      const SizedBox(height: 16),
+      // 3. Conditional AI-Triggered Additional Information
+      if (_analysisResponse != null || _showAdditionalInfoInterface) ...[
+        _buildAdditionalInformationCard(),
+        const SizedBox(height: 16),
+      ],
+      // 4. Advanced: Specific Research Parameters (Optional Expandable)
+      Card(
+        child: ExpansionTile(
+          key: const ValueKey('expansion-specific-parameters'),
+          leading: const Icon(Icons.tune),
+          title: const Text('Specific Research Parameters (Optional)'),
+          subtitle: const Text('Declare status and explicit methodology, dataset, and results details.'),
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  for (final key in _statusChoices.keys) _statusGroup(key),
+                  _textField('methodology', 'Methodology notes', maxLength: 20000, minLines: 2),
+                  _textField('dataset_or_materials', 'Dataset / Materials notes', maxLength: 20000, minLines: 2),
+                  _textField('results', 'Results notes', maxLength: 20000, minLines: 2),
+                  _textField('limitations', 'Limitations notes', maxLength: 20000, minLines: 2),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      const SizedBox(height: 16),
+      // 5. Paper preferences
       Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -574,8 +714,10 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         width: double.infinity,
         child: FilledButton.icon(
           key: const ValueKey('button-generate-paper-docmode'),
-          onPressed: _generationPhase == GenerationPhase.generating ? null : _generate,
-          icon: _generationPhase == GenerationPhase.generating
+          onPressed: (_generationPhase == GenerationPhase.generating || _isAnalyzing)
+              ? null
+              : _generate,
+          icon: (_generationPhase == GenerationPhase.generating || _isAnalyzing)
               ? const SizedBox(
                   width: 18,
                   height: 18,
@@ -585,7 +727,11 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           label: Padding(
             padding: const EdgeInsets.symmetric(vertical: 14),
             child: Text(
-              _generationPhase == GenerationPhase.generating ? 'Generating paper…' : 'Generate Paper with AI',
+              _isAnalyzing
+                  ? 'Analyzing research material…'
+                  : (_generationPhase == GenerationPhase.generating
+                      ? 'Generating paper draft…'
+                      : 'Generate Paper with AI'),
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ),
@@ -593,6 +739,260 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       ),
       const SizedBox(height: 32),
     ];
+  }
+
+  Widget _buildAdditionalInformationCard() {
+    final analysis = _analysisResponse;
+    if (analysis == null) return const SizedBox.shrink();
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: analysis.requiresClarification ? Colors.amber.shade600 : Colors.blue.shade300,
+          width: 1.5,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  analysis.requiresClarification ? Icons.announcement_outlined : Icons.insights_outlined,
+                  color: analysis.requiresClarification ? Colors.amber.shade900 : Colors.blue.shade900,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    analysis.requiresClarification
+                        ? 'AI Clarification & Quality Review Required'
+                        : 'AI Research Analysis & Outline',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: analysis.requiresClarification ? Colors.amber.shade900 : Colors.blue.shade900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (analysis.inferredTitle.isNotEmpty) ...[
+              Text(
+                'Inferred Topic: ${analysis.inferredTitle}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              const SizedBox(height: 4),
+            ],
+            if (analysis.inferredField.isNotEmpty) ...[
+              Text(
+                'Academic Field: ${analysis.inferredField}',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+              ),
+              const SizedBox(height: 12),
+            ],
+            if (analysis.suggestedOutline.isNotEmpty) ...[
+              const Text(
+                'AI-Proposed Dynamic Section Outline:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Column(
+                  children: [
+                    for (final sec in analysis.suggestedOutline)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 3),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.arrow_right, size: 18, color: Colors.indigo),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    sec.heading,
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                                  ),
+                                  if (sec.rationale.isNotEmpty)
+                                    Text(
+                                      sec.rationale,
+                                      style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+            if (analysis.warnings.isNotEmpty) ...[
+              Text(
+                'Research Integrity & Consistency Warnings:',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: Colors.amber.shade900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              for (final w in analysis.warnings)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: w.severity == 'critical' ? Colors.red.shade50 : Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: w.severity == 'critical' ? Colors.red.shade300 : Colors.amber.shade300,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            w.severity == 'critical' ? Icons.error_outline : Icons.warning_amber,
+                            size: 16,
+                            color: w.severity == 'critical' ? Colors.red.shade900 : Colors.amber.shade900,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              w.message,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                color: w.severity == 'critical' ? Colors.red.shade900 : Colors.amber.shade900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Why this matters: ${w.whyItMatters}',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Potential impact: ${w.potentialImpact}',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 12),
+            ],
+            if (analysis.clarificationQuestions.isNotEmpty) ...[
+              Text(
+                'AI Clarification Requests:',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: Colors.blue.shade900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              for (final q in analysis.clarificationQuestions)
+                Builder(
+                  builder: (context) {
+                    _clarificationControllers.putIfAbsent(q.id, () => TextEditingController());
+                    final controller = _clarificationControllers[q.id]!;
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.blue.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: q.isEssential ? Colors.red.shade100 : Colors.grey.shade200,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  q.isEssential ? 'REQUIRED' : 'OPTIONAL',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: q.isEssential ? Colors.red.shade900 : Colors.grey.shade800,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  q.question,
+                                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Reason: ${q.whyNeeded}',
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                          ),
+                          const SizedBox(height: 6),
+                          TextField(
+                            key: ValueKey('clarification-input-${q.id}'),
+                            controller: controller,
+                            maxLines: 2,
+                            decoration: const InputDecoration(
+                              hintText: 'Type clarification or empirical details here...',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                              contentPadding: EdgeInsets.all(8),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+            ],
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                key: const ValueKey('button-confirm-clarifications-generate'),
+                onPressed: () {
+                  setState(() => _clarificationsConfirmed = true);
+                  _generate();
+                },
+                icon: const Icon(Icons.check),
+                label: const Text('Confirm Clarifications & Generate Draft'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<bool> _save({bool showMessage = true}) async {
@@ -629,7 +1029,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   }
 
   Future<void> _generate() async {
-    if (_generationPhase == GenerationPhase.generating) return;
+    if (_generationPhase == GenerationPhase.generating || _isAnalyzing) return;
     setState(() {
       _generationPhase = GenerationPhase.validating;
       _generationFailure = null;
@@ -642,11 +1042,72 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       return;
     }
 
+    // Dynamic research analysis & quality check in document mode
+    if (_documentMode && !_clarificationsConfirmed && !_showAdditionalInfoInterface) {
+      setState(() => _isAnalyzing = true);
+      try {
+        final analysis = await widget.generationApi.analyzeResearch(
+          ResearchAnalysisRequestPayload(
+            sourceMaterial: _controllers['source_draft']!.text,
+            titleHint: _controllers['title']!.text.trim().isNotEmpty
+                ? _controllers['title']!.text.trim()
+                : null,
+            userGuidance: (_controllers['description']?.text.trim() ?? '').isNotEmpty
+                ? _controllers['description']!.text.trim()
+                : null,
+          ),
+        );
+        _analysisResponse = analysis;
+        _isAnalyzing = false;
+
+        if ((_controllers['title']!.text.trim().isEmpty ||
+                _controllers['title']!.text.trim() == 'Scientific Research Study') &&
+            analysis.inferredTitle.isNotEmpty) {
+          _controllers['title']!.text = analysis.inferredTitle;
+        }
+
+        if (analysis.requiresClarification) {
+          setState(() {
+            _showAdditionalInfoInterface = true;
+            _generationPhase = GenerationPhase.ready;
+          });
+          _showMessage(
+            'The AI identified essential clarification questions or warnings. Please review below.',
+            isError: false,
+          );
+          return;
+        }
+      } catch (_) {
+        _isAnalyzing = false;
+      }
+    }
+
+    // Merge any clarification answers
+    final clarificationsBuf = StringBuffer();
+    for (final entry in _clarificationControllers.entries) {
+      final answer = entry.value.text.trim();
+      if (answer.isNotEmpty) {
+        final q = _analysisResponse?.questions
+            .cast<ClarificationQuestionPayload?>()
+            .firstWhere(
+              (ClarificationQuestionPayload? item) => item?.id == entry.key,
+              orElse: () => null,
+            );
+        clarificationsBuf.writeln('Clarification on "${q?.question ?? entry.key}":');
+        clarificationsBuf.writeln(answer);
+        clarificationsBuf.writeln();
+      }
+    }
+    var effectiveDraft = _controllers['source_draft']!.text;
+    if (clarificationsBuf.isNotEmpty) {
+      effectiveDraft = '$effectiveDraft\n\n=== RESEARCHER CLARIFICATIONS ===\n$clarificationsBuf';
+    }
+
     late final GenerationRequest request;
     try {
       request = GenerationRequest.fromInputs(
         project: _buildContext(),
-        sourceDraft: _controllers['source_draft']!.text,
+        sourceDraft: effectiveDraft,
       );
     } on FormatException catch (error) {
       setState(() => _generationPhase = GenerationPhase.ready);
@@ -892,6 +1353,103 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     if (result.isEmpty) return null;
     final file = result.single;
     return (name: file.name, bytes: await file.readAsBytes());
+  }
+
+  Future<void> _importFiles() async {
+    setState(() {
+      _importing = true;
+      _importMessage = null;
+      _importError = false;
+    });
+    try {
+      if (widget.sourcePicker != null) {
+        final picked = await widget.sourcePicker!();
+        if (picked == null || !mounted) {
+          if (mounted) setState(() => _importing = false);
+          return;
+        }
+        if (picked.bytes.isEmpty) {
+          setState(() {
+            _importError = true;
+            _importMessage = 'The uploaded file is empty. Please provide research material.';
+            _importing = false;
+          });
+          return;
+        }
+        final imported = const SourceDocumentImporter().importBytes(
+          fileName: picked.name,
+          bytes: picked.bytes,
+          allowPdf: true,
+        );
+        setState(() {
+          _attachedFiles.clear();
+          _attachedFiles.add((name: picked.name, size: picked.bytes.length));
+          _controllers['source_draft']!.text = imported.text;
+          _importMessage = 'Imported ${picked.name} (${imported.text.length} characters).';
+          _importing = false;
+          _analysisResponse = null;
+          _showAdditionalInfoInterface = false;
+        });
+        return;
+      }
+
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['txt', 'md', 'markdown', 'docx', 'pdf'],
+      );
+      if (result.isEmpty || !mounted) {
+        if (mounted) setState(() => _importing = false);
+        return;
+      }
+
+      final filesToProcess = <({String fileName, Uint8List bytes, String? contentType})>[];
+      for (final file in result) {
+        final bytes = await file.readAsBytes();
+        if (bytes.isEmpty) {
+          setState(() {
+            _importError = true;
+            _importMessage = 'File "${file.name}" is empty. Please provide research material.';
+            _importing = false;
+          });
+          return;
+        }
+        filesToProcess.add((fileName: file.name, bytes: bytes, contentType: null));
+      }
+
+      final imported = const SourceDocumentImporter().importMultipleFiles(
+        filesToProcess,
+      );
+
+      setState(() {
+        _attachedFiles.clear();
+        for (final f in filesToProcess) {
+          _attachedFiles.add((name: f.fileName, size: f.bytes.length));
+        }
+        _controllers['source_draft']!.text = imported.text;
+        _importMessage = filesToProcess.length == 1
+            ? 'Imported ${filesToProcess.first.fileName} (${imported.text.length} characters).'
+            : 'Imported ${filesToProcess.length} files (${imported.text.length} characters).';
+        _importing = false;
+        _analysisResponse = null;
+        _showAdditionalInfoInterface = false;
+      });
+    } on SourceImportException catch (e) {
+      if (mounted) {
+        setState(() {
+          _importError = true;
+          _importMessage = e.message;
+          _importing = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _importError = true;
+          _importMessage = 'Could not process file: $e';
+          _importing = false;
+        });
+      }
+    }
   }
 
   Future<void> _importSource({bool autoFillAll = false, bool? allowPdf}) async {

@@ -762,18 +762,21 @@ class ResearchAnalysisRequestPayload {
     required this.sourceMaterial,
     this.fileNames = const [],
     this.titleHint,
+    this.userGuidance,
     this.userClarifications = const {},
   });
 
   final String sourceMaterial;
   final List<String> fileNames;
   final String? titleHint;
+  final String? userGuidance;
   final Map<String, String> userClarifications;
 
   Map<String, Object?> toJson() => {
     'source_material': sourceMaterial,
     'file_names': fileNames,
     if (titleHint != null) 'title_hint': titleHint,
+    if (userGuidance != null) 'user_guidance': userGuidance,
     'user_clarifications': userClarifications,
   };
 }
@@ -795,6 +798,8 @@ class ResearchAnalysisResponsePayload {
     this.limitationsSummary,
     this.extractedReferences = const [],
   });
+
+  List<ClarificationQuestionPayload> get clarificationQuestions => questions;
 
   final String inferredTitle;
   final String inferredField;

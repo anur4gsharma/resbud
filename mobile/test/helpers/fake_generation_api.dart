@@ -114,7 +114,7 @@ class FakeGenerationApi implements PaperGenerationApi {
           id: 'q_methodology',
           question: 'What specific algorithmic or experimental methodology was used?',
           whyNeeded: 'Methodology is required for reproducibility.',
-          isEssential: true,
+          isEssential: false,
           fieldKey: 'methodology',
         ),
       if (!text.contains('dataset') && !text.contains('split') && !isBrief)
