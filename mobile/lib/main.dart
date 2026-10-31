@@ -196,7 +196,7 @@ class _ProjectListPageState extends State<ProjectListPage> {
       title = result;
       description = '';
       sourceDraft = '';
-      isDocumentMode = false;
+      isDocumentMode = true;
     } else {
       return;
     }
@@ -725,7 +725,6 @@ class _NewProjectDialog extends StatefulWidget {
 class _NewProjectDialogState extends State<_NewProjectDialog> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  bool _isDocumentMode = false;
   String _sourceDraft = '';
   String? _sourceFileName;
   bool _readingFile = false;
@@ -785,7 +784,7 @@ class _NewProjectDialogState extends State<_NewProjectDialog> {
         title: title,
         description: _descriptionController.text.trim(),
         sourceDraft: _sourceDraft,
-        isDocumentMode: _isDocumentMode,
+        isDocumentMode: true,
       ),
     );
   }
@@ -811,66 +810,38 @@ class _NewProjectDialogState extends State<_NewProjectDialog> {
             ),
             const SizedBox(height: 16),
             Text(
-              'How do you want to create your paper?',
+              'Attach research material (.txt, .md, .docx, .pdf)',
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 8),
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment<bool>(
-                  value: true,
-                  label: Text('From File (.txt/.md)'),
-                  icon: Icon(Icons.description_outlined),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _sourceFileName != null
+                        ? 'Attached: $_sourceFileName (${_sourceDraft.length} chars)'
+                        : (_sourceDraft.isNotEmpty
+                            ? 'Document loaded (${_sourceDraft.length} chars)'
+                            : 'No document attached yet'),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: _sourceDraft.isNotEmpty ? Colors.green.shade800 : Colors.grey.shade600,
+                      fontWeight: _sourceDraft.isNotEmpty ? FontWeight.bold : FontWeight.normal,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                ButtonSegment<bool>(
-                  value: false,
-                  label: Text('Manual Form Details'),
-                  icon: Icon(Icons.edit_note_outlined),
+                OutlinedButton.icon(
+                  onPressed: _readingFile ? null : _pickFile,
+                  icon: _readingFile
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.attach_file, size: 16),
+                  label: Text(_sourceDraft.isNotEmpty ? 'Replace file' : 'Attach file'),
                 ),
               ],
-              selected: {_isDocumentMode},
-              onSelectionChanged: (selected) => setState(() => _isDocumentMode = selected.first),
             ),
-            if (_isDocumentMode) ...[
-              const SizedBox(height: 16),
-              TextField(
-                controller: _descriptionController,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'Paper description',
-                  hintText: 'What is this paper about? Focus, scope, and objectives...',
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _sourceFileName != null
-                          ? 'Attached: $_sourceFileName (${_sourceDraft.length} chars)'
-                          : (_sourceDraft.isNotEmpty
-                              ? 'Document loaded (${_sourceDraft.length} chars)'
-                              : 'No document attached yet'),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _sourceDraft.isNotEmpty ? Colors.green.shade800 : Colors.grey.shade600,
-                        fontWeight: _sourceDraft.isNotEmpty ? FontWeight.bold : FontWeight.normal,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: _readingFile ? null : _pickFile,
-                    icon: _readingFile
-                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.attach_file, size: 16),
-                    label: Text(_sourceDraft.isNotEmpty ? 'Replace file' : 'Attach file'),
-                  ),
-                ],
-              ),
-            ],
           ],
         ),
       ),

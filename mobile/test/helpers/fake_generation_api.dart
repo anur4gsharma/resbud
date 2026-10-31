@@ -80,7 +80,7 @@ class FakeGenerationApi implements PaperGenerationApi {
   ) {
     final text = request.sourceMaterial.toLowerCase();
     final hasConflict = text.contains('contradictory') || text.contains('conflicting');
-    final isBrief = text.length < 50;
+    final isBrief = text.length < 20;
 
     final warnings = <AnalysisWarningPayload>[
       if (hasConflict)

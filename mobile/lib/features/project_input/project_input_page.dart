@@ -126,10 +126,15 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   final Map<String, TextEditingController> _clarificationControllers = {};
   bool _clarificationsConfirmed = false;
   final List<({String name, int size})> _attachedFiles = [];
+  late final PaperExportApi _exportApi;
+  late final DocxFileSaver _fileSaver;
+  bool _isExporting = false;
 
   @override
   void initState() {
     super.initState();
+    _exportApi = widget.exportApi ?? DocxExportApiClient.fromEnvironment();
+    _fileSaver = widget.fileSaver ?? LocalDocxFileSaver();
     final context = widget.project.projectContext;
     _versions = widget.repository.listPaperVersions(widget.project.id);
     final creationMode = context['creation_mode'];
@@ -432,11 +437,28 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Upload Research Material',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Upload Research Material',
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.indigo.shade50,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'Generate from File (.txt/.md)',
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.indigo),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -555,33 +577,16 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                   ),
                 ),
               ],
-              if (hasContent) ...[
-                const SizedBox(height: 16),
-                Text(
-                  'Document attached ($charCount characters)',
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                const SizedBox(height: 6),
-                Container(
-                  height: 140,
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: SingleChildScrollView(
-                    child: SelectableText(
-                      _controllers['source_draft']!.text,
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              const SizedBox(height: 16),
+              _textField(
+                'source_draft',
+                'Source research material / draft',
+                maxLength: 50000,
+                minLines: 4,
+                helper: hasContent
+                    ? 'Document attached ($charCount characters)'
+                    : 'Upload a file above or paste research notes directly.',
+              ),
             ],
           ),
         ),
@@ -676,32 +681,6 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           ),
         ),
       ),
-      if (_generationFailure != null)
-        Padding(
-          padding: const EdgeInsets.only(top: 16),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.red.shade50,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.red.shade200),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _generationFailure!.userMessage,
-                  style: TextStyle(color: Colors.red.shade900),
-                ),
-                const SizedBox(height: 4),
-                TextButton(
-                  onPressed: _retryGeneration,
-                  child: const Text('Retry generation'),
-                ),
-              ],
-            ),
-          ),
-        ),
       const SizedBox(height: 20),
       OutlinedButton.icon(
         key: const ValueKey('button-review-before-generation-docmode'),
@@ -737,8 +716,310 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           ),
         ),
       ),
+      const SizedBox(height: 20),
+      _buildDocumentModeExportAndVersionsSection(),
       const SizedBox(height: 32),
     ];
+  }
+
+  Future<void> _viewVersion(PaperVersion version) async {
+    final latestProject =
+        await widget.repository.getProject(widget.project.id) ?? widget.project;
+    if (!mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => PaperEditorPage(
+          repository: widget.repository,
+          generationApi: widget.generationApi,
+          project: latestProject,
+          initialVersion: version,
+          exportApi: widget.exportApi,
+          fileSaver: widget.fileSaver,
+        ),
+      ),
+    );
+    if (mounted) {
+      setState(() {
+        _versions = widget.repository.listPaperVersions(widget.project.id);
+      });
+    }
+  }
+
+  Future<void> _downloadVersionDocx(PaperVersion version) async {
+    if (_isExporting) return;
+    PaperDraftPayload paperToExport;
+    try {
+      paperToExport = PaperDraftPayload.fromJson(version.paper);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Cannot parse version data: $e')),
+      );
+      return;
+    }
+
+    if (paperToExport.title.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot export: Paper title cannot be blank.')),
+      );
+      return;
+    }
+    if (paperToExport.sections.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot export: Paper must contain at least one section.')),
+      );
+      return;
+    }
+
+    setState(() => _isExporting = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Exporting Version ${version.versionNumber} to DOCX…'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+
+    try {
+      final result = await _exportApi.exportDocx(paperToExport);
+      final savedPath = await _fileSaver.saveDocx(
+        bytes: result.bytes,
+        suggestedFilename: result.suggestedFilename,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Exported DOCX: $savedPath'),
+          backgroundColor: Colors.green.shade800,
+        ),
+      );
+    } on DocxExportFailure catch (failure) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Export failed: ${failure.userMessage}'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Export error: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final local = date.toLocal();
+    return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildDocumentModeExportAndVersionsSection() {
+    return FutureBuilder<List<PaperVersion>>(
+      future: _versions,
+      builder: (context, snapshot) {
+        final versions = snapshot.data ?? [];
+        final hasVersions = versions.isNotEmpty;
+
+        return Card(
+          key: const ValueKey('card-document-mode-export-versions'),
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(
+              color: hasVersions ? Colors.teal.shade400 : Colors.grey.shade300,
+              width: hasVersions ? 1.5 : 1,
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      hasVersions ? Icons.description : Icons.article_outlined,
+                      color: hasVersions ? Colors.teal.shade700 : Colors.grey.shade600,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        hasVersions ? 'Generated Paper & Export' : 'Generated Paper',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    if (hasVersions)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.teal.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.teal.shade200),
+                        ),
+                        child: Text(
+                          '${versions.length} version${versions.length == 1 ? '' : 's'}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.teal.shade800,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                if (!hasVersions) ...[
+                  Text(
+                    'No paper generated yet. Click "Generate Paper with AI" above to analyze your attached research material and synthesize your paper draft.',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Once generated, your paper will appear here with direct options to View & Edit in the full editor or Download as a formatted DOCX document.',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ] else ...[
+                  Builder(
+                    builder: (context) {
+                      final latest = versions.first;
+                      final paperData = latest.paper;
+                      final title = paperData['title'] as String? ?? 'Research Paper';
+                      final sections = paperData['sections'] as List? ?? [];
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.teal.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.teal.shade100),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Chip(
+                                      label: Text(
+                                        'Latest: v${latest.versionNumber}',
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                      ),
+                                      backgroundColor: Colors.teal.shade100,
+                                      visualDensity: VisualDensity.compact,
+                                      padding: EdgeInsets.zero,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        title,
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${sections.length} academic sections · ${latest.origin.name} · Created ${_formatDate(latest.createdAt)}',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                                ),
+                                const SizedBox(height: 12),
+                                Wrap(
+                                  spacing: 12,
+                                  runSpacing: 8,
+                                  children: [
+                                    FilledButton.icon(
+                                      key: const ValueKey('button-view-latest-paper'),
+                                      onPressed: () => _viewVersion(latest),
+                                      icon: const Icon(Icons.edit_note, size: 18),
+                                      label: const Text('View & Edit Paper'),
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: Colors.teal.shade700,
+                                      ),
+                                    ),
+                                    FilledButton.tonalIcon(
+                                      key: const ValueKey('button-download-latest-docx'),
+                                      onPressed: _isExporting ? null : () => _downloadVersionDocx(latest),
+                                      icon: _isExporting
+                                          ? const SizedBox(
+                                              width: 14,
+                                              height: 14,
+                                              child: CircularProgressIndicator(strokeWidth: 2),
+                                            )
+                                          : const Icon(Icons.download, size: 18),
+                                      label: const Text('Download DOCX'),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          const Divider(),
+                          const SizedBox(height: 4),
+                          Text(
+                            'All Saved Versions',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          for (final v in versions)
+                            ListTile(
+                              key: ValueKey('version-${v.versionNumber}'),
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                'Version ${v.versionNumber}',
+                                style: TextStyle(
+                                  fontWeight: v.id == latest.id ? FontWeight.bold : FontWeight.normal,
+                                ),
+                              ),
+                              subtitle: Text('${v.origin.name} · ${_formatDate(v.createdAt)}'),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    key: ValueKey('button-view-version-${v.versionNumber}'),
+                                    tooltip: 'View / Edit in paper editor',
+                                    icon: const Icon(Icons.visibility_outlined, size: 20),
+                                    onPressed: () => _viewVersion(v),
+                                  ),
+                                  IconButton(
+                                    key: ValueKey('button-download-version-${v.versionNumber}'),
+                                    tooltip: 'Download DOCX',
+                                    icon: const Icon(Icons.file_download_outlined, size: 20),
+                                    onPressed: _isExporting ? null : () => _downloadVersionDocx(v),
+                                  ),
+                                ],
+                              ),
+                              onTap: () => _viewVersion(v),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildAdditionalInformationCard() {
@@ -1825,27 +2106,6 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
           children: [
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: SegmentedButton<bool>(
-                key: const ValueKey('segmented-project-mode'),
-                segments: const [
-                  ButtonSegment<bool>(
-                    value: true,
-                    label: Text('Generate from File (.txt/.md)'),
-                    icon: Icon(Icons.description_outlined),
-                  ),
-                  ButtonSegment<bool>(
-                    value: false,
-                    label: Text('Manual Form Details'),
-                    icon: Icon(Icons.edit_note_outlined),
-                  ),
-                ],
-                selected: {_documentMode},
-                onSelectionChanged: (selected) =>
-                    setState(() => _documentMode = selected.first),
-              ),
-            ),
             if (_documentMode) ..._buildDocumentModeWidgets()
             else ...[
               Text(
@@ -2145,8 +2405,8 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                 );
               },
             ),
-            const SizedBox(height: 120),
             ],
+            const SizedBox(height: 120),
           ],
         ),
       ),
