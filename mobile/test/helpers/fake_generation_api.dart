@@ -17,6 +17,11 @@ class FakeGenerationApi implements PaperGenerationApi {
   int sectionCallCount = 0;
   SectionRegenerationRequest? lastSectionRequest;
 
+  ResearchAnalysisResponsePayload? nextAnalysisResult;
+  Object? nextAnalysisError;
+  int analysisCallCount = 0;
+  ResearchAnalysisRequestPayload? lastAnalysisRequest;
+
   Duration latency;
 
   FakeGenerationApi({this.latency = Duration.zero});
@@ -51,6 +56,115 @@ class FakeGenerationApi implements PaperGenerationApi {
       throw error;
     }
     return nextSectionResult ?? _defaultSectionResult(request.sectionId);
+  }
+
+  @override
+  Future<ResearchAnalysisResponsePayload> analyzeResearch(
+    ResearchAnalysisRequestPayload request,
+  ) async {
+    analysisCallCount++;
+    lastAnalysisRequest = request;
+    if (latency > Duration.zero) {
+      await Future<void>.delayed(latency);
+    }
+    if (nextAnalysisError != null) {
+      final error = nextAnalysisError!;
+      nextAnalysisError = null;
+      throw error;
+    }
+    return nextAnalysisResult ?? _defaultAnalysisResult(request);
+  }
+
+  static ResearchAnalysisResponsePayload _defaultAnalysisResult(
+    ResearchAnalysisRequestPayload request,
+  ) {
+    final text = request.sourceMaterial.toLowerCase();
+    final hasConflict = text.contains('contradictory') || text.contains('conflicting');
+    final isBrief = text.length < 50;
+
+    final warnings = <AnalysisWarningPayload>[
+      if (hasConflict)
+        const AnalysisWarningPayload(
+          code: 'INPUT_CONFLICT',
+          severity: 'critical',
+          message: 'Contradictory experimental findings were detected.',
+          whyItMatters: 'Conflicting empirical statements undermine peer review.',
+          potentialImpact: 'The generated paper may assert contradictory claims.',
+        ),
+      if (isBrief)
+        const AnalysisWarningPayload(
+          code: 'CLAIM_NEEDS_REVIEW',
+          severity: 'critical',
+          message: 'The source material is brief or incomplete.',
+          whyItMatters: 'A credible paper requires sufficient context.',
+          potentialImpact: 'AI cannot synthesize a defensible paper without input.',
+        ),
+    ];
+
+    final questions = <ClarificationQuestionPayload>[
+      if (hasConflict)
+        const ClarificationQuestionPayload(
+          id: 'q_resolve_conflict',
+          question: 'Which conflicting value is authoritative?',
+          whyNeeded: 'Authoritative data prevents publishing errors.',
+          isEssential: true,
+        ),
+      if (!text.contains('method') && !text.contains('algorithm') && !isBrief)
+        const ClarificationQuestionPayload(
+          id: 'q_methodology',
+          question: 'What specific algorithmic or experimental methodology was used?',
+          whyNeeded: 'Methodology is required for reproducibility.',
+          isEssential: true,
+          fieldKey: 'methodology',
+        ),
+      if (!text.contains('dataset') && !text.contains('split') && !isBrief)
+        const ClarificationQuestionPayload(
+          id: 'q_dataset',
+          question: 'What dataset size and train-test split was used?',
+          whyNeeded: 'Empirical claims require dataset details.',
+          isEssential: false,
+          fieldKey: 'dataset_or_materials',
+        ),
+    ];
+
+    final requiresClarification = questions.any((q) => q.isEssential) ||
+        warnings.any((w) => w.severity == 'critical');
+
+    return ResearchAnalysisResponsePayload(
+      inferredTitle: request.titleHint ?? 'Scientific Research Study',
+      inferredField: 'Computer Science & Machine Learning',
+      inferredQuestion: 'How can the research be systematically evaluated?',
+      inferredObjectives: const [
+        'Formulate the theoretical foundation.',
+        'Empirically validate performance.',
+      ],
+      suggestedOutline: const [
+        DynamicOutlineSectionPayload(
+          id: 'introduction',
+          heading: '1. Introduction',
+          rationale: 'Establishes motivation.',
+        ),
+        DynamicOutlineSectionPayload(
+          id: 'methodology',
+          heading: '2. Methodology Formulation',
+          rationale: 'Technical formulation.',
+        ),
+        DynamicOutlineSectionPayload(
+          id: 'results',
+          heading: '3. Empirical Results & Discussion',
+          rationale: 'Benchmark findings.',
+        ),
+        DynamicOutlineSectionPayload(
+          id: 'conclusion',
+          heading: '4. Conclusion',
+          rationale: 'Synthesis.',
+        ),
+      ],
+      questions: questions,
+      warnings: warnings,
+      canProceedDirectly: !requiresClarification,
+      requiresClarification: requiresClarification,
+    );
   }
 
   void reset() {

@@ -9,7 +9,12 @@ import httpx
 from pydantic import ValidationError
 
 from resbud_api.core.settings import Settings
-from resbud_api.domain.models import PaperDraft, PaperSection
+from resbud_api.domain.models import (
+    PaperDraft,
+    PaperSection,
+    ResearchAnalysisRequest,
+    ResearchAnalysisResponse,
+)
 from resbud_api.providers.base import (
     GenerationInput,
     GenerationPrompt,
@@ -212,10 +217,36 @@ class GeminiProvider:
     ) -> ProviderResult:
         return await self._request(regeneration_input.prompt, PaperSection)
 
+    async def analyze_research(self, request: ResearchAnalysisRequest) -> ResearchAnalysisResponse:
+        from resbud_api.services.analysis import assess_research_quality
+
+        if self._client is None or self._model is None or not self._api_key:
+            return assess_research_quality(request)
+        try:
+            prompt = GenerationPrompt(
+                version="analysis-v1",
+                system_instructions=(
+                    "You are a senior scientific peer reviewer and academic research director. "
+                    "Analyze raw research materials to extract topic, question, objectives, "
+                    "methodology, and findings. Detect contradictions and missing details. "
+                    "Synthesize a dynamic outline with descriptive section headings. "
+                    "Return exactly one JSON object matching the schema."
+                ),
+                user_message=(
+                    f"Research source notes:\n{request.source_material}\n\n"
+                    f"Title hint: {request.title_hint or 'None'}"
+                ),
+                output_schema="ResearchAnalysisResponse",
+            )
+            res = await self._request(prompt, ResearchAnalysisResponse)
+            return ResearchAnalysisResponse.model_validate_json(res.structured_output)
+        except Exception:
+            return assess_research_quality(request)
+
     async def _request(
         self,
         prompt: GenerationPrompt,
-        output_model: type[PaperDraft] | type[PaperSection],
+        output_model: type[PaperDraft] | type[PaperSection] | type[ResearchAnalysisResponse],
     ) -> ProviderResult:
         if self._client is None or self._model is None or not self._api_key:
             raise ProviderUnavailable

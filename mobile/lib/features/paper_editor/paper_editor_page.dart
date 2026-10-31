@@ -1441,18 +1441,20 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
             ),
             if (sectionWarnings.isNotEmpty) ...[
               const SizedBox(height: 8),
-              for (final warning in sectionWarnings)
+              for (var wIdx = 0; wIdx < sectionWarnings.length; wIdx++)
                 Container(
-                  key: ValueKey('inline-warning-${section.id}'),
+                  key: wIdx == 0
+                      ? ValueKey('inline-warning-${section.id}')
+                      : ValueKey('inline-warning-${section.id}-$wIdx'),
                   padding: const EdgeInsets.all(10),
                   margin: const EdgeInsets.only(bottom: 6),
                   decoration: BoxDecoration(
-                    color: warning.severity == 'critical'
+                    color: sectionWarnings[wIdx].severity == 'critical'
                         ? Colors.red.withAlpha(20)
                         : Colors.amber.withAlpha(25),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: warning.severity == 'critical'
+                      color: sectionWarnings[wIdx].severity == 'critical'
                           ? Colors.red.shade300
                           : Colors.amber.shade400,
                     ),
@@ -1465,20 +1467,20 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                           Icon(
                             Icons.warning_amber_rounded,
                             size: 16,
-                            color: warning.severity == 'critical'
+                            color: sectionWarnings[wIdx].severity == 'critical'
                                 ? Colors.red.shade800
                                 : Colors.amber.shade900,
                           ),
                           const SizedBox(width: 6),
-                          _severityBadge(warning.severity),
+                          _severityBadge(sectionWarnings[wIdx].severity),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              warning.message,
+                              sectionWarnings[wIdx].message,
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
                                 fontSize: 12,
-                                color: warning.severity == 'critical'
+                                color: sectionWarnings[wIdx].severity == 'critical'
                                     ? Colors.red.shade900
                                     : Colors.amber.shade900,
                               ),
@@ -1491,7 +1493,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                         'Academic Guidance: Supply verifiable methodology or experimental results from your study. Resbud will never fabricate ungrounded measurements.',
                         style: TextStyle(
                           fontSize: 11,
-                          color: warning.severity == 'critical'
+                          color: sectionWarnings[wIdx].severity == 'critical'
                               ? Colors.red.shade800
                               : Colors.amber.shade900,
                         ),

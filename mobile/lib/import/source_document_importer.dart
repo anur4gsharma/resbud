@@ -57,6 +57,7 @@ class SourceDocumentImporter {
     required String fileName,
     required Uint8List bytes,
     String? contentType,
+    bool allowPdf = true,
   }) {
     if (bytes.length > maxSourceFileBytes) {
       throw const SourceImportException(
@@ -67,7 +68,16 @@ class SourceDocumentImporter {
 
     final extension = _extension(fileName);
     final isText = extension == 'txt' || extension == 'md' || extension == 'markdown';
-    if (!isText && extension != 'docx') {
+    final isDocx = extension == 'docx';
+    final isPdf = extension == 'pdf';
+
+    if (!allowPdf && isPdf) {
+      throw const SourceImportException(
+        SourceImportErrorCode.unsupportedFormat,
+        'Choose a UTF-8 .txt, .md, or .docx file.',
+      );
+    }
+    if (!isText && !isDocx && (!allowPdf || !isPdf)) {
       throw const SourceImportException(
         SourceImportErrorCode.unsupportedFormat,
         'Choose a UTF-8 .txt, .md, or .docx file.',
@@ -81,7 +91,11 @@ class SourceDocumentImporter {
       );
     }
 
-    final text = isText ? _readText(bytes) : _readDocx(bytes);
+    final text = isText
+        ? _readText(bytes)
+        : isDocx
+            ? _readDocx(bytes)
+            : _readPdf(bytes);
     if (text.trim().isEmpty) {
       throw const SourceImportException(
         SourceImportErrorCode.emptyDocument,
@@ -148,25 +162,254 @@ class SourceDocumentImporter {
     }
   }
 
+  ImportedSource importMultipleFiles(
+    List<({String fileName, Uint8List bytes, String? contentType})> files,
+  ) {
+    if (files.isEmpty) {
+      throw const SourceImportException(
+        SourceImportErrorCode.emptyDocument,
+        'No files were selected for upload.',
+      );
+    }
+    if (files.length == 1) {
+      return importBytes(
+        fileName: files.first.fileName,
+        bytes: files.first.bytes,
+        contentType: files.first.contentType,
+      );
+    }
+    final buffer = StringBuffer();
+    for (var i = 0; i < files.length; i++) {
+      final f = files[i];
+      final imported = importBytes(
+        fileName: f.fileName,
+        bytes: f.bytes,
+        contentType: f.contentType,
+      );
+      if (buffer.isNotEmpty) buffer.write('\n\n');
+      buffer.write('=== SOURCE FILE: ${f.fileName} ===\n');
+      buffer.write(imported.text);
+      if (buffer.length > maxImportedTextCharacters) {
+        throw const SourceImportException(
+          SourceImportErrorCode.contentTooLong,
+          'The combined extracted text exceeds the 50,000 character limit.',
+        );
+      }
+    }
+    return ImportedSource(text: buffer.toString(), format: 'multi');
+  }
+
   void _validateMediaType(String extension, String? contentType) {
     final normalized = contentType?.split(';').first.trim().toLowerCase();
     if (normalized == null || normalized.isEmpty || normalized == 'application/octet-stream') {
       return;
     }
     final isText = extension == 'txt' || extension == 'md' || extension == 'markdown';
+    final isPdf = extension == 'pdf';
     final valid = isText
         ? normalized == 'text/plain' ||
             normalized == 'text/markdown' ||
             normalized == 'text/x-markdown'
-        : normalized ==
-                'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-            normalized == 'application/zip';
+        : isPdf
+            ? normalized == 'application/pdf' || normalized == 'application/x-pdf'
+            : normalized ==
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                normalized == 'application/zip';
     if (!valid) {
       throw const SourceImportException(
         SourceImportErrorCode.unsupportedMediaType,
         'The selected file type does not match its file extension.',
       );
     }
+  }
+
+  String _readPdf(Uint8List bytes) {
+    if (bytes.length < 8) {
+      throw const SourceImportException(
+        SourceImportErrorCode.malformedDocument,
+        'The selected PDF is malformed or corrupted.',
+      );
+    }
+    final headerStr = String.fromCharCodes(bytes.sublist(0, 5));
+    if (!headerStr.startsWith('%PDF-')) {
+      throw const SourceImportException(
+        SourceImportErrorCode.malformedDocument,
+        'The selected file is not a valid PDF document.',
+      );
+    }
+
+    final rawString = String.fromCharCodes(bytes);
+    if (rawString.contains('/Encrypt')) {
+      throw const SourceImportException(
+        SourceImportErrorCode.encryptedDocument,
+        'Encrypted .pdf files are not supported.',
+      );
+    }
+
+    final text = _extractPdfText(bytes);
+    if (text.trim().isEmpty) {
+      throw const SourceImportException(
+        SourceImportErrorCode.emptyDocument,
+        'No readable text was found in the selected PDF document.',
+      );
+    }
+    return _normalizeLineEndings(text);
+  }
+
+  String _extractPdfText(Uint8List bytes) {
+    final buffer = StringBuffer();
+    final len = bytes.length;
+    var cursor = 0;
+    final streamToken = [115, 116, 114, 101, 97, 109]; // 'stream'
+    final endStreamToken = [101, 110, 100, 115, 116, 114, 101, 97, 109]; // 'endstream'
+
+    while (cursor < len - 10) {
+      var streamIdx = -1;
+      for (var i = cursor; i <= len - 6; i++) {
+        if (bytes[i] == streamToken[0] &&
+            bytes[i + 1] == streamToken[1] &&
+            bytes[i + 2] == streamToken[2] &&
+            bytes[i + 3] == streamToken[3] &&
+            bytes[i + 4] == streamToken[4] &&
+            bytes[i + 5] == streamToken[5]) {
+          streamIdx = i;
+          break;
+        }
+      }
+      if (streamIdx == -1) break;
+
+      final dictStart = streamIdx > 200 ? streamIdx - 200 : 0;
+      final dictStr = String.fromCharCodes(bytes.sublist(dictStart, streamIdx));
+      final isFlate = dictStr.contains('/FlateDecode');
+
+      var dataStart = streamIdx + 6;
+      if (dataStart < len && bytes[dataStart] == 13) dataStart++;
+      if (dataStart < len && bytes[dataStart] == 10) dataStart++;
+
+      var endIdx = -1;
+      for (var i = dataStart; i <= len - 9; i++) {
+        if (bytes[i] == endStreamToken[0] &&
+            bytes[i + 1] == endStreamToken[1] &&
+            bytes[i + 2] == endStreamToken[2] &&
+            bytes[i + 3] == endStreamToken[3] &&
+            bytes[i + 4] == endStreamToken[4] &&
+            bytes[i + 5] == endStreamToken[5] &&
+            bytes[i + 6] == endStreamToken[6] &&
+            bytes[i + 7] == endStreamToken[7] &&
+            bytes[i + 8] == endStreamToken[8]) {
+          endIdx = i;
+          break;
+        }
+      }
+      if (endIdx == -1) {
+        cursor = dataStart;
+        continue;
+      }
+
+      var dataEnd = endIdx;
+      while (dataEnd > dataStart &&
+          (bytes[dataEnd - 1] == 10 || bytes[dataEnd - 1] == 13 || bytes[dataEnd - 1] == 32)) {
+        dataEnd--;
+      }
+
+      if (dataEnd > dataStart) {
+        final streamBytes = bytes.sublist(dataStart, dataEnd);
+        List<int>? decompressed;
+        if (isFlate) {
+          try {
+            decompressed = zlib.decode(streamBytes);
+          } catch (_) {
+            try {
+              decompressed = ZLibDecoder(raw: true).convert(streamBytes);
+            } catch (_) {}
+          }
+        } else {
+          decompressed = streamBytes;
+        }
+
+        if (decompressed != null && decompressed.isNotEmpty) {
+          final text = _parsePdfStreamText(decompressed);
+          if (text.isNotEmpty) {
+            if (buffer.isNotEmpty) buffer.write('\n');
+            buffer.write(text);
+            if (buffer.length > maxImportedTextCharacters) break;
+          }
+        }
+      }
+      cursor = endIdx + 9;
+    }
+
+    return buffer.toString();
+  }
+
+  String _parsePdfStreamText(List<int> bytes) {
+    final out = StringBuffer();
+    final len = bytes.length;
+    var i = 0;
+
+    while (i < len) {
+      if (bytes[i] == 40) { // '('
+        i++;
+        final strBuf = StringBuffer();
+        var depth = 1;
+        while (i < len && depth > 0) {
+          final c = bytes[i];
+          if (c == 92) { // '\' escape
+            i++;
+            if (i < len) {
+              final esc = bytes[i];
+              if (esc == 110) {
+                strBuf.write('\n');
+              } else if (esc == 114) {
+                strBuf.write('\r');
+              } else if (esc == 116) {
+                strBuf.write('\t');
+              } else if (esc == 40 || esc == 41 || esc == 92) {
+                strBuf.writeCharCode(esc);
+              } else if (esc >= 48 && esc <= 55) {
+                var octalVal = esc - 48;
+                if (i + 1 < len && bytes[i + 1] >= 48 && bytes[i + 1] <= 55) {
+                  i++;
+                  octalVal = octalVal * 8 + (bytes[i] - 48);
+                  if (i + 1 < len && bytes[i + 1] >= 48 && bytes[i + 1] <= 55) {
+                    i++;
+                    octalVal = octalVal * 8 + (bytes[i] - 48);
+                  }
+                }
+                strBuf.writeCharCode(octalVal);
+              } else {
+                strBuf.writeCharCode(esc);
+              }
+            }
+          } else if (c == 40) {
+            depth++;
+            strBuf.writeCharCode(c);
+          } else if (c == 41) {
+            depth--;
+            if (depth > 0) strBuf.writeCharCode(c);
+          } else {
+            strBuf.writeCharCode(c);
+          }
+          i++;
+        }
+
+        final str = strBuf.toString().trim();
+        if (str.isNotEmpty) {
+          if (out.isNotEmpty && !out.toString().endsWith(' ') && !out.toString().endsWith('\n')) {
+            out.write(' ');
+          }
+          out.write(str);
+        }
+      } else if (i < len - 2 && bytes[i] == 69 && bytes[i + 1] == 84) { // 'ET' (end text)
+        if (out.isNotEmpty && !out.toString().endsWith('\n')) {
+          out.write('\n');
+        }
+        i += 2;
+      } else {
+        i++;
+      }
+    }
+    return out.toString().trim();
   }
 
   String _extension(String fileName) {

@@ -83,6 +83,7 @@ class SectionRegenerationResult {
 abstract interface class PaperGenerationApi {
   Future<GenerationResult> generate(GenerationRequest request);
   Future<SectionRegenerationResult> regenerateSection(SectionRegenerationRequest request);
+  Future<ResearchAnalysisResponsePayload> analyzeResearch(ResearchAnalysisRequestPayload request);
 }
 
 typedef BearerTokenProvider = Future<String?> Function();
@@ -247,6 +248,62 @@ class GenerationApiClient implements PaperGenerationApi {
         throw const FormatException('Replacement section ID does not match request.');
       }
       return SectionRegenerationResult(response: parsed, requestId: requestId);
+    } on Object {
+      throw GenerationApiFailure(
+        code: GenerationFailureCode.invalidResponse,
+        requestId: requestId,
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  @override
+  Future<ResearchAnalysisResponsePayload> analyzeResearch(
+    ResearchAnalysisRequestPayload request,
+  ) async {
+    final uri = baseUri.replace(path: '/api/v1/analyze');
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    if (tokenProvider != null) {
+      final token = await tokenProvider!();
+      if (token != null && token.isNotEmpty) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+    }
+
+    final http.Response response;
+    try {
+      response = await _client
+          .post(uri, headers: headers, body: jsonEncode(request.toJson()))
+          .timeout(timeout);
+    } on TimeoutException {
+      throw const GenerationApiFailure(
+        code: GenerationFailureCode.providerTimeout,
+        mayHaveCompleted: true,
+      );
+    } on SocketException {
+      throw const GenerationApiFailure(
+        code: GenerationFailureCode.networkUnavailable,
+      );
+    } on http.ClientException {
+      throw const GenerationApiFailure(
+        code: GenerationFailureCode.networkUnavailable,
+      );
+    }
+
+    final requestId = _requestIdFromHeaders(response.headers);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _errorFromResponse(response, requestId);
+    }
+
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map) throw const FormatException('Expected an object response.');
+      return ResearchAnalysisResponsePayload.fromJson(
+        Map<String, Object?>.from(decoded),
+      );
     } on Object {
       throw GenerationApiFailure(
         code: GenerationFailureCode.invalidResponse,

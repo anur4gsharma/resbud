@@ -3,7 +3,13 @@
 import json
 from enum import StrEnum
 
-from resbud_api.domain.models import PaperSection, ProjectContext, SectionState
+from resbud_api.domain.models import (
+    PaperSection,
+    ProjectContext,
+    ResearchAnalysisRequest,
+    ResearchAnalysisResponse,
+    SectionState,
+)
 from resbud_api.providers.base import (
     GenerationInput,
     ProviderRateLimited,
@@ -32,6 +38,18 @@ class FakeProvider:
     def __init__(self, outcome: FakeOutcome = FakeOutcome.SUCCESS) -> None:
         self.outcome = outcome
         self.call_count = 0
+
+    async def analyze_research(self, request: ResearchAnalysisRequest) -> ResearchAnalysisResponse:
+        self.call_count += 1
+        if self.outcome is FakeOutcome.TIMEOUT:
+            raise ProviderTimeout
+        if self.outcome is FakeOutcome.UNAVAILABLE:
+            raise ProviderUnavailable
+        if self.outcome is FakeOutcome.RATE_LIMITED:
+            raise ProviderRateLimited
+        from resbud_api.services.analysis import assess_research_quality
+
+        return assess_research_quality(request)
 
     async def generate_paper(self, generation_input: GenerationInput) -> ProviderResult:
         self.call_count += 1
@@ -179,17 +197,72 @@ def _generate_realistic_paper(brief: ResearchBrief) -> dict[str, object]:
     )
 
     requested_sections = brief.preferences.desired_sections
-    section_ids = requested_sections or [
-        "introduction",
-        "methodology",
-        "results",
-        "discussion",
-        "conclusion",
-    ]
+    combined_context = (title + " " + brief.source_draft).lower()
+
+    if requested_sections:
+        section_ids = requested_sections
+        section_heading_map = {sid: sid.replace("_", " ").title() for sid in section_ids}
+    elif any(k in combined_context for k in ["quantum", "chemistry", "molecular", "gnn", "mpnn"]):
+        section_ids = [
+            "introduction",
+            "equivariant_architecture",
+            "molecular_benchmark_evaluation",
+            "dft_comparative_analysis",
+            "conclusion",
+        ]
+        section_heading_map = {
+            "introduction": "1. Introduction",
+            "equivariant_architecture": "2. Equivariant Message Passing Architecture",
+            "molecular_benchmark_evaluation": "3. Molecular Ground-State Energy Benchmark",
+            "dft_comparative_analysis": "4. Comparative Latency & DFT Scaling Analysis",
+            "conclusion": "5. Conclusion & Scalable Chemistry Outlook",
+        }
+    elif any(k in combined_context for k in ["transformer", "attention", "neural language", "llm"]):
+        section_ids = [
+            "introduction",
+            "attention_mechanisms",
+            "architecture_design",
+            "training_methodology",
+            "computational_complexity",
+            "conclusion",
+        ]
+        section_heading_map = {
+            "introduction": "1. Introduction",
+            "attention_mechanisms": "2. Attention Dynamics & Mathematical Formulation",
+            "architecture_design": "3. Architectural Architecture & Design Objectives",
+            "training_methodology": "4. Training Methodology & Empirical Validation",
+            "computational_complexity": "5. Computational Complexity Analysis",
+            "conclusion": "6. Conclusion & Future Directions",
+        }
+    elif any(k in combined_context for k in ["sensor", "irrigation", "soil", "agriculture"]):
+        section_ids = [
+            "introduction",
+            "sensor_architecture",
+            "monitoring_methodology",
+            "field_evaluation",
+            "conclusion",
+        ]
+        section_heading_map = {
+            "introduction": "1. Introduction & Agricultural Motivation",
+            "sensor_architecture": "2. Sensor Architecture & Environmental Telemetry",
+            "monitoring_methodology": "3. Monitoring Methodology & Irrigation Optimization",
+            "field_evaluation": "4. Field Evaluation & Water Conservation Metrics",
+            "conclusion": "5. Conclusion & Agronomic Implications",
+        }
+    else:
+        section_ids = [
+            "introduction",
+            "methodology",
+            "results",
+            "discussion",
+            "conclusion",
+        ]
+        section_heading_map = {sid: sid.replace("_", " ").title() for sid in section_ids}
+
     sections: list[PaperSection] = []
 
     for sid in section_ids:
-        heading = sid.replace("_", " ").title()
+        heading = section_heading_map.get(sid, sid.replace("_", " ").title())
         if sid == "introduction":
             content = (
                 f"{brief.source_draft.strip() or problem}\n\n"
@@ -199,7 +272,12 @@ def _generate_realistic_paper(brief: ResearchBrief) -> dict[str, object]:
                 "integrated paradigm designed to overcome these challenges through principled "
                 "design and systematic experimentation."
             )
-        elif sid == "methodology":
+        elif sid in [
+            "methodology",
+            "equivariant_architecture",
+            "attention_mechanisms",
+            "sensor_architecture",
+        ]:
             content = (
                 f"{method}\n\n"
                 "The overall architectural pipeline is structured to ensure numerical stability "
@@ -207,7 +285,12 @@ def _generate_realistic_paper(brief: ResearchBrief) -> dict[str, object]:
                 "and convergence criteria were calibrated under standardized controls "
                 "to guarantee reproducibility across heterogeneous compute environments."
             )
-        elif sid == "results":
+        elif sid in [
+            "results",
+            "molecular_benchmark_evaluation",
+            "field_evaluation",
+            "training_methodology",
+        ]:
             content = (
                 f"{res}\n\n"
                 "Quantitative evaluations confirm consistent advantages across evaluation metrics. "
@@ -215,7 +298,12 @@ def _generate_realistic_paper(brief: ResearchBrief) -> dict[str, object]:
                 "contributes meaningfully to overall robustness, with variance remaining strictly "
                 "bounded across successive independent trials."
             )
-        elif sid == "discussion":
+        elif sid in [
+            "discussion",
+            "dft_comparative_analysis",
+            "computational_complexity",
+            "architecture_design",
+        ]:
             content = (
                 "The empirical findings validate the foundational hypotheses of this study. "
                 "Compared to conventional baselines, our framework demonstrates superior scaling "

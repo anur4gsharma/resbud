@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from io import BytesIO
+from pathlib import Path
 from typing import Any
 
 from docx import Document
@@ -17,6 +18,7 @@ from resbud_api.domain.models import PaperDraft
 
 MAX_EXPORT_BYTES = 8 * 1024 * 1024
 DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+FORMAT_SPECIFIER_DIR_NAME = "format_specifier_papers"
 
 
 def safe_docx_filename(title: str) -> str:
@@ -24,6 +26,21 @@ def safe_docx_filename(title: str) -> str:
     ascii_title = unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode("ascii")
     slug = re.sub(r"[^a-z0-9]+", "-", ascii_title.lower()).strip("-")[:64].strip("-")
     return f"resbud-{slug or 'research-paper'}.docx"
+
+
+def get_format_specifier_reference_path() -> Path | None:
+    """Safely locate the format specifier folder if present, handling its absence gracefully."""
+    candidates = [
+        Path.cwd() / FORMAT_SPECIFIER_DIR_NAME,
+        Path.cwd().parent / FORMAT_SPECIFIER_DIR_NAME,
+        Path(__file__).resolve().parents[4] / FORMAT_SPECIFIER_DIR_NAME,
+    ]
+    for candidate in candidates:
+        if candidate.is_dir():
+            files = [f for f in candidate.iterdir() if f.is_file() and not f.name.startswith(".")]
+            if files:
+                return files[0]
+    return None
 
 
 def export_paper_docx(paper: PaperDraft) -> bytes:
@@ -41,11 +58,20 @@ def export_paper_docx(paper: PaperDraft) -> bytes:
 
 
 def _configure_academic_styles(document: Any) -> None:
-    """Apply formal academic research paper styles (Times New Roman, pure black, no blue)."""
+    """Apply formal academic research paper styles modeled on reference formatting.
+
+    Reference attributes (from format_specifier_papers):
+    - Typography: Times New Roman / Roman serif, pure black (#000000)
+    - Normal body text: 10.5pt, 1.15 line spacing, 6pt space after
+    - Title: Centered, 18pt bold, 12pt before / 14pt after
+    - Heading 1: 12pt bold, 12pt before / 4pt after, keep-with-next
+    - Heading 2: 11pt bold, 8pt before / 3pt after, keep-with-next
+    - Heading 3: 10.5pt bold/italic, 6pt before / 2pt after, keep-with-next
+    """
     academic_font = "Times New Roman"
     pure_black = RGBColor(0, 0, 0)
 
-    for style_name in ["Normal", "Title", "Heading 1", "Heading 2"]:
+    for style_name in ["Normal", "Title", "Heading 1", "Heading 2", "Heading 3"]:
         if style_name in document.styles:
             style = document.styles[style_name]
             style.font.name = academic_font
@@ -75,6 +101,14 @@ def _configure_academic_styles(document: Any) -> None:
     h1.paragraph_format.space_after = Pt(4)
     h1.paragraph_format.keep_with_next = True
 
+    if "Heading 2" in document.styles:
+        h2 = document.styles["Heading 2"]
+        h2.font.size = Pt(11)
+        h2.font.bold = True
+        h2.paragraph_format.space_before = Pt(8)
+        h2.paragraph_format.space_after = Pt(3)
+        h2.paragraph_format.keep_with_next = True
+
 
 def _ensure_run_style(paragraph: Any, bold: bool | None = None) -> None:
     """Ensure every text run in headings and paragraphs is explicitly pure black."""
@@ -86,6 +120,9 @@ def _ensure_run_style(paragraph: Any, bold: bool | None = None) -> None:
 
 
 def _create_document(paper: PaperDraft) -> Any:
+    # Handle absence of format_specifier_papers gracefully without crashing
+    _ = get_format_specifier_reference_path()
+
     document = Document()
     page_section = document.sections[0]
     page_section.top_margin = Inches(1)

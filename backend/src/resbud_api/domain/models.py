@@ -205,3 +205,73 @@ class SectionRegenerationResponse(ContractModel):
         """Enforce the cross-object replacement identity declared by the API contract."""
         if self.section.id != request.section_id:
             raise ValueError("replacement section ID must match the requested section_id")
+
+
+class ClarificationQuestion(ContractModel):
+    id: Annotated[str, Field(min_length=1, max_length=50)]
+    question: Annotated[str, Field(min_length=1, max_length=1000)]
+    why_needed: Annotated[str, Field(min_length=1, max_length=1000)]
+    is_essential: bool = True
+    field_key: Annotated[str, Field(max_length=50)] | None = None
+    default_value: Annotated[str, Field(max_length=1000)] | None = None
+
+
+class AnalysisWarning(ContractModel):
+    code: WarningCode
+    severity: WarningSeverity
+    message: Annotated[str, Field(min_length=1, max_length=1000)]
+    why_it_matters: Annotated[str, Field(min_length=1, max_length=1000)]
+    potential_impact: Annotated[str, Field(min_length=1, max_length=1000)]
+
+
+class DynamicOutlineSection(ContractModel):
+    id: SectionId
+    heading: Annotated[str, Field(min_length=1, max_length=150)]
+    rationale: Annotated[str, Field(min_length=1, max_length=1000)]
+
+
+class ResearchAnalysisRequest(ContractModel):
+    source_material: Annotated[
+        str,
+        Field(min_length=1, max_length=100000, pattern=NON_WHITESPACE_PATTERN),
+    ]
+    file_names: Annotated[list[str], Field(default_factory=list, max_length=20)]
+    title_hint: Annotated[str, Field(max_length=300)] | None = None
+    user_clarifications: dict[str, str] = Field(default_factory=dict)
+
+
+class ResearchAnalysisResponse(ContractModel):
+    schema_version: Literal[1] = 1
+    inferred_title: Annotated[str, Field(min_length=1, max_length=300)]
+    inferred_field: Annotated[str, Field(min_length=1, max_length=200)]
+    inferred_question: Annotated[str, Field(min_length=1, max_length=4000)]
+    inferred_objectives: Annotated[
+        list[Annotated[str, Field(min_length=1, max_length=1000)]],
+        Field(min_length=1, max_length=20),
+    ]
+    methodology_summary: Annotated[str, Field(max_length=12000)] | None = None
+    dataset_summary: Annotated[str, Field(max_length=8000)] | None = None
+    results_summary: Annotated[str, Field(max_length=12000)] | None = None
+    limitations_summary: Annotated[str, Field(max_length=8000)] | None = None
+    suggested_outline: Annotated[list[DynamicOutlineSection], Field(min_length=1, max_length=15)]
+    questions: Annotated[list[ClarificationQuestion], Field(default_factory=list, max_length=20)]
+    warnings: Annotated[list[AnalysisWarning], Field(default_factory=list, max_length=50)]
+    can_proceed_directly: bool
+    requires_clarification: bool
+    extracted_references: Annotated[
+        list[ReferenceInput], Field(default_factory=list, max_length=50)
+    ]
+
+
+class DocumentExtractRequest(ContractModel):
+    file_name: Annotated[str, Field(min_length=1, max_length=255)]
+    content_base64: str | None = None
+    text_content: str | None = None
+
+
+class DocumentExtractResponse(ContractModel):
+    file_name: str
+    format: str
+    text: str
+    char_count: int
+    error: str | None = None

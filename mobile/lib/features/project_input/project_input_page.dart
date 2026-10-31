@@ -894,7 +894,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     return (name: file.name, bytes: await file.readAsBytes());
   }
 
-  Future<void> _importSource({bool autoFillAll = false}) async {
+  Future<void> _importSource({bool autoFillAll = false, bool? allowPdf}) async {
     setState(() {
       _importing = true;
       _importMessage = null;
@@ -909,6 +909,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       final imported = const SourceDocumentImporter().importBytes(
         fileName: picked.name,
         bytes: picked.bytes,
+        allowPdf: allowPdf ?? false,
       );
 
       if (autoFillAll) {

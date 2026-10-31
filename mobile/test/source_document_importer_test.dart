@@ -239,6 +239,52 @@ void main() {
       )),
     );
   });
+
+  test('extracts text from PDF streams and handles invalid PDF headers', () {
+    expect(
+      () => importer.importBytes(
+        fileName: 'broken.pdf',
+        bytes: Uint8List.fromList(utf8.encode('Not a PDF file header')),
+      ),
+      throwsA(isA<SourceImportException>().having(
+        (error) => error.code,
+        'code',
+        SourceImportErrorCode.malformedDocument,
+      )),
+    );
+
+    const pdfContent = '%PDF-1.4\n'
+        '1 0 obj\n<< /Length 40 >>\nstream\n'
+        'BT /F1 12 Tf (Graph Neural Networks for Chemistry) Tj ET\n'
+        'endstream\nendobj\n%%EOF';
+    final result = importer.importBytes(
+      fileName: 'research.pdf',
+      contentType: 'application/pdf',
+      bytes: Uint8List.fromList(utf8.encode(pdfContent)),
+    );
+    expect(result.format, 'pdf');
+    expect(result.text, contains('Graph Neural Networks for Chemistry'));
+  });
+
+  test('imports multiple files and joins them with clear source delimiters', () {
+    final file1 = (
+      fileName: 'notes.txt',
+      bytes: Uint8List.fromList(utf8.encode('Research hypothesis and objectives.')),
+      contentType: 'text/plain',
+    );
+    final file2 = (
+      fileName: 'results.md',
+      bytes: Uint8List.fromList(utf8.encode('Empirical accuracy was 94.2%.')),
+      contentType: 'text/markdown',
+    );
+
+    final result = importer.importMultipleFiles([file1, file2]);
+    expect(result.format, 'multi');
+    expect(result.text, contains('=== SOURCE FILE: notes.txt ==='));
+    expect(result.text, contains('Research hypothesis and objectives.'));
+    expect(result.text, contains('=== SOURCE FILE: results.md ==='));
+    expect(result.text, contains('Empirical accuracy was 94.2%.'));
+  });
 }
 
 String _document(String body) => '''<w:document xmlns:w="urn:test"><w:body>$body</w:body></w:document>''';

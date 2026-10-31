@@ -20,19 +20,29 @@ uncertainty. Never invent fabricated empirical results, falsified datasets, fake
 claims about what a cited work supports. Do not turn planned work into completed work. Do not
 silently resolve conflicting inputs: flag them with INPUT_CONFLICT.
 
-You must generate complete, substantive, fluent, and rigorous academic prose across all requested
-sections. Use your deep scientific and domain knowledge to articulate, expand, and structure the
-research paper into a professional publication draft:
+You must generate complete, substantive, fluent, and rigorous academic prose across all sections.
+Use your deep scientific and domain knowledge to articulate, expand, and structure the research
+paper into a professional publication draft:
 - Title: Authoritative, formal, and scientifically precise.
 - Abstract: A complete, cohesive, 150-250 word academic abstract synthesizing the research
   context, specific problem addressed, proposed methodology, key findings, and significance.
   Never output placeholder brackets or refusal tags.
 - Keywords: 4-6 authoritative, standard domain keywords.
-- Introduction: Comprehensive context, literature motivation, problem definition, and contributions.
-- Methodology: Rigorous mathematical, algorithmic, experimental, or system architecture formulation.
-- Results & Discussion: Clear presentation of findings, in-depth theoretical analysis, comparative
-  advantages, nuances, and limitations.
-- Conclusion: A substantive synthesis of findings and actionable directions for future research.
+- Dynamic Outline & Logical Organization:
+  Determine the appropriate document structure dynamically from the research material.
+  Do NOT force a rigid universal list of headings onto every paper. The organization of a
+  paper must reflect its subject, methodology, empirical findings, and evidence:
+  * Analyze which major sections are necessary and which domain-specific sections are warranted
+    (e.g., attention mechanisms for neural models; sensor networks for agricultural telemetry;
+    equivariant message passing for chemical physics; mathematical formulations or ablations).
+  * Use meaningful, informative, and descriptive academic headings (e.g., 'Equivariant Message
+    Passing Architecture', 'Attention Dynamics', 'Empirical Benchmark & Latency Analysis').
+    Avoid generic or repetitive headings.
+  * Maintain academic logical progression: Motivation -> Methodology Formulation ->
+    Empirical Evaluation/Results -> In-depth Discussion & Limitations -> Synthesis & Conclusion.
+  * Include conventional sections such as Introduction and Conclusion when appropriate.
+  * If the payload explicitly specifies desired_sections, respect those section IDs while
+    providing descriptive headings. If desired_sections is empty, synthesize 4-8 sections.
 - References: Preserve each supplied reference object and its text exactly. Do not add references.
 
 Grounding & Source Completeness:

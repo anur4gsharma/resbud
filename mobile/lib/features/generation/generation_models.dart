@@ -661,3 +661,181 @@ String _enumValue(Object? value, String label, List<String> choices) {
   if (!choices.contains(string)) throw FormatException('$label has an unsupported value.');
   return string;
 }
+
+class ClarificationQuestionPayload {
+  const ClarificationQuestionPayload({
+    required this.id,
+    required this.question,
+    required this.whyNeeded,
+    this.isEssential = true,
+    this.fieldKey,
+    this.defaultValue,
+  });
+
+  final String id;
+  final String question;
+  final String whyNeeded;
+  final bool isEssential;
+  final String? fieldKey;
+  final String? defaultValue;
+
+  factory ClarificationQuestionPayload.fromJson(Map<String, Object?> json) =>
+      ClarificationQuestionPayload(
+        id: json['id'] as String,
+        question: json['question'] as String,
+        whyNeeded: (json['why_needed'] ?? '') as String,
+        isEssential: (json['is_essential'] as bool?) ?? true,
+        fieldKey: json['field_key'] as String?,
+        defaultValue: json['default_value'] as String?,
+      );
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'question': question,
+    'why_needed': whyNeeded,
+    'is_essential': isEssential,
+    'field_key': fieldKey,
+    'default_value': defaultValue,
+  };
+}
+
+class AnalysisWarningPayload {
+  const AnalysisWarningPayload({
+    required this.code,
+    required this.severity,
+    required this.message,
+    required this.whyItMatters,
+    required this.potentialImpact,
+  });
+
+  final String code;
+  final String severity;
+  final String message;
+  final String whyItMatters;
+  final String potentialImpact;
+
+  factory AnalysisWarningPayload.fromJson(Map<String, Object?> json) =>
+      AnalysisWarningPayload(
+        code: json['code'] as String,
+        severity: (json['severity'] as String?) ?? 'warning',
+        message: (json['message'] as String?) ?? '',
+        whyItMatters: (json['why_it_matters'] as String?) ?? '',
+        potentialImpact: (json['potential_impact'] as String?) ?? '',
+      );
+
+  Map<String, Object?> toJson() => {
+    'code': code,
+    'severity': severity,
+    'message': message,
+    'why_it_matters': whyItMatters,
+    'potential_impact': potentialImpact,
+  };
+}
+
+class DynamicOutlineSectionPayload {
+  const DynamicOutlineSectionPayload({
+    required this.id,
+    required this.heading,
+    required this.rationale,
+  });
+
+  final String id;
+  final String heading;
+  final String rationale;
+
+  factory DynamicOutlineSectionPayload.fromJson(Map<String, Object?> json) =>
+      DynamicOutlineSectionPayload(
+        id: json['id'] as String,
+        heading: json['heading'] as String,
+        rationale: (json['rationale'] ?? '') as String,
+      );
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'heading': heading,
+    'rationale': rationale,
+  };
+}
+
+class ResearchAnalysisRequestPayload {
+  const ResearchAnalysisRequestPayload({
+    required this.sourceMaterial,
+    this.fileNames = const [],
+    this.titleHint,
+    this.userClarifications = const {},
+  });
+
+  final String sourceMaterial;
+  final List<String> fileNames;
+  final String? titleHint;
+  final Map<String, String> userClarifications;
+
+  Map<String, Object?> toJson() => {
+    'source_material': sourceMaterial,
+    'file_names': fileNames,
+    if (titleHint != null) 'title_hint': titleHint,
+    'user_clarifications': userClarifications,
+  };
+}
+
+class ResearchAnalysisResponsePayload {
+  const ResearchAnalysisResponsePayload({
+    required this.inferredTitle,
+    required this.inferredField,
+    required this.inferredQuestion,
+    required this.inferredObjectives,
+    required this.suggestedOutline,
+    required this.questions,
+    required this.warnings,
+    required this.canProceedDirectly,
+    required this.requiresClarification,
+    this.methodologySummary,
+    this.datasetSummary,
+    this.resultsSummary,
+    this.limitationsSummary,
+    this.extractedReferences = const [],
+  });
+
+  final String inferredTitle;
+  final String inferredField;
+  final String inferredQuestion;
+  final List<String> inferredObjectives;
+  final List<DynamicOutlineSectionPayload> suggestedOutline;
+  final List<ClarificationQuestionPayload> questions;
+  final List<AnalysisWarningPayload> warnings;
+  final bool canProceedDirectly;
+  final bool requiresClarification;
+  final String? methodologySummary;
+  final String? datasetSummary;
+  final String? resultsSummary;
+  final String? limitationsSummary;
+  final List<ReferencePayload> extractedReferences;
+
+  factory ResearchAnalysisResponsePayload.fromJson(Map<String, Object?> json) =>
+      ResearchAnalysisResponsePayload(
+        inferredTitle: (json['inferred_title'] ?? '') as String,
+        inferredField: (json['inferred_field'] ?? '') as String,
+        inferredQuestion: (json['inferred_question'] ?? '') as String,
+        inferredObjectives: ((json['inferred_objectives'] as List?) ?? [])
+            .map((e) => e.toString())
+            .toList(),
+        suggestedOutline: ((json['suggested_outline'] as List?) ?? [])
+            .map((e) => DynamicOutlineSectionPayload.fromJson(Map<String, Object?>.from(e as Map)))
+            .toList(),
+        questions: ((json['questions'] as List?) ?? [])
+            .map((e) => ClarificationQuestionPayload.fromJson(Map<String, Object?>.from(e as Map)))
+            .toList(),
+        warnings: ((json['warnings'] as List?) ?? [])
+            .map((e) => AnalysisWarningPayload.fromJson(Map<String, Object?>.from(e as Map)))
+            .toList(),
+        canProceedDirectly: (json['can_proceed_directly'] as bool?) ?? false,
+        requiresClarification: (json['requires_clarification'] as bool?) ?? false,
+        methodologySummary: json['methodology_summary'] as String?,
+        datasetSummary: json['dataset_summary'] as String?,
+        resultsSummary: json['results_summary'] as String?,
+        limitationsSummary: json['limitations_summary'] as String?,
+        extractedReferences: ((json['extracted_references'] as List?) ?? [])
+            .map((e) => ReferencePayload.fromJson(Map<String, Object?>.from(e as Map)))
+            .toList(),
+      );
+}
