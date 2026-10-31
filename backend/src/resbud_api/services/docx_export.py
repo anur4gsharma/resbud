@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import re
 import unicodedata
 from io import BytesIO
@@ -147,7 +148,7 @@ def _create_document(paper: PaperDraft) -> Any:
     for section in paper.sections:
         sec_p = document.add_heading(section.heading, level=1)
         _ensure_run_style(sec_p, bold=True)
-        _add_text_paragraph(document, section.content)
+        _render_section_content(document, section.content)
 
     if paper.references:
         ref_heading = document.add_heading("References", level=1)
@@ -162,6 +163,93 @@ def _create_document(paper: PaperDraft) -> Any:
             _ensure_run_style(paragraph)
 
     return document
+
+
+def _render_section_content(document: Any, content: str) -> None:
+    has_image = bool(re.search(r"!\[(.*?)\]\((.*?)\)", content))
+    has_table = bool(re.search(r"\|.*\|", content) and "---" in content)
+
+    if not has_image and not has_table:
+        _add_text_paragraph(document, content)
+        return
+
+    blocks = content.split("\n\n")
+    for block in blocks:
+        trimmed = block.strip()
+        if not trimmed:
+            continue
+        fig_match = re.match(r"^!\[(.*?)\]\((.*?)\)$", trimmed)
+        if fig_match:
+            caption_text = fig_match.group(1)
+            img_src = fig_match.group(2)
+            _insert_figure_from_src(document, img_src, caption_text)
+            continue
+        lines = [line.strip() for line in trimmed.split("\n") if line.strip()]
+        if len(lines) >= 2 and all(line.startswith("|") and line.endswith("|") for line in lines):
+            _insert_table(document, lines)
+            continue
+        _add_text_paragraph(document, trimmed)
+
+
+def _insert_figure_from_src(document: Any, img_src: str, caption: str) -> None:
+    try:
+        raw_b64 = img_src
+        if "base64," in raw_b64:
+            raw_b64 = raw_b64.split("base64,", 1)[1]
+        img_bytes = base64.b64decode(raw_b64)
+        p = document.add_paragraph()
+        p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.space_before = Pt(8)
+        p.paragraph_format.space_after = Pt(4)
+        run = p.add_run()
+        run.add_picture(BytesIO(img_bytes), width=Inches(5.0))
+
+        caption_p = document.add_paragraph()
+        caption_p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        caption_p.paragraph_format.space_before = Pt(2)
+        caption_p.paragraph_format.space_after = Pt(12)
+        c_run = caption_p.add_run(caption)
+        c_run.font.name = "Times New Roman"
+        c_run.font.size = Pt(9.5)
+        c_run.font.italic = True
+        c_run.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
+    except Exception:
+        p = document.add_paragraph(f"[{caption}]")
+        _ensure_run_style(p)
+
+
+def _insert_table(document: Any, lines: list[str]) -> None:
+    try:
+        parsed_rows = []
+        for line in lines:
+            if "---" in line:
+                continue
+            cells = [c.strip() for c in line.strip("|").split("|")]
+            parsed_rows.append(cells)
+        if not parsed_rows:
+            return
+        num_cols = max(len(row) for row in parsed_rows)
+        table = document.add_table(rows=len(parsed_rows), cols=num_cols)
+        table.style = "Table Grid"
+        for r_idx, row in enumerate(parsed_rows):
+            for c_idx, cell_text in enumerate(row):
+                if c_idx < num_cols:
+                    cell = table.cell(r_idx, c_idx)
+                    cell.text = cell_text
+                    for p in cell.paragraphs:
+                        p.paragraph_format.space_after = Pt(2)
+                        p.paragraph_format.space_before = Pt(2)
+                        p.paragraph_format.line_spacing = 1.05
+                        for r in p.runs:
+                            r.font.name = "Times New Roman"
+                            r.font.size = Pt(9.5)
+                            r.font.color.rgb = RGBColor(0, 0, 0)
+                            if r_idx == 0:
+                                r.font.bold = True
+        space_p = document.add_paragraph()
+        space_p.paragraph_format.space_after = Pt(6)
+    except Exception:
+        _add_text_paragraph(document, "\n".join(lines))
 
 
 def _add_text_paragraph(document: Any, text: str) -> None:

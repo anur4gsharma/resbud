@@ -1,6 +1,7 @@
 """Synchronous paper-generation use case with strict provider-output validation."""
 
 import json
+from typing import Any
 from uuid import uuid4
 
 from pydantic import ValidationError

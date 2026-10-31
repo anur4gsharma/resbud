@@ -160,7 +160,6 @@ void main() {
       expect(find.textContaining('Fowler, A. G.'), findsOneWidget);
 
       // Page footer & indicator
-      expect(find.textContaining('Research Buddy Academic Manuscript'), findsOneWidget);
       expect(find.byKey(const ValueKey('docx-page-indicator')), findsOneWidget);
     });
 

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -105,7 +106,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   late Future<List<PaperVersion>> _versions;
   late String _initialFingerprint;
   late final TextEditingController _customSectionsController;
-  int _targetWordCount = 1500;
+  int _targetWordCount = 5000;
   String _citationStyle = 'user_supplied';
   List<String> _desiredSections = List.of(_baseSections);
   bool _saving = false;
@@ -126,6 +127,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   final Map<String, TextEditingController> _clarificationControllers = {};
   bool _clarificationsConfirmed = false;
   final List<({String name, int size})> _attachedFiles = [];
+  final List<Map<String, dynamic>> _attachedFigures = [];
   late final PaperExportApi _exportApi;
   late final DocxFileSaver _fileSaver;
   bool _isExporting = false;
@@ -179,6 +181,14 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       final sections = preferences['desired_sections'];
       if (sections is List && sections.every((value) => value is String)) {
         _desiredSections = List<String>.from(sections);
+      }
+    }
+    final savedFigures = context['figures'];
+    if (savedFigures is List) {
+      for (final item in savedFigures) {
+        if (item is Map) {
+          _attachedFigures.add(Map<String, dynamic>.from(item));
+        }
       }
     }
     _customSectionsController = TextEditingController(
@@ -303,6 +313,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         'desired_sections': _requestedSections,
         'citation_style': _citationStyle,
       },
+      if (_attachedFigures.isNotEmpty) 'figures': _attachedFigures,
     };
   }
 
@@ -580,12 +591,74 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                   ),
                 ),
               ],
-              const SizedBox(height: 16),
+              if (hasContent) ...[
+                const SizedBox(height: 12),
+                Card(
+                  elevation: 0,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.article_outlined,
+                          color: Theme.of(context).colorScheme.primary,
+                          size: 24,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _attachedFiles.isNotEmpty
+                                    ? _attachedFiles.first.name
+                                    : 'Attached Research Material',
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '$charCount characters • ~${(charCount / 6).round()} words ready for synthesis',
+                                style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.green.shade300),
+                          ),
+                          child: Text(
+                            'Ready for AI analysis',
+                            style: TextStyle(
+                              color: Colors.green.shade900,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+              ],
+              const SizedBox(height: 12),
               _textField(
                 'source_draft',
                 'Source research material / draft',
                 maxLength: 50000,
-                minLines: 4,
+                minLines: 3,
+                maxLines: 6,
                 helper: hasContent
                     ? 'Document attached ($charCount characters)'
                     : 'Upload a file above or paste research notes directly.',
@@ -646,44 +719,11 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         ),
       ),
       const SizedBox(height: 16),
-      // 5. Paper preferences
-      Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Paper preferences',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
-              Text('Target word count: $_targetWordCount words'),
-              Slider(
-                value: _targetWordCount.toDouble(),
-                min: 500,
-                max: 8000,
-                divisions: 15,
-                label: '$_targetWordCount words',
-                onChanged: (value) => setState(() => _targetWordCount = value.round()),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<String>(
-                initialValue: _citationStyle,
-                decoration: const InputDecoration(labelText: 'Citation style'),
-                items: const [
-                  DropdownMenuItem(value: 'user_supplied', child: Text('Authoritative user citations')),
-                  DropdownMenuItem(value: 'ieee', child: Text('IEEE style [1]')),
-                  DropdownMenuItem(value: 'apa_7', child: Text('APA 7th edition')),
-                ],
-                onChanged: (val) {
-                  if (val != null) setState(() => _citationStyle = val);
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
+      // 5. Illustrations & Figures (Optional)
+      _buildFiguresSection(),
+      const SizedBox(height: 16),
+      // 6. Manuscript Depth & Publication Format
+      _buildManuscriptDepthSelector(),
       const SizedBox(height: 20),
       OutlinedButton.icon(
         key: const ValueKey('button-review-before-generation-docmode'),
@@ -1389,6 +1429,18 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     var effectiveDraft = _controllers['source_draft']!.text;
     if (clarificationsBuf.isNotEmpty) {
       effectiveDraft = '$effectiveDraft\n\n=== RESEARCHER CLARIFICATIONS ===\n$clarificationsBuf';
+    }
+    if (_attachedFigures.isNotEmpty) {
+      final figBuf = StringBuffer('\n\n=== RESEARCH FIGURES & ILLUSTRATIONS ===\n');
+      for (final fig in _attachedFigures) {
+        figBuf.writeln('Figure ID: ${fig['id']}');
+        figBuf.writeln('Caption: ${fig['caption']}');
+        if ((fig['description'] as String? ?? '').isNotEmpty) {
+          figBuf.writeln('Description / Key Takeaways: ${fig['description']}');
+        }
+        figBuf.writeln('Marker to insert: ![${fig['caption']}](${fig['id']})');
+      }
+      effectiveDraft = '$effectiveDraft\n$figBuf';
     }
 
     late final GenerationRequest request;
@@ -2532,6 +2584,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     required int maxLength,
     bool requiredField = false,
     int minLines = 1,
+    int? maxLines,
   }) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: TextFormField(
@@ -2539,7 +2592,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       controller: _controllers[key],
       maxLength: maxLength,
       minLines: minLines,
-      maxLines: minLines == 1 ? 1 : null,
+      maxLines: maxLines ?? (minLines == 1 ? 1 : null),
       keyboardType: minLines > 1 ? null : TextInputType.text,
       decoration: InputDecoration(
         labelText: label,
@@ -2614,6 +2667,337 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                     setState(() => _controllers[detailKey]!.clear()),
                 child: const Text('Clear optional details'),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickFigureImage() async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
+      );
+      if (result.isEmpty || !mounted) return;
+      final file = result.first;
+      final bytes = await file.readAsBytes();
+      final ext = file.name.split('.').last.toLowerCase();
+      final mediaType = ext == 'jpg' || ext == 'jpeg'
+          ? 'image/jpeg'
+          : (ext == 'webp' ? 'image/webp' : 'image/png');
+      final b64 = 'data:$mediaType;base64,${base64Encode(bytes)}';
+      final figNumber = _attachedFigures.length + 1;
+      final cleanName = file.name.replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '').replaceAll('_', ' ');
+
+      setState(() {
+        _attachedFigures.add({
+          'id': 'fig_$figNumber',
+          'name': file.name,
+          'caption': 'Figure $figNumber: $cleanName',
+          'description': '',
+          'base64': b64,
+          'bytes': bytes,
+        });
+      });
+    } catch (_) {
+      // Gracefully ignore pick cancellations or unsupported formats
+    }
+  }
+
+  Widget _buildFiguresSection() {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.photo_library_outlined, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Illustrations & Figures',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.tonalIcon(
+                  key: const ValueKey('button-upload-figure'),
+                  onPressed: _pickFigureImage,
+                  icon: const Icon(Icons.add_photo_alternate, size: 16),
+                  label: const Text('Add Figure'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Upload architectural diagrams, benchmark charts, or schematics. The AI will weave references and discuss them directly in the paper.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            if (_attachedFigures.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              for (var i = 0; i < _attachedFigures.length; i++) ...[
+                _buildFigureItemCard(i),
+                if (i < _attachedFigures.length - 1) const SizedBox(height: 10),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFigureItemCard(int index) {
+    final fig = _attachedFigures[index];
+    final bytes = fig['bytes'] as Uint8List?;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: bytes != null
+                ? Image.memory(
+                    bytes,
+                    width: 72,
+                    height: 72,
+                    fit: BoxFit.cover,
+                  )
+                : Container(
+                    width: 72,
+                    height: 72,
+                    color: Colors.grey.shade200,
+                    child: const Icon(Icons.image, color: Colors.grey),
+                  ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextFormField(
+                  initialValue: fig['caption'] as String? ?? '',
+                  decoration: const InputDecoration(
+                    labelText: 'Figure Caption',
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  ),
+                  onChanged: (val) {
+                    fig['caption'] = val;
+                  },
+                ),
+                const SizedBox(height: 6),
+                TextFormField(
+                  initialValue: fig['description'] as String? ?? '',
+                  decoration: const InputDecoration(
+                    labelText: 'Key Takeaways / Description (for AI)',
+                    hintText: 'e.g. Highlights the convergence speedup...',
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  ),
+                  onChanged: (val) {
+                    fig['description'] = val;
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            tooltip: 'Remove figure',
+            icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+            onPressed: () {
+              setState(() {
+                _attachedFigures.removeAt(index);
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildManuscriptDepthSelector() {
+    final depths = [
+      (
+        id: 'journal',
+        title: 'Academic Journal Article',
+        scope: '~6,000–8,000 words',
+        targetWords: 7000,
+        description: 'Exhaustive, multi-paragraph analysis across theoretical foundations, extensive methodology, ablation benchmarks, and thorough discussion.',
+      ),
+      (
+        id: 'conference',
+        title: 'Full Conference Paper',
+        scope: '~4,500–6,000 words',
+        targetWords: 5000,
+        description: 'Standard peer-reviewed conference depth (NeurIPS, ICML, CVPR). Formal methodology, experimental validation, and analytical discussion.',
+      ),
+      (
+        id: 'letter',
+        title: 'Short Paper / Rapid Letter',
+        scope: '~2,500–3,500 words',
+        targetWords: 3000,
+        description: 'Concise, high-density scientific communication focusing on primary methodology and core empirical findings.',
+      ),
+    ];
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Manuscript Depth & Publication Format',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Select the target academic scope. The AI structures sections and paragraph depth accordingly.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 12),
+            for (final depth in depths) ...[
+              InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () {
+                  setState(() {
+                    _targetWordCount = depth.targetWords;
+                  });
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: (_targetWordCount >= depth.targetWords - 1000 &&
+                              _targetWordCount <= depth.targetWords + 1000)
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.outlineVariant,
+                      width: (_targetWordCount >= depth.targetWords - 1000 &&
+                              _targetWordCount <= depth.targetWords + 1000)
+                          ? 1.5
+                          : 1.0,
+                    ),
+                    color: (_targetWordCount >= depth.targetWords - 1000 &&
+                            _targetWordCount <= depth.targetWords + 1000)
+                        ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.18)
+                        : Theme.of(context).colorScheme.surface,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2, right: 8),
+                        child: Icon(
+                          (_targetWordCount >= depth.targetWords - 1000 &&
+                                  _targetWordCount <= depth.targetWords + 1000)
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
+                          size: 20,
+                          color: (_targetWordCount >= depth.targetWords - 1000 &&
+                                  _targetWordCount <= depth.targetWords + 1000)
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.grey.shade500,
+                        ),
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  depth.title,
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                                const Spacer(),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    depth.scope,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Theme.of(context).colorScheme.onSecondaryContainer,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              depth.description,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11.5),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+            // Custom Word Target Expandable
+            ExpansionTile(
+              key: const ValueKey('expansion-custom-target-words'),
+              dense: true,
+              title: Text(
+                'Custom word target: $_targetWordCount words',
+                style: const TextStyle(fontSize: 12),
+              ),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Slider(
+                    value: _targetWordCount.toDouble().clamp(500, 8000),
+                    min: 500,
+                    max: 8000,
+                    divisions: 15,
+                    label: '$_targetWordCount words',
+                    onChanged: (value) => setState(() => _targetWordCount = value.round()),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _citationStyle,
+              decoration: const InputDecoration(labelText: 'Citation style'),
+              items: const [
+                DropdownMenuItem(value: 'user_supplied', child: Text('Authoritative user citations')),
+                DropdownMenuItem(value: 'ieee', child: Text('IEEE style [1]')),
+                DropdownMenuItem(value: 'apa_7', child: Text('APA 7th edition')),
+              ],
+              onChanged: (val) {
+                if (val != null) setState(() => _citationStyle = val);
+              },
+            ),
           ],
         ),
       ),

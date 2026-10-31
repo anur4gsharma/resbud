@@ -81,12 +81,20 @@ void main() {
 
   Future<void> scrollTo(WidgetTester tester, Finder target) async {
     FocusManager.instance.primaryFocus?.unfocus();
-    await tester.dragUntilVisible(
-      target,
-      find.byType(ListView).first,
-      const Offset(0, -150),
-    );
-    await tester.pump();
+    var iterations = 0;
+    while (target.evaluate().isEmpty && iterations < 30) {
+      final topLeft = tester.getTopLeft(find.byType(ListView).first);
+      await tester.dragFrom(
+        topLeft + const Offset(15, 200),
+        const Offset(0, -250),
+      );
+      await tester.pumpAndSettle();
+      iterations++;
+    }
+    if (target.evaluate().isNotEmpty) {
+      await tester.ensureVisible(target);
+      await tester.pumpAndSettle();
+    }
   }
 
   Future<void> populateProjectInputs(

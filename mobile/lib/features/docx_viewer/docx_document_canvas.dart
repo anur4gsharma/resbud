@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../generation/generation_models.dart';
@@ -164,30 +166,18 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
           child,
           // Spacing before footer
           SizedBox(height: 24.0 * zoom),
-          // Academic Page Footer
+          // Academic Page Footer: clean centered page number
           Padding(
             padding: EdgeInsets.only(top: 24.0 * zoom),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Research Buddy Academic Manuscript',
-                  style: TextStyle(
-                    fontFamily: 'serif',
-                    fontSize: 8.5 * zoom,
-                    color: Colors.grey.shade600,
-                  ),
+            child: Center(
+              child: Text(
+                '$pageNumber',
+                style: TextStyle(
+                  fontFamily: 'serif',
+                  fontSize: 9.0 * zoom,
+                  color: Colors.grey.shade700,
                 ),
-                Text(
-                  'Page $pageNumber of $totalPages',
-                  style: TextStyle(
-                    fontFamily: 'serif',
-                    fontSize: 9.0 * zoom,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade800,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ],
@@ -317,6 +307,11 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
             (trimmed.contains('---') ||
                 trimmed.split('\n').where((l) => l.trim().startsWith('|')).length >= 2)) {
           return _buildMarkdownTable(trimmed, zoom);
+        }
+
+        // Check for figure / illustration markdown
+        if (trimmed.startsWith('![') && trimmed.contains('](') && trimmed.endsWith(')')) {
+          return _buildFigureBlock(trimmed, zoom);
         }
 
         // Check for bullet or numbered list
@@ -449,6 +444,84 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildFigureBlock(String figureText, double zoom) {
+    final match = RegExp(r'^!\[(.*?)\]\((.*?)\)$').firstMatch(figureText);
+    if (match == null) return Text(figureText);
+    final caption = match.group(1) ?? 'Figure';
+    final src = match.group(2) ?? '';
+
+    Widget imageWidget;
+    if (src.contains('base64,')) {
+      try {
+        final b64 = src.split('base64,').last;
+        final bytes = base64Decode(b64);
+        imageWidget = Image.memory(
+          bytes,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => _buildPlaceholderFigure(caption, zoom),
+        );
+      } catch (_) {
+        imageWidget = _buildPlaceholderFigure(caption, zoom);
+      }
+    } else {
+      imageWidget = _buildPlaceholderFigure(caption, zoom);
+    }
+
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 12.0 * zoom),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: 280.0 * zoom,
+              maxWidth: double.infinity,
+            ),
+            child: Center(child: imageWidget),
+          ),
+          SizedBox(height: 6.0 * zoom),
+          Text(
+            caption,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'serif',
+              fontStyle: FontStyle.italic,
+              fontSize: 9.5 * zoom,
+              color: Colors.grey.shade800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlaceholderFigure(String caption, double zoom) {
+    return Container(
+      width: double.infinity,
+      height: 120.0 * zoom,
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        border: Border.all(color: Colors.grey.shade300, width: 1.0 * zoom),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.insert_photo_outlined, size: 32 * zoom, color: Colors.grey.shade600),
+          SizedBox(height: 4 * zoom),
+          Text(
+            caption,
+            style: TextStyle(
+              fontFamily: 'serif',
+              fontSize: 9.5 * zoom,
+              color: Colors.grey.shade700,
+            ),
+          ),
+        ],
       ),
     );
   }
