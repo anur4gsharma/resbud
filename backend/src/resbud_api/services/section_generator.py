@@ -1,8 +1,9 @@
-"""Section-level academic prose generator with context preservation and grounding constraints."""
+"""Section-level academic prose generator with context preservation, depth directives, and grounding constraints."""
 
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from resbud_api.domain.manuscript_plan import ManuscriptPlan, PlannedSection
@@ -14,30 +15,40 @@ from resbud_api.providers.base import (
     SectionRegenerationInput,
 )
 
-SECTION_SYSTEM_INSTRUCTIONS = """You are an expert scientific researcher and academic author.
+SECTION_SYSTEM_INSTRUCTIONS = """You are an expert scientific researcher and senior academic author.
 Write an exhaustive, rigorous, deeply developed, multi-paragraph academic section for a peer-reviewed research paper.
 
-CRITICAL REQUIREMENTS:
-1. Target Section Word Budget:
-   * Actively write substantive academic prose to reach the specified allocated word budget (typically 400 to 1,500 words).
-   * DO NOT write a shallow summary or single paragraph. Develop the arguments thoroughly across 3 to 6 rich paragraphs.
+ACADEMIC RIGOR & DEPTH INVARIANTS:
+1. Substantive Multi-Paragraph Development:
+   * Actively write substantive academic prose to reach the allocated word budget (typically 400 to 1,500 words).
+   * Never output a shallow summary or single paragraph. Fully develop technical reasoning across multiple substantive paragraphs.
    * Divide the section into logical subsections where specified in the section plan.
-2. Grounding in Evidence & Source Documentation:
-   * Base all factual claims, metrics, and experimental numbers strictly on the supplied research evidence and notes.
-   * Never invent fabricated empirical numbers or falsified datasets.
+
+2. Continuous Academic Prose (Prose over Bullets):
+   * Write predominantly in flowing, continuous academic prose.
+   * Bulleted or numbered lists MUST comprise less than 15% of total lines, reserved strictly for explicit research questions or enumerated contributions.
+   * Avoid outline-style writing, bullet-heavy summaries, or superficial checklists.
+
+3. Strict Evidence Fidelity & Zero Hallucination:
+   * Base all factual claims, metrics, and experimental numbers strictly on supplied research evidence.
+   * Never invent fabricated empirical numbers, synthetic benchmarks, or falsified datasets.
    * If specific empirical findings or laboratory parameters were absent from the source material for this section,
      include an explicit notice in the text:
      "[Note: Specific <experimental results / methodology details / dataset / limitations> were not provided in the source document. Insert your verified empirical findings and technical parameters here.]"
      and set state to "needs_input".
-   * Sections whose core analytical content was supplied in the source document must have state "draft".
-3. Terminology & Context Consistency:
-   * Maintain strict consistency with the canonical terminology glossary and research objectives established in the manuscript plan.
-   * Do NOT drift into conflicting terminology or alter the defined scope.
-   * Transition smoothly from the preceding section's findings without repeating basic introductory throat-clearing.
-4. Rich Academic Formatting:
-   * Include structured markdown comparison tables (`| Column | Column |`) or equations where academically relevant.
-   * If figure illustrations are referenced in the section plan, integrate them naturally into the prose:
-     `![Figure X: <caption text>](<figure_id>)` and explain their significance in the surrounding text.
+   * For sections with provided empirical evidence, set state to "draft".
+
+4. Academic Section Norms:
+   * Introduction: Provide scientific context, research questions (RQ1, RQ2), enumerated contributions, and end with a structured paper roadmap ("The remainder of this paper is structured as follows...").
+   * Related Work: Group literature into thematic categories or paradigms. Compare approaches rather than sequentially listing citations. Do not invent unprovided references.
+   * Methodology: Detail reproducible research design, algorithms, formal evaluation metric equations, and statistical significance tests.
+   * Results: Present data accurately with numeric fidelity and markdown tables where supported. Never invent uncollected data.
+   * Discussion: Interpret findings, address trade-offs, and explicitly analyze threats to validity (internal, external, construct, conclusion).
+   * Conclusion: Synthesize findings, acknowledge limitations, and outline concrete future research trajectories without new experimental claims.
+
+5. Rich Formatting & Terminology:
+   * Use formal mathematical notation ($k$, $\\mathcal{D}$, formulas) and structured markdown comparison tables (`| Column | Column |`) where academically relevant.
+   * Maintain strict consistency with the canonical terminology glossary.
 
 Return exactly one valid JSON object matching the PaperSection schema:
 {
@@ -46,6 +57,143 @@ Return exactly one valid JSON object matching the PaperSection schema:
   "content": "<substantive multi-paragraph markdown text>",
   "state": "draft" | "needs_input" | "not_applicable"
 }"""
+
+
+def get_section_academic_directives(
+    section_id: str,
+    section_heading: str,
+    has_results: bool = True,
+    brief: ResearchBrief | None = None,
+) -> dict[str, Any]:
+    """Provide specialized academic directives based on the section's canonical academic role."""
+    norm_id = section_id.lower().replace("-", "_")
+    norm_heading = section_heading.lower()
+
+    if "intro" in norm_id or "intro" in norm_heading:
+        return {
+            "section_type": "introduction",
+            "academic_purpose": "Establish scientific context, define problem & motivation, formulate research questions, enumerate contributions, and provide paper roadmap.",
+            "mandatory_elements": [
+                "Technical and scientific background context without conversational filler.",
+                "Explicit problem formulation and research motivation.",
+                "Research gap identified in existing paradigms.",
+                "Formal Research Questions (e.g., RQ1 and RQ2).",
+                "Itemized primary research contributions.",
+                "Paper organization roadmap paragraph ('The remainder of this paper is structured as follows: Section 2 reviews related work...').",
+            ],
+            "style_invariants": [
+                "Write in continuous, authoritative academic prose.",
+                "Bullet points must comprise < 15% of lines, reserved strictly for explicit research questions or contributions.",
+                "Avoid empty introductory cliches (e.g., 'In today's fast-paced world').",
+            ],
+        }
+    elif "related" in norm_id or "lit" in norm_id or "related" in norm_heading or "literature" in norm_heading:
+        return {
+            "section_type": "related_work",
+            "academic_purpose": "Thematically categorize prior literature, contrast methodologies and limitations based strictly on provided material.",
+            "mandatory_elements": [
+                "Thematic grouping of provided references into conceptual paradigms or subsections.",
+                "Comparative analysis of methodologies, strengths, and limitations across references.",
+                "Explicit contrast of how this work addresses limitations in prior approaches.",
+            ],
+            "style_invariants": [
+                "Cite provided references using [ref_id] bracket notation.",
+                "Never invent external citations or publications not in the brief.",
+                "Do not claim an exhaustive literature review was conducted.",
+                "Maintain continuous academic comparative prose.",
+            ],
+        }
+    elif "method" in norm_id or "approach" in norm_id or "system" in norm_id or "method" in norm_heading:
+        return {
+            "section_type": "methodology",
+            "academic_purpose": "Provide a rigorous, reproducible account of research design, data curation, algorithms, formal metrics, and statistical methods.",
+            "mandatory_elements": [
+                "Research design and experimental architecture.",
+                "Dataset characteristics, sample size, and preprocessing procedures.",
+                "Algorithmic formulation and formal pipelines.",
+                "Baseline comparisons and experimental controls.",
+                "Mathematical formulations for evaluation metrics (e.g., Precision, Recall, F1, McNemar).",
+                "Explicit statistical significance testing methods and error bounds.",
+            ],
+            "style_invariants": [
+                "Use formal mathematical notation ($k$, $\\mathcal{D}$, formulas) where appropriate.",
+                "Never invent unreported hyperparameters or dataset features; note omitted parameters explicitly.",
+                "Detail reproducibility factors without hand-waving.",
+            ],
+        }
+    elif "result" in norm_id or "eval" in norm_id or "result" in norm_heading or "finding" in norm_heading:
+        if has_results:
+            return {
+                "section_type": "results",
+                "academic_purpose": "Present empirical findings with numerical fidelity, comparative tables, and statistical significance.",
+                "mandatory_elements": [
+                    "Preserve all numerical values, percentages, and units exactly as reported.",
+                    "Structured markdown comparison table (| Condition | Metric | Value |) contrasting baselines.",
+                    "Statistical significance reports (e.g., p-values, confidence intervals).",
+                    "Ablation or condition-by-condition analysis where supported.",
+                ],
+                "style_invariants": [
+                    "Never invent benchmark numbers or fabricated metrics.",
+                    "Report both primary and secondary findings objectively.",
+                ],
+            }
+        else:
+            return {
+                "section_type": "results",
+                "academic_purpose": "Explicitly disclose that experiments were not performed, outline analytical expectations, and flag for researcher input.",
+                "mandatory_elements": [
+                    "Explicit declaration that empirical experiments have not been conducted.",
+                    "Analytical framework or anticipated empirical outcomes based on methodology.",
+                    "Mandatory insertion notice: '[Note: Specific experimental results were not provided in the source document. Insert your verified empirical findings and technical parameters here.]'",
+                ],
+                "style_invariants": [
+                    "Set section state to 'needs_input'.",
+                    "Do NOT fabricate hypothetical numbers as verified facts.",
+                ],
+            }
+    elif "discuss" in norm_id or "discuss" in norm_heading:
+        return {
+            "section_type": "discussion",
+            "academic_purpose": "Provide critical interpretation of results, theoretical/practical implications, trade-offs, and threats to validity.",
+            "mandatory_elements": [
+                "Direct interpretation answering the research questions (RQ1, RQ2).",
+                "Comparison of findings against related work (agreements and divergences).",
+                "Underlying mechanisms explaining the observed performance or trade-offs.",
+                "Practical engineering and theoretical implications.",
+                "Comprehensive Threats to Validity: Internal, External, Construct, and Conclusion validity.",
+            ],
+            "style_invariants": [
+                "Strictly demarcate verified findings from analytical speculation.",
+                "Address unexpected anomalies or trade-offs candidly.",
+            ],
+        }
+    elif "conclus" in norm_id or "conclus" in norm_heading:
+        return {
+            "section_type": "conclusion",
+            "academic_purpose": "Synthesize main contributions, summarize core limitations, and outline actionable future research trajectories.",
+            "mandatory_elements": [
+                "Succinct synthesis of demonstrated contributions and key takeaways.",
+                "Direct acknowledgment of boundary conditions and foundational limitations.",
+                "Concrete, actionable future research directions.",
+            ],
+            "style_invariants": [
+                "Do NOT introduce new experimental findings or claims.",
+                "Avoid merely restating the abstract; synthesize scientific significance.",
+            ],
+        }
+    else:
+        return {
+            "section_type": "general",
+            "academic_purpose": f"Develop a rigorous, deeply reasoned academic analysis of {section_heading}.",
+            "mandatory_elements": [
+                f"In-depth substantive discussion of {section_heading}.",
+                "Grounding in supplied source material and logical argumentation.",
+            ],
+            "style_invariants": [
+                "Continuous academic prose.",
+                "Bullet lines < 15%.",
+            ],
+        }
 
 
 def build_section_prompt(
@@ -67,6 +215,19 @@ def build_section_prompt(
         for r in brief.references
         if r.id in section.relevant_references or not section.relevant_references
     ]
+
+    has_results = (
+        brief.project.results_status == "provided"
+        or bool(brief.project.results and brief.project.results.strip())
+        or bool(re.search(r"\b\d+(?:\.\d+)?%", brief.source_draft))
+    )
+
+    directives = get_section_academic_directives(
+        section_id=section.id,
+        section_heading=section.heading,
+        has_results=has_results,
+        brief=brief,
+    )
 
     user_payload: dict[str, Any] = {
         "global_manuscript_context": {
@@ -90,6 +251,7 @@ def build_section_prompt(
             "relevant_references": references_desc[:5],
             "requires_input_notice": section.requires_input_notice,
         },
+        "section_academic_directives": directives,
         "continuity_and_transition": {
             "preceding_section_takeaway": previous_section_summary
             or "This is the opening section of the manuscript.",
@@ -130,6 +292,7 @@ async def execute_section_generation(
     elif hasattr(provider, "regenerate_section"):
         # Adapt to existing SectionRegenerationInput protocol
         from resbud_api.domain.models import PaperDraft, ProjectContext
+
         dummy_paper = PaperDraft(
             schema_version=1,
             title="Draft",

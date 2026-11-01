@@ -499,10 +499,7 @@ void main() {
     expect(find.text('Review generated draft'), findsOneWidget);
     await tester.tap(find.text('Save generated paper'));
     await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
-    await tester.pumpAndSettle();
+    await pumpUntilFound(tester, find.byKey(const ValueKey('version-1')));
 
     // Open version 1 in editor
     final v1Tile = find.byKey(const ValueKey('version-1'));

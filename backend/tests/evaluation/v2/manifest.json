@@ -1,0 +1,226 @@
+{
+  "evaluation_set": "resbud-backend-academic-quality-v2",
+  "paper_schema_version": 1,
+  "engine_type": "long-form-section-level",
+  "quality_dimensions": ["depth", "integrity", "structure"],
+  "run_manifest": {
+    "date": "2026-11-01",
+    "provider": "fake",
+    "model": "deterministic-demo",
+    "evaluator": "academic_quality_validator",
+    "rubric_version": "prompt-4-academic-rigor",
+    "notes": "Automated evaluation verifying that section-level generation produces genuinely rigorous, logically structured academic writing across Depth, Integrity, and Structure dimensions, rather than relying on word counts alone."
+  },
+  "cases": [
+    {
+      "id": "empirical-benchmark-evaluation",
+      "paper_type": "empirical",
+      "target_word_preset": "detailed",
+      "target_word_count": 5000,
+      "project": {
+        "title": "Evaluating Retrieval-Augmented Generation for Factual Question Answering over a University Policy Corpus",
+        "research_field": "Computer Science - Natural Language Processing",
+        "research_question": "RQ1: Does retrieval-augmented generation improve factual question answering accuracy over closed-book models on university policy documents? RQ2: Does passage retrieval reduce unsupported claims?",
+        "objectives": [
+          "Evaluate answer correctness on 120 benchmark questions",
+          "Quantify reduction in unsupported factual claims",
+          "Perform paired significance testing via McNemar test"
+        ],
+        "claimed_contribution": "A paired evaluation framework establishing that retrieval augmentation improves accuracy from 59.2% to 81.7% with p = 0.0000143.",
+        "methodology_status": "provided",
+        "methodology": "We employ a within-question paired design using 120 benchmark questions, evenly distributed across academic regulations, course registration, financial assistance, and campus services. Each question was processed by the ResearchBuddy-Sim-7B-Instruct v1.0 model in two conditions: (1) Closed-book, and (2) RAG with top-5 passages retrieved via Embed-Sim-v1. Evaluation performed via human-style annotation with synthetic Cohen's kappa of 0.82. Paired discordant pairs evaluated using exact two-sided McNemar test.",
+        "dataset_or_materials_status": "provided",
+        "dataset_or_materials": "120 curated university policy questions paired with official institutional documentation passages.",
+        "results_status": "provided",
+        "results": "In the primary evaluation of answer-level correctness, the closed-book condition resulted in 71 correct answers (59.2%), while the RAG condition resulted in 98 correct answers (81.7%). The paired contingency table reveals that 65 questions were correct in both, 33 were correct only in RAG, 6 were correct only in closed-book, and 16 were incorrect in both. An exact two-sided McNemar test on the discordant pairs (33 vs 6) yields p = 0.0000143, indicating statistical significance. Unsupported claims fell from 52 of 120 (43.3%) to 24 of 120 (20.0%).",
+        "limitations_status": "provided",
+        "limitations": "The findings are derived from synthetic data, a single model architecture, and a simplified retrieval pipeline."
+      },
+      "source_draft": "We evaluated 120 questions across university policy domains. Closed-book got 71 correct (59.2%), RAG got 98 correct (81.7%). Contingency: 65 both correct, 33 RAG only, 6 closed only, 16 neither. McNemar p = 0.0000143. Unsupported claims: 52 (43.3%) closed-book down to 24 (20.0%) RAG. Cohen's kappa was 0.82.",
+      "references": [
+        {
+          "id": "ref_1",
+          "text": "Lewis, P., et al. (2020). Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks. NeurIPS."
+        },
+        {
+          "id": "ref_2",
+          "text": "Karpukhin, V., et al. (2020). Dense Passage Retrieval for Open-Domain Question Answering. EMNLP."
+        }
+      ],
+      "preferences": {
+        "target_word_count": 5000,
+        "citation_style": "apa_7",
+        "desired_sections": ["introduction", "related_work", "methodology", "results", "discussion", "conclusion"]
+      },
+      "expected_quality": {
+        "min_depth_score": 75.0,
+        "min_integrity_score": 90.0,
+        "min_structure_score": 75.0,
+        "must_pass": true,
+        "required_invariants": {
+          "has_introduction_roadmap": true,
+          "has_explicit_rqs": true,
+          "has_math_or_statistical_test": true,
+          "preserves_all_supplied_numbers": true,
+          "bullet_line_ratio_under": 0.15,
+          "zero_unsupplied_citations": true
+        }
+      }
+    },
+    {
+      "id": "proposed-framework-uncollected-results",
+      "paper_type": "theoretical_methodology",
+      "target_word_preset": "standard",
+      "target_word_count": 3000,
+      "project": {
+        "title": "Adaptive Hierarchical Routing for Distributed Edge Model Inference",
+        "research_field": "Distributed Systems & Machine Learning",
+        "research_question": "How can dynamic priority queuing optimize tail latency in multi-tenant edge inferencing without violating strict memory budgets?",
+        "objectives": [
+          "Formulate analytical queuing dynamics under Lyapunov drift optimization",
+          "Characterize theoretical memory bounds under heterogeneous packet arrivals"
+        ],
+        "claimed_contribution": "A theoretical routing framework with proven upper bounds on queue backlog and latency.",
+        "methodology_status": "provided",
+        "methodology": "We formulate an analytical queuing model using Markov decision processes and Lyapunov drift optimization across 3 edge topologies. State space transitions are bounded by Lipschitz continuity over arrival distributions.",
+        "dataset_or_materials_status": "not_applicable",
+        "dataset_or_materials": null,
+        "results_status": "not_collected",
+        "results": null,
+        "limitations_status": "provided",
+        "limitations": "Theoretical formulation has not been deployed on physical hardware."
+      },
+      "source_draft": "This paper presents a theoretical formulation of adaptive hierarchical routing for distributed edge inference. Physical experiments have not been conducted.",
+      "references": [
+        {
+          "id": "ref_lyapunov",
+          "text": "Neely, M. J. (2010). Stochastic Network Optimization with Application to Communication and Queueing Systems. Morgan & Claypool."
+        }
+      ],
+      "preferences": {
+        "target_word_count": 3000,
+        "citation_style": "apa_7",
+        "desired_sections": ["introduction", "related_work", "methodology", "results", "discussion", "conclusion"]
+      },
+      "expected_quality": {
+        "min_depth_score": 70.0,
+        "min_integrity_score": 90.0,
+        "min_structure_score": 70.0,
+        "must_pass": true,
+        "required_invariants": {
+          "results_state_needs_input": true,
+          "no_fabricated_numbers": true,
+          "has_limitation_disclosure": true,
+          "bullet_line_ratio_under": 0.15
+        }
+      }
+    },
+    {
+      "id": "comparative-literature-survey",
+      "paper_type": "review_and_survey",
+      "target_word_preset": "standard",
+      "target_word_count": 3000,
+      "project": {
+        "title": "A Systematic Comparative Analysis of Neural and Sparse Information Retrieval Paradigms",
+        "research_field": "Information Retrieval",
+        "research_question": "How do sparse inverted index mechanisms compare against dense dual-encoder embeddings across high-stakes factual retrieval benchmarks?",
+        "objectives": [
+          "Thematically categorize sparse, dense, and learned lexical retrieval architectures",
+          "Contrast memory footprint, latency, and out-of-domain robustness"
+        ],
+        "claimed_contribution": "A comprehensive comparative synthesis establishing trade-off surfaces between dense and sparse retrieval paradigms.",
+        "methodology_status": "provided",
+        "methodology": "A comparative meta-synthesis evaluating algorithmic complexity, index storage footprint, and out-of-domain robustness across standardized literature benchmarks.",
+        "dataset_or_materials_status": "not_applicable",
+        "dataset_or_materials": null,
+        "results_status": "not_applicable",
+        "results": null,
+        "limitations_status": "provided",
+        "limitations": "Synthesizes published literature and does not conduct independent cluster-scale re-indexing."
+      },
+      "source_draft": "A comprehensive conceptual comparison between sparse retrieval (BM25, SPLADE) and dense retrieval (DPR).",
+      "references": [
+        {
+          "id": "ref_bm25",
+          "text": "Robertson, S., & Zaragoza, H. (2009). The Probabilistic Relevance Framework: BM25 and Beyond. Foundations and Trends in Information Retrieval."
+        },
+        {
+          "id": "ref_dpr",
+          "text": "Karpukhin, V., et al. (2020). Dense Passage Retrieval for Open-Domain Question Answering. EMNLP."
+        },
+        {
+          "id": "ref_splade",
+          "text": "Formal, T., et al. (2021). SPLADE: Sparse Lexical and Expansion Model for Information Retrieval. SIGIR."
+        }
+      ],
+      "preferences": {
+        "target_word_count": 3000,
+        "citation_style": "apa_7",
+        "desired_sections": ["introduction", "related_work", "methodology", "discussion", "conclusion"]
+      },
+      "expected_quality": {
+        "min_depth_score": 70.0,
+        "min_integrity_score": 90.0,
+        "min_structure_score": 70.0,
+        "must_pass": true,
+        "required_invariants": {
+          "thematic_literature_grouping": true,
+          "zero_unsupplied_citations": true,
+          "bullet_line_ratio_under": 0.15
+        }
+      }
+    },
+    {
+      "id": "multimodal-clinical-architecture",
+      "paper_type": "empirical",
+      "target_word_preset": "detailed",
+      "target_word_count": 5000,
+      "project": {
+        "title": "Cross-Attention Gating for Multimodal Histopathology Classification and Patient Survival Stratification",
+        "research_field": "Biomedical Informatics & Deep Learning",
+        "research_question": "Does cross-attention gating between gigapixel whole-slide histology and genomic profiles improve patient survival stratification over unimodal baselines?",
+        "objectives": [
+          "Design a weakly supervised cross-attention gating pipeline",
+          "Evaluate Concordance Index on a 500-patient multi-center cohort",
+          "Validate statistical significance using paired two-sided t-tests"
+        ],
+        "claimed_contribution": "A multimodal gating architecture achieving a C-Index of 0.732 over unimodal baselines with p = 0.0021.",
+        "methodology_status": "provided",
+        "methodology": "We curate a multi-center cohort of 500 patient biopsies. Whole-slide images are tiled into 256x256 patches and encoded using a ResNet-50 backbone. Genomic features are projected via dense multi-layer perceptrons into a shared latent space. Cross-attention gating decouples modality-specific noise. Survival analysis is evaluated using Cox proportional hazards regression with 5-fold cross-validation.",
+        "dataset_or_materials_status": "provided",
+        "dataset_or_materials": "500 patient biopsies with matched whole-slide images and RNA sequencing profiles.",
+        "results_status": "provided",
+        "results": "Across 5-fold cross-validation on the 500-patient cohort, the proposed cross-attention model achieved a Concordance Index (C-Index) of 0.732 (95% CI: 0.695-0.769), outperforming genomics alone (0.648) and histology alone (0.671). The paired t-test confirmed statistical significance (p = 0.0021).",
+        "limitations_status": "provided",
+        "limitations": "Evaluated on retrospective cohorts; requires prospective clinical trial validation."
+      },
+      "source_draft": "500-patient cohort evaluated. Multimodal C-Index was 0.732 vs 0.648 (genomics) and 0.671 (histology). Paired t-test p = 0.0021. Retrospective cohort limitations.",
+      "references": [
+        {
+          "id": "ref_lu",
+          "text": "Lu, M. Y., et al. (2021). AI-based pathology predicts origins for cancers of unknown primary. Nature."
+        },
+        {
+          "id": "ref_chen",
+          "text": "Chen, R. J., et al. (2022). Multimodal co-attention transformer for survival prediction. Nature Biomedical Engineering."
+        }
+      ],
+      "preferences": {
+        "target_word_count": 5000,
+        "citation_style": "apa_7",
+        "desired_sections": ["introduction", "related_work", "methodology", "results", "discussion", "conclusion"]
+      },
+      "expected_quality": {
+        "min_depth_score": 75.0,
+        "min_integrity_score": 90.0,
+        "min_structure_score": 75.0,
+        "must_pass": true,
+        "required_invariants": {
+          "preserves_all_supplied_numbers": true,
+          "has_threats_to_validity": true,
+          "bullet_line_ratio_under": 0.15
+        }
+      }
+    }
+  ]
+}
