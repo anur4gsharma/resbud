@@ -164,7 +164,12 @@ class GeminiProvider:
         client: httpx.AsyncClient | None = None,
         base_url: str = "https://generativelanguage.googleapis.com",
     ) -> None:
-        self._model = settings.provider_model
+        self._model = settings.provider_model or "gemini-3.5-flash"
+        self._candidate_models: list[str] = []
+        for m in [self._model, "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.5-flash-lite"]:
+            if m and m not in self._candidate_models:
+                self._candidate_models.append(m)
+        self._active_model_index: int = 0
         self._max_output_tokens = settings.provider_max_output_tokens
         self._base_url = base_url.rstrip("/")
         self._timeout = httpx.Timeout(
@@ -293,85 +298,107 @@ class GeminiProvider:
         }
 
         started = perf_counter()
+        total_models = len(self._candidate_models)
         total_keys = len(self._api_keys)
         response: httpx.Response | None = None
+        succeeded = False
 
-        for attempt in range(total_keys):
-            key_idx = (self._active_key_index + attempt) % total_keys
-            current_key = self._api_keys[key_idx]
-            headers = {
-                "x-goog-api-key": current_key,
-                "Content-Type": "application/json",
-            }
+        for model_attempt in range(total_models):
+            model_idx = (self._active_model_index + model_attempt) % total_models
+            current_model = self._candidate_models[model_idx]
+            model_name = current_model if current_model.startswith("models/") else f"models/{current_model}"
+            url = f"{self._base_url}/v1beta/{model_name}:generateContent"
 
-            try:
-                response = await self._client.post(url, headers=headers, json=payload)
-            except httpx.TimeoutException as exc:
-                if attempt < total_keys - 1:
-                    continue
-                raise ProviderTimeout from exc
-            except (httpx.ConnectError, httpx.NetworkError) as exc:
-                if attempt < total_keys - 1:
-                    continue
-                raise ProviderUnavailable from exc
-            except httpx.HTTPError as exc:
-                if attempt < total_keys - 1:
-                    continue
-                raise ProviderUnavailable from exc
+            for key_attempt in range(total_keys):
+                key_idx = (self._active_key_index + key_attempt) % total_keys
+                current_key = self._api_keys[key_idx]
+                headers = {
+                    "x-goog-api-key": current_key,
+                    "Content-Type": "application/json",
+                }
 
-            if response.status_code == 429:
-                if attempt < total_keys - 1:
-                    continue
-                # Backoff retry in case of short temporary rate spikes on free tier
-                await asyncio.sleep(2.5)
                 try:
                     response = await self._client.post(url, headers=headers, json=payload)
-                except Exception:
-                    pass
-                if response.status_code == 429:
-                    raise ProviderRateLimited
-
-            if response.status_code in {401, 403} or response.status_code >= 500:
-                if attempt < total_keys - 1:
-                    continue
-                raise ProviderUnavailable
-
-            if response.status_code == 400:
-                # Fallback attempt without responseSchema if model strictly rejected complex schema
-                fallback_payload = {
-                    "systemInstruction": payload["systemInstruction"],
-                    "contents": payload["contents"],
-                    "generationConfig": {
-                        "responseMimeType": "application/json",
-                        "maxOutputTokens": self._max_output_tokens,
-                    },
-                }
-                try:
-                    response = await self._client.post(url, headers=headers, json=fallback_payload)
                 except httpx.TimeoutException as exc:
-                    if attempt < total_keys - 1:
+                    if key_attempt < total_keys - 1 or model_attempt < total_models - 1:
                         continue
                     raise ProviderTimeout from exc
-                except (httpx.ConnectError, httpx.NetworkError, httpx.HTTPError) as exc:
-                    if attempt < total_keys - 1:
+                except (httpx.ConnectError, httpx.NetworkError) as exc:
+                    if key_attempt < total_keys - 1 or model_attempt < total_models - 1:
                         continue
                     raise ProviderUnavailable from exc
-                if response.status_code == 429:
-                    if attempt < total_keys - 1:
+                except httpx.HTTPError as exc:
+                    if key_attempt < total_keys - 1 or model_attempt < total_models - 1:
                         continue
-                    raise ProviderRateLimited
+                    raise ProviderUnavailable from exc
+
+                if response.status_code == 429:
+                    if key_attempt < total_keys - 1:
+                        continue
+                    if model_attempt < total_models - 1:
+                        break  # Fall back to next model candidate
+                    # Backoff retry in case of short temporary rate spikes on free tier
+                    await asyncio.sleep(2.5)
+                    try:
+                        response = await self._client.post(url, headers=headers, json=payload)
+                    except Exception:
+                        pass
+                    if response.status_code == 429:
+                        raise ProviderRateLimited
+
                 if response.status_code in {401, 403} or response.status_code >= 500:
-                    if attempt < total_keys - 1:
+                    if key_attempt < total_keys - 1 or model_attempt < total_models - 1:
                         continue
                     raise ProviderUnavailable
-                if response.status_code != 200:
-                    raise ProviderInvalidResponse
-            elif response.status_code != 200:
-                raise ProviderInvalidResponse
 
-            # Success with current_key! Set it as active
-            self._active_key_index = key_idx
-            break
+                if response.status_code == 400:
+                    # Fallback attempt without responseSchema if model strictly rejected complex schema
+                    fallback_payload = {
+                        "systemInstruction": payload["systemInstruction"],
+                        "contents": payload["contents"],
+                        "generationConfig": {
+                            "responseMimeType": "application/json",
+                            "maxOutputTokens": self._max_output_tokens,
+                        },
+                    }
+                    try:
+                        response = await self._client.post(url, headers=headers, json=fallback_payload)
+                    except httpx.TimeoutException as exc:
+                        if key_attempt < total_keys - 1 or model_attempt < total_models - 1:
+                            continue
+                        raise ProviderTimeout from exc
+                    except (httpx.ConnectError, httpx.NetworkError, httpx.HTTPError) as exc:
+                        if key_attempt < total_keys - 1 or model_attempt < total_models - 1:
+                            continue
+                        raise ProviderUnavailable from exc
+                    if response.status_code == 429:
+                        if key_attempt < total_keys - 1:
+                            continue
+                        if model_attempt < total_models - 1:
+                            break
+                        raise ProviderRateLimited
+                    if response.status_code in {401, 403} or response.status_code >= 500:
+                        if key_attempt < total_keys - 1 or model_attempt < total_models - 1:
+                            continue
+                        raise ProviderUnavailable
+                    if response.status_code != 200:
+                        if model_attempt < total_models - 1:
+                            break
+                        raise ProviderInvalidResponse
+                elif response.status_code != 200:
+                    if model_attempt < total_models - 1:
+                        break
+                    raise ProviderInvalidResponse
+
+                # Success with current_key and current_model! Set them as active
+                self._active_key_index = key_idx
+                self._active_model_index = model_idx
+                self._model = current_model
+                succeeded = True
+                break
+
+            if succeeded:
+                break
 
         if response is None or response.status_code != 200:
             raise ProviderInvalidResponse
