@@ -87,7 +87,7 @@ class DocxExportApiClient implements PaperExportApi {
     required this.baseUri,
     http.Client? client,
     this.tokenProvider,
-    this.timeout = const Duration(seconds: 90),
+    this.timeout = const Duration(seconds: 180),
   }) : _client = client ?? http.Client(),
        _ownsClient = client == null {
     if (baseUri.scheme != 'http' && baseUri.scheme != 'https') {
@@ -104,7 +104,7 @@ class DocxExportApiClient implements PaperExportApi {
   factory DocxExportApiClient.fromEnvironment({
     http.Client? client,
     BearerTokenProvider? tokenProvider,
-    Duration timeout = const Duration(seconds: 90),
+    Duration timeout = const Duration(seconds: 180),
   }) => DocxExportApiClient(
     baseUri: Uri.parse(GenerationApiClient.defaultBaseUrl),
     client: client,

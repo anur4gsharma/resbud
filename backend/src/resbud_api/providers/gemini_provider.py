@@ -173,18 +173,25 @@ class GeminiProvider:
             write=settings.provider_connect_timeout_seconds,
             pool=settings.provider_connect_timeout_seconds,
         )
-        self._api_key = (
-            settings.provider_api_key.get_secret_value()
-            if settings.provider_api_key is not None
-            else None
-        )
+        self._api_keys: list[str] = list(settings.all_provider_api_keys)
+        if not self._api_keys and settings.provider_api_key is not None:
+            raw = settings.provider_api_key.get_secret_value().strip()
+            if raw:
+                self._api_keys.append(raw)
+        self._active_key_index: int = 0
         self._owns_client = client is None
         if client is not None:
             self._client: httpx.AsyncClient | None = client
-        elif self._api_key is not None and self._model is not None:
+        elif self._api_keys and self._model is not None:
             self._client = httpx.AsyncClient(timeout=self._timeout)
         else:
             self._client = None
+
+    @property
+    def _api_key(self) -> str | None:
+        if self._api_keys:
+            return self._api_keys[self._active_key_index % len(self._api_keys)]
+        return None
 
     async def generate_paper(self, generation_input: GenerationInput) -> ProviderResult:
         result = await self._request(generation_input.prompt, PaperDraft)
@@ -223,7 +230,7 @@ class GeminiProvider:
     async def analyze_research(self, request: ResearchAnalysisRequest) -> ResearchAnalysisResponse:
         from resbud_api.services.analysis import assess_research_quality
 
-        if self._client is None or self._model is None or not self._api_key:
+        if self._client is None or self._model is None or not self._api_keys:
             return assess_research_quality(request)
         try:
             prompt = GenerationPrompt(
@@ -251,7 +258,7 @@ class GeminiProvider:
         prompt: GenerationPrompt,
         output_model: type[PaperDraft] | type[PaperSection] | type[ResearchAnalysisResponse],
     ) -> ProviderResult:
-        if self._client is None or self._model is None or not self._api_key:
+        if self._client is None or self._model is None or not self._api_keys:
             raise ProviderUnavailable
 
         model_name = self._model
@@ -259,10 +266,6 @@ class GeminiProvider:
             model_name = f"models/{model_name}"
 
         url = f"{self._base_url}/v1beta/{model_name}:generateContent"
-        headers = {
-            "x-goog-api-key": self._api_key,
-            "Content-Type": "application/json",
-        }
 
         if output_model == PaperDraft:
             cleaned_schema = GEMINI_PAPER_DRAFT_SCHEMA
@@ -290,51 +293,87 @@ class GeminiProvider:
         }
 
         started = perf_counter()
-        try:
-            response = await self._client.post(url, headers=headers, json=payload)
-        except httpx.TimeoutException as exc:
-            raise ProviderTimeout from exc
-        except (httpx.ConnectError, httpx.NetworkError) as exc:
-            raise ProviderUnavailable from exc
-        except httpx.HTTPError as exc:
-            raise ProviderUnavailable from exc
+        total_keys = len(self._api_keys)
+        response: httpx.Response | None = None
 
-        if response.status_code == 429:
-            # Backoff retry in case of short temporary rate spikes on free tier
-            await asyncio.sleep(2.5)
+        for attempt in range(total_keys):
+            key_idx = (self._active_key_index + attempt) % total_keys
+            current_key = self._api_keys[key_idx]
+            headers = {
+                "x-goog-api-key": current_key,
+                "Content-Type": "application/json",
+            }
+
             try:
                 response = await self._client.post(url, headers=headers, json=payload)
-            except Exception:
-                pass
-            if response.status_code == 429:
-                raise ProviderRateLimited
-        if response.status_code in {401, 403}:
-            raise ProviderUnavailable
-        if response.status_code >= 500:
-            raise ProviderUnavailable
-        if response.status_code == 400:
-            # Fallback attempt without responseSchema if model strictly rejected complex schema
-            fallback_payload = {
-                "systemInstruction": payload["systemInstruction"],
-                "contents": payload["contents"],
-                "generationConfig": {
-                    "responseMimeType": "application/json",
-                    "maxOutputTokens": self._max_output_tokens,
-                },
-            }
-            try:
-                response = await self._client.post(url, headers=headers, json=fallback_payload)
             except httpx.TimeoutException as exc:
+                if attempt < total_keys - 1:
+                    continue
                 raise ProviderTimeout from exc
-            except (httpx.ConnectError, httpx.NetworkError, httpx.HTTPError) as exc:
+            except (httpx.ConnectError, httpx.NetworkError) as exc:
+                if attempt < total_keys - 1:
+                    continue
                 raise ProviderUnavailable from exc
+            except httpx.HTTPError as exc:
+                if attempt < total_keys - 1:
+                    continue
+                raise ProviderUnavailable from exc
+
             if response.status_code == 429:
-                raise ProviderRateLimited
+                if attempt < total_keys - 1:
+                    continue
+                # Backoff retry in case of short temporary rate spikes on free tier
+                await asyncio.sleep(2.5)
+                try:
+                    response = await self._client.post(url, headers=headers, json=payload)
+                except Exception:
+                    pass
+                if response.status_code == 429:
+                    raise ProviderRateLimited
+
             if response.status_code in {401, 403} or response.status_code >= 500:
+                if attempt < total_keys - 1:
+                    continue
                 raise ProviderUnavailable
-            if response.status_code != 200:
+
+            if response.status_code == 400:
+                # Fallback attempt without responseSchema if model strictly rejected complex schema
+                fallback_payload = {
+                    "systemInstruction": payload["systemInstruction"],
+                    "contents": payload["contents"],
+                    "generationConfig": {
+                        "responseMimeType": "application/json",
+                        "maxOutputTokens": self._max_output_tokens,
+                    },
+                }
+                try:
+                    response = await self._client.post(url, headers=headers, json=fallback_payload)
+                except httpx.TimeoutException as exc:
+                    if attempt < total_keys - 1:
+                        continue
+                    raise ProviderTimeout from exc
+                except (httpx.ConnectError, httpx.NetworkError, httpx.HTTPError) as exc:
+                    if attempt < total_keys - 1:
+                        continue
+                    raise ProviderUnavailable from exc
+                if response.status_code == 429:
+                    if attempt < total_keys - 1:
+                        continue
+                    raise ProviderRateLimited
+                if response.status_code in {401, 403} or response.status_code >= 500:
+                    if attempt < total_keys - 1:
+                        continue
+                    raise ProviderUnavailable
+                if response.status_code != 200:
+                    raise ProviderInvalidResponse
+            elif response.status_code != 200:
                 raise ProviderInvalidResponse
-        elif response.status_code != 200:
+
+            # Success with current_key! Set it as active
+            self._active_key_index = key_idx
+            break
+
+        if response is None or response.status_code != 200:
             raise ProviderInvalidResponse
 
         try:

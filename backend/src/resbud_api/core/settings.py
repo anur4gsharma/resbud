@@ -14,6 +14,14 @@ MAX_REQUEST_BODY_BYTES = 4 * 1024 * 1024
 _HTTP_URL = TypeAdapter(AnyHttpUrl)
 
 
+_PLACEHOLDER_KEYS = {
+    "replace-me",
+    "replace-with-your-local-secret",
+    "your-api-key",
+    "your-signing-key",
+}
+
+
 class Settings(BaseSettings):
     """Runtime configuration loaded from RESBUD_* environment variables or .env."""
 
@@ -43,13 +51,16 @@ class Settings(BaseSettings):
         validation_alias="RESBUD_PROVIDER_CONNECT_TIMEOUT_SECONDS",
     )
     provider_read_timeout_seconds: float = Field(
-        default=90.0,
+        default=120.0,
         ge=5.0,
-        le=300.0,
+        le=600.0,
         validation_alias="RESBUD_PROVIDER_READ_TIMEOUT_SECONDS",
     )
     provider_api_key: SecretStr | None = Field(
         default=None, validation_alias="RESBUD_PROVIDER_API_KEY"
+    )
+    provider_fallback_api_keys: list[SecretStr] = Field(
+        default_factory=list, validation_alias="RESBUD_PROVIDER_FALLBACK_API_KEYS"
     )
     auth_issuer: AnyHttpUrl | None = Field(default=None, validation_alias="RESBUD_AUTH_ISSUER")
     auth_audience: str | None = Field(default=None, validation_alias="RESBUD_AUTH_AUDIENCE")
@@ -85,14 +96,49 @@ class Settings(BaseSettings):
     @field_validator("provider_api_key", "auth_signing_key", mode="before")
     @classmethod
     def ignore_provider_key_placeholders(cls, value: object) -> object:
-        if isinstance(value, str) and value.strip().lower() in {
-            "replace-me",
-            "replace-with-your-local-secret",
-            "your-api-key",
-            "your-signing-key",
-        }:
+        if isinstance(value, str) and value.strip().lower() in _PLACEHOLDER_KEYS:
             return None
         return value
+
+    @field_validator("provider_fallback_api_keys", mode="before")
+    @classmethod
+    def parse_fallback_api_keys(cls, value: object) -> list[SecretStr]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            parts = [p.strip() for p in value.split(",") if p.strip()]
+            return [SecretStr(p) for p in parts if p.lower() not in _PLACEHOLDER_KEYS]
+        if isinstance(value, (list, tuple)):
+            result: list[SecretStr] = []
+            for item in value:
+                if isinstance(item, SecretStr):
+                    raw = item.get_secret_value().strip()
+                elif isinstance(item, str):
+                    raw = item.strip()
+                else:
+                    continue
+                if raw and raw.lower() not in _PLACEHOLDER_KEYS:
+                    result.append(SecretStr(raw))
+            return result
+        return []
+
+    @property
+    def all_provider_api_keys(self) -> list[str]:
+        """Return non-empty, deduplicated API keys from primary and fallback settings."""
+        keys: list[str] = []
+        if self.provider_api_key is not None:
+            raw = self.provider_api_key.get_secret_value()
+            for part in raw.split(","):
+                clean = part.strip()
+                if clean and clean.lower() not in _PLACEHOLDER_KEYS and clean not in keys:
+                    keys.append(clean)
+        for item in self.provider_fallback_api_keys:
+            raw = item.get_secret_value()
+            for part in raw.split(","):
+                clean = part.strip()
+                if clean and clean.lower() not in _PLACEHOLDER_KEYS and clean not in keys:
+                    keys.append(clean)
+        return keys
 
     @field_validator("cors_allowed_origins")
     @classmethod
@@ -128,10 +174,7 @@ class Settings(BaseSettings):
         if self.generation_provider == "disabled":
             missing.append("generation_provider")
         if self.generation_provider in {"openai", "gemini"}:
-            if (
-                self.provider_api_key is None
-                or not self.provider_api_key.get_secret_value().strip()
-            ):
+            if not self.all_provider_api_keys:
                 missing.append("provider_api_key")
             if self.provider_model is None:
                 missing.append("provider_model")

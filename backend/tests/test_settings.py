@@ -90,4 +90,37 @@ def test_provider_timeout_and_token_limits_are_bounded() -> None:
     with pytest.raises(ValidationError):
         Settings(provider_connect_timeout_seconds=0.5, _env_file=None)
     with pytest.raises(ValidationError):
-        Settings(provider_read_timeout_seconds=301, _env_file=None)
+        Settings(provider_read_timeout_seconds=601, _env_file=None)
+
+
+def test_multiple_provider_api_keys_and_fallbacks() -> None:
+    # Comma-separated in provider_api_key
+    s1 = Settings(
+        provider_api_key="key-alpha, key-beta, key-gamma",
+        _env_file=None,
+    )
+    assert s1.all_provider_api_keys == ["key-alpha", "key-beta", "key-gamma"]
+
+    # Primary key + fallback keys
+    s2 = Settings(
+        provider_api_key="primary-key",
+        provider_fallback_api_keys=["fallback-1", "fallback-2"],
+        _env_file=None,
+    )
+    assert s2.all_provider_api_keys == ["primary-key", "fallback-1", "fallback-2"]
+
+    # Fallback keys as comma-separated string
+    s3 = Settings(
+        provider_api_key="primary-key",
+        provider_fallback_api_keys="fallback-1, fallback-2",
+        _env_file=None,
+    )
+    assert s3.all_provider_api_keys == ["primary-key", "fallback-1", "fallback-2"]
+
+    # Deduplication and placeholder filtering
+    s4 = Settings(
+        provider_api_key="key-1, replace-me, key-2",
+        provider_fallback_api_keys=["key-2", "your-api-key", "key-3"],
+        _env_file=None,
+    )
+    assert s4.all_provider_api_keys == ["key-1", "key-2", "key-3"]

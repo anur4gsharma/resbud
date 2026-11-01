@@ -93,7 +93,7 @@ class GenerationApiClient implements PaperGenerationApi {
     required this.baseUri,
     http.Client? client,
     this.tokenProvider,
-    this.timeout = const Duration(seconds: 90),
+    this.timeout = const Duration(seconds: 300),
   }) : _client = client ?? http.Client(),
        _ownsClient = client == null {
     if (baseUri.scheme != 'http' && baseUri.scheme != 'https') {
@@ -131,7 +131,7 @@ class GenerationApiClient implements PaperGenerationApi {
   factory GenerationApiClient.fromEnvironment({
     http.Client? client,
     BearerTokenProvider? tokenProvider,
-    Duration timeout = const Duration(seconds: 90),
+    Duration timeout = const Duration(seconds: 300),
   }) => GenerationApiClient(
     baseUri: Uri.parse(defaultBaseUrl),
     client: client,

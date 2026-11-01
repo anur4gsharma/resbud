@@ -30,14 +30,15 @@ PAPER_DATA = json.loads((FIXTURES / "paper-draft.valid.json").read_text())
 
 
 def _settings(**overrides: Any) -> Settings:
-    return Settings(
-        environment="test",
-        generation_provider="gemini",
-        provider_model="gemini-2.5-flash",
-        provider_api_key="synthetic-test-gemini-key",
-        _env_file=None,
-        **overrides,
-    )
+    defaults = {
+        "environment": "test",
+        "generation_provider": "gemini",
+        "provider_model": "gemini-2.5-flash",
+        "provider_api_key": "synthetic-test-gemini-key",
+        "_env_file": None,
+    }
+    defaults.update(overrides)
+    return Settings(**defaults)
 
 
 def _input() -> Any:
@@ -262,4 +263,72 @@ def test_gemini_missing_credentials_prevents_client_creation() -> None:
 
     assert provider._client is None
     with pytest.raises(ProviderUnavailable):
+        asyncio.run(provider.generate_paper(_input()))
+
+
+def test_gemini_multiple_keys_fallback_on_429() -> None:
+    paper = PaperDraft.model_validate(PAPER_DATA)
+    payload = _gemini_payload(paper.model_dump_json())
+
+    keys_attempted: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        key = request.headers.get("x-goog-api-key", "")
+        keys_attempted.append(key)
+        if key == "key-primary":
+            return httpx.Response(429, text="Rate limited", request=request)
+        return httpx.Response(200, json=payload, request=request)
+
+    transport = httpx.MockTransport(handler)
+    client = httpx.AsyncClient(transport=transport)
+    settings = _settings(
+        provider_api_key="key-primary",
+        provider_fallback_api_keys=["key-secondary", "key-tertiary"],
+    )
+    provider = GeminiProvider(settings, client=client)
+
+    result = asyncio.run(provider.generate_paper(_input()))
+    assert json.loads(result.structured_output) == paper.model_dump(mode="json")
+    assert keys_attempted == ["key-primary", "key-secondary"]
+    assert provider._api_key == "key-secondary"
+
+
+def test_gemini_multiple_keys_fallback_on_timeout() -> None:
+    paper = PaperDraft.model_validate(PAPER_DATA)
+    payload = _gemini_payload(paper.model_dump_json())
+
+    keys_attempted: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        key = request.headers.get("x-goog-api-key", "")
+        keys_attempted.append(key)
+        if key == "key-primary":
+            raise httpx.ReadTimeout("Read timed out", request=request)
+        return httpx.Response(200, json=payload, request=request)
+
+    transport = httpx.MockTransport(handler)
+    client = httpx.AsyncClient(transport=transport)
+    settings = _settings(
+        provider_api_key="key-primary, key-secondary",
+    )
+    provider = GeminiProvider(settings, client=client)
+
+    result = asyncio.run(provider.generate_paper(_input()))
+    assert json.loads(result.structured_output) == paper.model_dump(mode="json")
+    assert keys_attempted == ["key-primary", "key-secondary"]
+    assert provider._api_key == "key-secondary"
+
+
+def test_gemini_multiple_keys_all_rate_limited_raises() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, text="Rate limited", request=request)
+
+    transport = httpx.MockTransport(handler)
+    client = httpx.AsyncClient(transport=transport)
+    settings = _settings(
+        provider_api_key="key-1, key-2",
+    )
+    provider = GeminiProvider(settings, client=client)
+
+    with pytest.raises(ProviderRateLimited):
         asyncio.run(provider.generate_paper(_input()))

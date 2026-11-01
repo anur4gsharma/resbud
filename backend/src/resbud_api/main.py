@@ -57,10 +57,7 @@ def create_app(
     elif runtime_settings.generation_provider == "openai":
         if (
             runtime_settings.provider_model and runtime_settings.provider_model.startswith("gemini")
-        ) or (
-            runtime_settings.provider_api_key
-            and runtime_settings.provider_api_key.get_secret_value().startswith("AIza")
-        ):
+        ) or any(k.startswith("AIza") for k in runtime_settings.all_provider_api_keys):
             app.state.generation_provider = GeminiProvider(runtime_settings)
         else:
             app.state.generation_provider = OpenAIProvider(runtime_settings)

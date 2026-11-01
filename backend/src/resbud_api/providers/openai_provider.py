@@ -45,11 +45,19 @@ class OpenAIProvider:
             write=settings.provider_connect_timeout_seconds,
             pool=settings.provider_connect_timeout_seconds,
         )
+        self._api_keys: list[str] = list(settings.all_provider_api_keys)
+        if not self._api_keys and settings.provider_api_key is not None:
+            raw = settings.provider_api_key.get_secret_value().strip()
+            if raw:
+                self._api_keys.append(raw)
+        self._active_key_index: int = 0
+        self._owns_client = client is None
+
         if client is not None:
             self._client = client
-        elif settings.provider_api_key is not None and self._model is not None:
+        elif self._api_keys and self._model is not None:
             self._client = AsyncOpenAI(
-                api_key=settings.provider_api_key.get_secret_value(),
+                api_key=self._api_keys[0],
                 timeout=self._timeout,
                 max_retries=0,
             )
@@ -72,39 +80,69 @@ class OpenAIProvider:
         prompt: GenerationPrompt,
         output_model: type[PaperDraft] | type[PaperSection],
     ) -> ProviderResult:
-        if self._client is None or self._model is None:
+        if self._model is None or (self._client is None and not self._api_keys):
             raise ProviderUnavailable
 
         started = perf_counter()
-        try:
-            response = await self._client.responses.parse(
-                model=cast(Any, self._model),
-                instructions=prompt.system_instructions,
-                input=prompt.user_message,
-                text_format=cast(Any, output_model),
-                max_output_tokens=self._max_output_tokens,
-                store=False,
-            )
-        except APITimeoutError as exc:
-            raise ProviderTimeout from exc
-        except RateLimitError as exc:
-            raise ProviderRateLimited from exc
-        except (AuthenticationError, PermissionDeniedError, APIConnectionError) as exc:
-            raise ProviderUnavailable from exc
-        except APIStatusError as exc:
-            if exc.status_code == 429:
+        total_keys = len(self._api_keys)
+        keys_to_try = max(1, total_keys)
+        response = None
+
+        for attempt in range(keys_to_try):
+            client = self._client
+            if total_keys > 0 and self._owns_client:
+                key_idx = (self._active_key_index + attempt) % total_keys
+                api_key = self._api_keys[key_idx]
+                client = AsyncOpenAI(api_key=api_key, timeout=self._timeout, max_retries=0)
+
+            if client is None:
+                raise ProviderUnavailable
+
+            try:
+                response = await client.responses.parse(
+                    model=cast(Any, self._model),
+                    instructions=prompt.system_instructions,
+                    input=prompt.user_message,
+                    text_format=cast(Any, output_model),
+                    max_output_tokens=self._max_output_tokens,
+                    store=False,
+                )
+                if total_keys > 0 and self._owns_client:
+                    self._active_key_index = (self._active_key_index + attempt) % total_keys
+                break
+            except APITimeoutError as exc:
+                if attempt < keys_to_try - 1:
+                    continue
+                raise ProviderTimeout from exc
+            except RateLimitError as exc:
+                if attempt < keys_to_try - 1:
+                    continue
                 raise ProviderRateLimited from exc
-            if exc.status_code >= 500:
+            except (AuthenticationError, PermissionDeniedError, APIConnectionError) as exc:
+                if attempt < keys_to_try - 1:
+                    continue
                 raise ProviderUnavailable from exc
-            raise ProviderInvalidResponse from exc
-        except (
-            LengthFinishReasonError,
-            OpenAIError,
-            ValidationError,
-            TypeError,
-            ValueError,
-        ) as exc:
-            raise ProviderInvalidResponse from exc
+            except APIStatusError as exc:
+                if exc.status_code == 429:
+                    if attempt < keys_to_try - 1:
+                        continue
+                    raise ProviderRateLimited from exc
+                if exc.status_code >= 500:
+                    if attempt < keys_to_try - 1:
+                        continue
+                    raise ProviderUnavailable from exc
+                raise ProviderInvalidResponse from exc
+            except (
+                LengthFinishReasonError,
+                OpenAIError,
+                ValidationError,
+                TypeError,
+                ValueError,
+            ) as exc:
+                raise ProviderInvalidResponse from exc
+
+        if response is None:
+            raise ProviderInvalidResponse
 
         parsed = getattr(response, "output_parsed", None)
         if getattr(response, "status", None) != "completed" or not isinstance(parsed, output_model):
