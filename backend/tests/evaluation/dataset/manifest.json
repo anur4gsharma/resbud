@@ -1,0 +1,371 @@
+{
+  "evaluation_suite": "resbud-manuscript-quality-v3",
+  "version": "1.0.0",
+  "created_at": "2026-11-01",
+  "disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth.",
+  "cases": [
+    {
+      "id": "complete-empirical-research",
+      "category": "complete_empirical",
+      "target_word_preset": "detailed",
+      "target_word_count": 5000,
+      "project": {
+        "title": "Evaluating Retrieval-Augmented Generation for Factual Question Answering over a University Policy Corpus",
+        "research_field": "Computer Science - Natural Language Processing",
+        "research_question": "RQ1: Does retrieval-augmented generation improve factual question answering accuracy over closed-book models on university policy documents? RQ2: Does passage retrieval reduce unsupported claims?",
+        "objectives": [
+          "Evaluate answer correctness across 120 benchmark policy questions",
+          "Quantify reduction in unsupported factual assertions",
+          "Execute paired significance testing via McNemar test"
+        ],
+        "claimed_contribution": "A paired evaluation framework establishing that retrieval augmentation improves accuracy from 59.2% to 81.7% with p = 0.0000143.",
+        "methodology_status": "provided",
+        "methodology": "We employ a within-question paired design using 120 benchmark questions, evenly distributed across academic regulations, course registration, financial assistance, and campus services. Each question was processed by the ResearchBuddy-Sim-7B-Instruct v1.0 model in two conditions: (1) Closed-book, and (2) RAG with top-5 passages retrieved via Embed-Sim-v1. Evaluation performed via human-style annotation with synthetic Cohen's kappa of 0.82. Paired discordant pairs evaluated using exact two-sided McNemar test.",
+        "dataset_or_materials_status": "provided",
+        "dataset_or_materials": "120 curated university policy questions paired with official institutional documentation passages.",
+        "results_status": "provided",
+        "results": "In the primary evaluation of answer-level correctness, the closed-book condition resulted in 71 correct answers (59.2%), while the RAG condition resulted in 98 correct answers (81.7%). The paired contingency table reveals that 65 questions were correct in both, 33 were correct only in RAG, 6 were correct only in closed-book, and 16 were incorrect in both. An exact two-sided McNemar test on the discordant pairs (33 vs 6) yields p = 0.0000143, indicating statistical significance. Unsupported claims fell from 52 of 120 (43.3%) to 24 of 120 (20.0%).",
+        "limitations_status": "provided",
+        "limitations": "The findings are derived from synthetic data, a single model architecture, and a simplified retrieval pipeline."
+      },
+      "source_draft": "We evaluated 120 questions across university policy domains. Closed-book got 71 correct (59.2%), RAG got 98 correct (81.7%). Contingency: 65 both correct, 33 RAG only, 6 closed only, 16 neither. McNemar p = 0.0000143. Unsupported claims: 52 (43.3%) closed-book down to 24 (20.0%) RAG. Cohen's kappa was 0.82.",
+      "references": [
+        {
+          "id": "ref_lewis",
+          "text": "Lewis, P., et al. (2020). Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks. NeurIPS."
+        },
+        {
+          "id": "ref_karpukhin",
+          "text": "Karpukhin, V., et al. (2020). Dense Passage Retrieval for Open-Domain Question Answering. EMNLP."
+        }
+      ],
+      "preferences": {
+        "target_word_count": 5000,
+        "citation_style": "apa_7",
+        "desired_sections": ["introduction", "related_work", "methodology", "results", "discussion", "conclusion"]
+      }
+    },
+    {
+      "id": "incomplete-experimental-research",
+      "category": "incomplete_experimental",
+      "target_word_preset": "standard",
+      "target_word_count": 3000,
+      "project": {
+        "title": "Deep Multi-Task Learning for Histopathological Phenotype Screening: Preliminary Pilot Study",
+        "research_field": "Biomedical Engineering & Computer Vision",
+        "research_question": "Can multi-task CNN backbones achieve high diagnostic sensitivity on needle biopsy slides prior to large-scale prospective multi-center trial completion?",
+        "objectives": [
+          "Develop a weakly supervised slide classification network",
+          "Assess pilot sensitivity on an initial single-center cohort of 50 patients"
+        ],
+        "claimed_contribution": "A multi-task histology screening pipeline demonstrating 84.2% pilot sensitivity with clear boundary identification for pending phase 2 trials.",
+        "methodology_status": "provided",
+        "methodology": "We train a multi-task ResNet-50 network on 256x256 patch tiles extracted from whole slide images. Training employs cross-entropy loss with Adam optimization (learning rate 0.0001). Initial evaluation is conducted on a preliminary retrospective cohort of 50 patient biopsies from a single medical center.",
+        "dataset_or_materials_status": "provided",
+        "dataset_or_materials": "50 retrospective whole-slide biopsy images curated from a single clinical site.",
+        "results_status": "provided",
+        "results": "On the initial 50-patient pilot cohort, the network achieved a diagnostic sensitivity of 84.2% and specificity of 78.6%. Phase 2 multi-center validation on 500 prospective patients is currently underway and not yet completed.",
+        "limitations_status": "provided",
+        "limitations": "Pilot study limited to a single medical center; multi-center prospective validation is pending."
+      },
+      "source_draft": "Pilot cohort of 50 biopsies achieved 84.2% sensitivity and 78.6% specificity. Multi-center phase 2 trial on 500 patients has not been completed.",
+      "references": [
+        {
+          "id": "ref_campanella",
+          "text": "Campanella, G., et al. (2019). Clinical-grade computational pathology using weakly supervised deep learning on whole slide images. Nature Medicine."
+        }
+      ],
+      "preferences": {
+        "target_word_count": 3000,
+        "citation_style": "apa_7",
+        "desired_sections": ["introduction", "related_work", "methodology", "results", "discussion", "conclusion"]
+      }
+    },
+    {
+      "id": "uncollected-quantitative-results",
+      "category": "uncollected_results",
+      "target_word_preset": "standard",
+      "target_word_count": 3000,
+      "project": {
+        "title": "Adaptive Hierarchical Routing for Distributed Edge Model Inference",
+        "research_field": "Distributed Systems & Machine Learning",
+        "research_question": "How can dynamic priority queuing optimize tail latency in multi-tenant edge inferencing without violating strict memory budgets?",
+        "objectives": [
+          "Formulate analytical queuing dynamics under Lyapunov drift optimization",
+          "Characterize theoretical memory bounds under heterogeneous packet arrivals"
+        ],
+        "claimed_contribution": "A theoretical routing framework with proven upper bounds on queue backlog and latency.",
+        "methodology_status": "provided",
+        "methodology": "We formulate an analytical queuing model using Markov decision processes and Lyapunov drift optimization across 3 edge topologies. State space transitions are bounded by Lipschitz continuity over arrival distributions.",
+        "dataset_or_materials_status": "not_applicable",
+        "dataset_or_materials": null,
+        "results_status": "not_collected",
+        "results": null,
+        "limitations_status": "provided",
+        "limitations": "Theoretical formulation has not been deployed on physical hardware."
+      },
+      "source_draft": "This paper presents a theoretical formulation of adaptive hierarchical routing for distributed edge inference. Physical experiments have not been conducted.",
+      "references": [
+        {
+          "id": "ref_neely",
+          "text": "Neely, M. J. (2010). Stochastic Network Optimization with Application to Communication and Queueing Systems. Morgan & Claypool."
+        }
+      ],
+      "preferences": {
+        "target_word_count": 3000,
+        "citation_style": "apa_7",
+        "desired_sections": ["introduction", "related_work", "methodology", "results", "discussion", "conclusion"]
+      }
+    },
+    {
+      "id": "technical-research-with-equations",
+      "category": "technical_equations",
+      "target_word_preset": "detailed",
+      "target_word_count": 5000,
+      "project": {
+        "title": "Equivariant Graph Neural Networks for Molecular Conformation and Ground-State Energy Approximation",
+        "research_field": "Computational Chemistry & Geometric Deep Learning",
+        "research_question": "Does enforcing SE(3) Lie group equivariance in message-passing neural networks improve ground-state molecular energy prediction over non-equivariant baselines?",
+        "objectives": [
+          "Formulate an SE(3)-equivariant continuous message passing operator",
+          "Evaluate mean absolute energy prediction error on the QM9 molecular benchmark",
+          "Derive Lipschitz continuity bounds governing gradient stability"
+        ],
+        "claimed_contribution": "An SE(3)-equivariant architecture achieving a Mean Absolute Error of 0.018 eV on QM9 molecular ground-state energy prediction.",
+        "methodology_status": "provided",
+        "methodology": "Let G = (V, E) denote a molecular graph where each node v in V possesses coordinates x_v in R^3 and atomic features h_v. We define an equivariant coordinate update operator mapping relative displacement vectors under radial filter functions W(||x_i - x_j||). Energy prediction is derived from a Hamiltonian potential function. Evaluated on the QM9 benchmark across 134,000 organic molecules.",
+        "dataset_or_materials_status": "provided",
+        "dataset_or_materials": "QM9 benchmark dataset consisting of 134,000 stable small organic molecules.",
+        "results_status": "provided",
+        "results": "On the QM9 benchmark for ground-state internal energy (U_0), the proposed equivariant network achieved a Mean Absolute Error (MAE) of 0.018 eV, outperforming standard SchNet (0.042 eV) and non-equivariant DimeNet baselines.",
+        "limitations_status": "provided",
+        "limitations": "Evaluated on small equilibrium molecules; computational scaling to macromolecular proteins requires further sparsification."
+      },
+      "source_draft": "QM9 benchmark evaluation: proposed equivariant model achieved MAE of 0.018 eV compared to 0.042 eV for standard baselines. SE(3) equivariance preserved.",
+      "references": [
+        {
+          "id": "ref_satorras",
+          "text": "Satorras, V. G., et al. (2021). E(n) Equivariant Graph Neural Networks. ICML."
+        },
+        {
+          "id": "ref_schutt",
+          "text": "Schütt, K. T., et al. (2018). SchNet – A deep learning architecture for molecules and materials. J. Chem. Phys."
+        }
+      ],
+      "preferences": {
+        "target_word_count": 5000,
+        "citation_style": "apa_7",
+        "desired_sections": ["introduction", "related_work", "methodology", "results", "discussion", "conclusion"]
+      }
+    },
+    {
+      "id": "extensive-reference-material",
+      "category": "extensive_references",
+      "target_word_preset": "detailed",
+      "target_word_count": 5000,
+      "project": {
+        "title": "Neural and Lexical Paradigms in Modern Information Retrieval: A Comprehensive Survey",
+        "research_field": "Information Retrieval",
+        "research_question": "How do sparse lexical indices, dense vector representations, and multi-vector late-interaction architectures compare across retrieval effectiveness, index footprint, and latency?",
+        "objectives": [
+          "Thematically categorize modern IR architectures into sparse, dense, and late-interaction paradigms",
+          "Synthesize cross-benchmark performance metrics and computational trade-offs"
+        ],
+        "claimed_contribution": "A systematic survey categorizing modern retrieval pipelines across 8 foundational paradigms with explicit memory and throughput trade-off surfaces.",
+        "methodology_status": "provided",
+        "methodology": "A comparative analytical survey and meta-synthesis of published literature across 8 peer-reviewed retrieval architectures, evaluating algorithmic complexity, index storage requirements, and out-of-domain transfer on the BEIR benchmark.",
+        "dataset_or_materials_status": "not_applicable",
+        "dataset_or_materials": null,
+        "results_status": "not_applicable",
+        "results": null,
+        "limitations_status": "provided",
+        "limitations": "Synthesizes published results from peer-reviewed literature and does not independently re-index terabyte-scale corpora."
+      },
+      "source_draft": "A comprehensive comparative synthesis across 8 retrieval models: BM25, DPR, ColBERT, SPLADE, Contriever, ANCE, RETRO, and REALM.",
+      "references": [
+        {
+          "id": "ref_bm25",
+          "text": "Robertson, S., & Zaragoza, H. (2009). The Probabilistic Relevance Framework: BM25 and Beyond. Foundations and Trends in Information Retrieval."
+        },
+        {
+          "id": "ref_dpr",
+          "text": "Karpukhin, V., et al. (2020). Dense Passage Retrieval for Open-Domain Question Answering. EMNLP."
+        },
+        {
+          "id": "ref_colbert",
+          "text": "Khattab, O., & Zaharia, M. (2020). ColBERT: Efficient and Effective Passage Search via Contextualized Late Interaction over BERT. SIGIR."
+        },
+        {
+          "id": "ref_splade",
+          "text": "Formal, T., et al. (2021). SPLADE: Sparse Lexical and Expansion Model for Information Retrieval. SIGIR."
+        },
+        {
+          "id": "ref_contriever",
+          "text": "Izacard, G., et al. (2022). Unsupervised Dense Information Retrieval with Contrastive Learning. TMLR."
+        },
+        {
+          "id": "ref_ance",
+          "text": "Xiong, L., et al. (2021). Approximate Nearest Neighbor Negative Contrastive Learning for Dense Text Retrieval. ICLR."
+        },
+        {
+          "id": "ref_retro",
+          "text": "Borgeaud, S., et al. (2022). Improving language models by retrieving from trillions of tokens. ICML."
+        },
+        {
+          "id": "ref_realm",
+          "text": "Guu, K., et al. (2020). Retrieval Augmented Language Model Pre-Training. ICML."
+        }
+      ],
+      "preferences": {
+        "target_word_count": 5000,
+        "citation_style": "apa_7",
+        "desired_sections": ["introduction", "related_work", "methodology", "discussion", "conclusion"]
+      }
+    },
+    {
+      "id": "conflicting-source-information",
+      "category": "conflicting_information",
+      "target_word_preset": "standard",
+      "target_word_count": 3000,
+      "project": {
+        "title": "Quantization-Aware Training for Edge Transformer Deployment",
+        "research_field": "Computer Systems & Machine Learning",
+        "research_question": "Can 8-bit integer quantization maintain inference accuracy in vision transformers without extensive full-precision retraining?",
+        "objectives": [
+          "Evaluate post-training quantization vs quantization-aware training",
+          "Quantify top-1 accuracy on ImageNet-1K"
+        ],
+        "claimed_contribution": "An empirical benchmark of INT8 quantization for vision transformers with conflict identification.",
+        "methodology_status": "provided",
+        "methodology": "We quantize a ViT-Base architecture using symmetric uniform INT8 quantization across weights and activations. Evaluation performed on ImageNet-1K validation set (50,000 images).",
+        "dataset_or_materials_status": "provided",
+        "dataset_or_materials": "ImageNet-1K validation dataset.",
+        "results_status": "provided",
+        "results": "Accuracy was 91.2% in the final benchmark evaluation.",
+        "limitations_status": "provided",
+        "limitations": "Tested only on vision transformers; recurrent models not evaluated."
+      },
+      "source_draft": "Preliminary INT8 quantization experiments reported accuracy was 87.4% on the test subset.",
+      "references": [
+        {
+          "id": "ref_nagel",
+          "text": "Nagel, M., et al. (2021). A White Paper on Neural Network Quantization. arXiv."
+        }
+      ],
+      "preferences": {
+        "target_word_count": 3000,
+        "citation_style": "apa_7",
+        "desired_sections": ["introduction", "methodology", "results", "discussion", "conclusion"]
+      }
+    },
+    {
+      "id": "long-research-dossier",
+      "category": "long_dossier",
+      "target_word_preset": "extended",
+      "target_word_count": 7000,
+      "project": {
+        "title": "Decoupled Cross-Attention Networks for High-Throughput Biomedical Signal Telemetry",
+        "research_field": "Biomedical Engineering & Signal Processing",
+        "research_question": "How can multi-channel electroencephalogram (EEG) signals be decoded in real-time under severe computational and memory constraints?",
+        "objectives": [
+          "Design a decoupled cross-attention pipeline for 64-channel EEG decoding",
+          "Benchmark latency and Signal-to-Noise Ratio (SNR) improvements",
+          "Profile memory footprint across NVIDIA A100 and edge accelerators"
+        ],
+        "claimed_contribution": "A decoupled neural architecture improving SNR from 8.6 dB to 14.2 dB with a 12.4 ms inference latency.",
+        "methodology_status": "provided",
+        "methodology": "We record 64-channel continuous EEG sampled at 500 Hz across 40 subjects under controlled cognitive workload paradigms. Bandpass filtering (0.5 to 100 Hz) and notch filtering (50 Hz) remove power-line interference. The neural architecture decouples spatial electrode embedding from temporal self-attention. Benchmark executions profile throughput across NVIDIA A100 and Jetson Orin hardware.",
+        "dataset_or_materials_status": "provided",
+        "dataset_or_materials": "64-channel continuous EEG recordings sampled at 500 Hz from 40 healthy adult participants.",
+        "results_status": "provided",
+        "results": "Across 40 subjects, the decoupled model enhanced average Signal-to-Noise Ratio (SNR) from 8.6 dB in raw telemetry to 14.2 dB in decoded output. Median inference latency per 2-second epoch was 12.4 ms on the Jetson Orin, well within the 50 ms real-time telemetry threshold. Peak memory consumption was 186 MB.",
+        "limitations_status": "provided",
+        "limitations": "Evaluated in controlled laboratory environments; motion artifacts in ambulatory subjects require adaptive filtering."
+      },
+      "source_draft": "Exhaustive Laboratory Telemetry Log:\nSubject cohort: 40 participants, 64-channel EEG, 500 Hz sampling rate. Filtering: 0.5-100 Hz bandpass, 50 Hz notch. Decoupled cross-attention architecture tested across A100 and Jetson Orin edge accelerators. Results: SNR improved from 8.6 dB to 14.2 dB. Inference latency: 12.4 ms per 2-second window. Memory usage: 186 MB. Zero packet drop over 12 continuous test hours. Sensitivity profiling confirmed robustness against non-Gaussian physiological noise. Complete hyperparameter logs: learning rate 0.0003, weight decay 0.01, cosine decay with 10-epoch warmup, batch size 64.",
+      "references": [
+        {
+          "id": "ref_lawhern",
+          "text": "Lawhern, V. J., et al. (2018). EEGNet: A compact convolutional neural network for EEG-based brain-computer interfaces. J. Neural Eng."
+        }
+      ],
+      "preferences": {
+        "target_word_count": 7000,
+        "citation_style": "apa_7",
+        "desired_sections": ["introduction", "related_work", "methodology", "results", "discussion", "conclusion"]
+      }
+    },
+    {
+      "id": "short-project-notes",
+      "category": "short_notes",
+      "target_word_preset": "short",
+      "target_word_count": 1500,
+      "project": {
+        "title": "Federated Optimization with Dynamic Gradient Pruning for Resource-Constrained Telemetry",
+        "research_field": "Distributed Computing & Privacy",
+        "research_question": "Can dynamic magnitude-based gradient pruning reduce uplink bandwidth in federated learning without causing model divergence?",
+        "objectives": [
+          "Propose a local thresholding heuristic for client gradient pruning",
+          "Analyze convergence conditions on non-IID client distributions"
+        ],
+        "claimed_contribution": "A conceptual framework demonstrating convergence bounds for 90% pruned federated gradients.",
+        "methodology_status": "provided",
+        "methodology": "We formulate a localized pruning threshold tau_i dynamically adapted to client local gradient norms. Pruned gradients are transmitted to a central parameter server using FedAvg aggregation.",
+        "dataset_or_materials_status": "not_applicable",
+        "dataset_or_materials": null,
+        "results_status": "not_collected",
+        "results": null,
+        "limitations_status": "provided",
+        "limitations": "Exploratory mathematical analysis; physical wireless deployment is ongoing."
+      },
+      "source_draft": "Brief project seed note: We explore client gradient pruning in federated optimization. Physical testbed trials are pending.",
+      "references": [
+        {
+          "id": "ref_mcmahan",
+          "text": "McMahan, B., et al. (2017). Communication-Efficient Learning of Deep Networks from Decentralized Data. AISTATS."
+        }
+      ],
+      "preferences": {
+        "target_word_count": 1500,
+        "citation_style": "apa_7",
+        "desired_sections": ["introduction", "methodology", "results", "conclusion"]
+      }
+    },
+    {
+      "id": "explicit-simulated-data",
+      "category": "simulated_data",
+      "target_word_preset": "standard",
+      "target_word_count": 3000,
+      "project": {
+        "title": "Synthetic Evaluation Framework for End-to-End Latency in SDN-Governed Edge Topologies",
+        "research_field": "Computer Networks & Software Defined Systems",
+        "research_question": "How does flow-table caching affect tail packet latency across simulated software-defined networking switches?",
+        "objectives": [
+          "Simulate 10,000 synthetic packet flows across an OMNeT++ edge network model",
+          "Quantify queue delays and packet drop rates under synthetic burst traffic"
+        ],
+        "claimed_contribution": "A simulation study characterizing SDN flow-table eviction policies with explicit synthetic modeling caveats.",
+        "methodology_status": "provided",
+        "methodology": "A discrete-event simulation model implemented in OMNeT++ with INET framework. The simulation executes 10,000 synthetic packet flows across a 5-node topology. All traffic generation follows a synthetic Pareto distribution.",
+        "dataset_or_materials_status": "provided",
+        "dataset_or_materials": "OMNeT++ simulation configuration files and 10,000 synthetic packet event traces.",
+        "results_status": "provided",
+        "results": "Under synthetic Pareto traffic, simulated throughput reached 942 Mbps with a mean synthetic queue delay of 4.2 ms across 10,000 simulated packets.",
+        "limitations_status": "provided",
+        "limitations": "All packet traces, queue latencies, and drop rates are derived from an OMNeT++ discrete-event simulation model and do not represent physical hardware telemetry."
+      },
+      "source_draft": "Simulated evaluation: 10,000 synthetic packets in OMNeT++. Simulated throughput: 942 Mbps, synthetic queue delay: 4.2 ms. Synthetic modeling limitations apply.",
+      "references": [
+        {
+          "id": "ref_kreutz",
+          "text": "Kreutz, D., et al. (2015). Software-Defined Networking: A Comprehensive Survey. Proceedings of the IEEE."
+        }
+      ],
+      "preferences": {
+        "target_word_count": 3000,
+        "citation_style": "apa_7",
+        "desired_sections": ["introduction", "methodology", "results", "discussion", "conclusion"]
+      }
+    }
+  ]
+}

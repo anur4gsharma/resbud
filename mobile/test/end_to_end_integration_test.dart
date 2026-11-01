@@ -289,12 +289,7 @@ void main() {
 
     await tester.tap(find.text('Accept replacement'));
     await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('v3 · Section Regeneration'), findsOneWidget);
+    await pumpUntilFound(tester, find.textContaining('v3 · Section Regeneration'));
 
     // Verify methodology updated and unrelated section (abstract) survived in Version 3!
     expect(

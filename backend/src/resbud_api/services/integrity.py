@@ -9,7 +9,7 @@ from resbud_api.providers.base import ResearchBrief
 _NUMBER = re.compile(r"\b\d+(?:[.,]\d+)*%?\b")
 _LABELED_VALUE = re.compile(
     r"\b(accuracy|precision|recall|f1(?:\s+score)?|sample size|number of participants|"
-    r"participants|dataset size)\s*(?:was|is|of|=|:)?\s*(\d+(?:[.,]\d+)*%?)\b",
+    r"participants|dataset size)\s*(?:was|is|of|=|:|reached)?\s*(\d+(?:[.,]\d+)*%?)\b",
     re.IGNORECASE,
 )
 _REFERENCE_PLACEHOLDER = re.compile(

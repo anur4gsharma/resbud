@@ -1,0 +1,3565 @@
+{
+  "run_id": "eval-run-20261101-145741",
+  "date": "2026-11-01T14:57:41.275969+00:00",
+  "active_engine": "section-level-long-form",
+  "active_model": "deterministic-demo",
+  "comparator_engine": "single-pass-legacy",
+  "comparator_model": "deterministic-demo",
+  "results": [
+    {
+      "case_id": "complete-empirical-research",
+      "paper_title": "Evaluating Retrieval-Augmented Generation for Factual Question Answering over a University Policy Corpus",
+      "engine_type": "section-level-long-form",
+      "provider_name": "fake",
+      "model_name": "deterministic-demo",
+      "timestamp": "2026-11-01T14:57:41.059555+00:00",
+      "requested_words": 5000,
+      "generated_words": 4823,
+      "word_count_ratio": 0.965,
+      "duration_ms": 13,
+      "input_tokens": null,
+      "output_tokens": 6868,
+      "estimated_cost_usd": 0.0,
+      "overall_score": 98.88,
+      "passed": true,
+      "dimension_scores": {
+        "fact_preservation": {
+          "score": 96.3,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "recalled_count": 26,
+            "total_concepts": 27,
+            "ratio": 0.963
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High fact preservation: 26/27 key concepts retained."
+          ]
+        },
+        "citation_preservation": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "supplied": 2,
+            "preserved": 2,
+            "invented": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Zero fabricated or unsupplied citations introduced.",
+            "All 2 supplied references preserved."
+          ]
+        },
+        "section_completeness": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "total_sections": 6,
+            "missing": [],
+            "shallow": []
+          },
+          "deficiencies": [],
+          "strengths": [
+            "All 6 sections fully present with substantive multi-paragraph content."
+          ]
+        },
+        "word_count_adherence": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "actual_words": 4823,
+            "target_words": 5000,
+            "ratio": 0.965
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Optimal word-count adherence: 4823 words (96.5% of 5000 target)."
+          ]
+        },
+        "methodological_detail": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "has_design": true,
+            "has_dataset": true,
+            "has_metrics": true,
+            "has_stats": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Rigorous methodological specification (4/4 core components verified)."
+          ]
+        },
+        "technical_depth": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "vocab_count": 37,
+            "has_math": true,
+            "has_tables": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Dense academic domain terminology (37 concepts verified).",
+            "Incorporates formal mathematical formulations and notation."
+          ]
+        },
+        "argument_coherence": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "coherence_points": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Introduction establishes explicit Research Questions.",
+            "Formal academic roadmap structures subsequent argumentation.",
+            "Discussion systematically addresses threats to validity."
+          ]
+        },
+        "section_consistency": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "consistency_score": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Consistent terminology and cross-section metric harmony maintained."
+          ]
+        },
+        "repetition_and_filler": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "ttr": 0.159,
+            "platitudes_count": 0,
+            "total_tokens": 4823
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High lexical diversity (TTR 0.16).",
+            "Zero empty conversational platitudes or throat-clearing cliches."
+          ]
+        },
+        "unsupported_claims": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "is_results_uncollected": false
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Supplied empirical results preserved under draft state."
+          ]
+        },
+        "numerical_accuracy": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.3,
+          "details": {
+            "supplied_count": 19,
+            "unsupported_metrics_count": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Strict numerical fidelity: 100% of reported statistics grounded in supplied evidence."
+          ]
+        },
+        "overall_readability": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "bullet_ratio": 0.043,
+            "fkgl": 22.14,
+            "fre": -34.62,
+            "asl": 16.31
+          },
+          "deficiencies": [
+            "Prose register overly convoluted (FKGL 22.14 > 20.0)."
+          ],
+          "strengths": [
+            "Continuous academic prose maintained (4.3% bullet lines, well under 15% threshold)."
+          ]
+        }
+      },
+      "review_warnings": [
+        "GENERAL_REVIEW",
+        "CLAIM_NEEDS_REVIEW",
+        "GENERAL_REVIEW"
+      ],
+      "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+    },
+    {
+      "case_id": "incomplete-experimental-research",
+      "paper_title": "Deep Multi-Task Learning for Histopathological Phenotype Screening: Preliminary Pilot Study",
+      "engine_type": "section-level-long-form",
+      "provider_name": "fake",
+      "model_name": "deterministic-demo",
+      "timestamp": "2026-11-01T14:57:41.083335+00:00",
+      "requested_words": 3000,
+      "generated_words": 2957,
+      "word_count_ratio": 0.986,
+      "duration_ms": 7,
+      "input_tokens": null,
+      "output_tokens": 4232,
+      "estimated_cost_usd": 0.0,
+      "overall_score": 96.73,
+      "passed": true,
+      "dimension_scores": {
+        "fact_preservation": {
+          "score": 84.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "recalled_count": 21,
+            "total_concepts": 25,
+            "ratio": 0.84
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High fact preservation: 21/25 key concepts retained."
+          ]
+        },
+        "citation_preservation": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "supplied": 1,
+            "preserved": 1,
+            "invented": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Zero fabricated or unsupplied citations introduced.",
+            "All 1 supplied references preserved."
+          ]
+        },
+        "section_completeness": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "total_sections": 6,
+            "missing": [],
+            "shallow": []
+          },
+          "deficiencies": [],
+          "strengths": [
+            "All 6 sections fully present with substantive multi-paragraph content."
+          ]
+        },
+        "word_count_adherence": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "actual_words": 2957,
+            "target_words": 3000,
+            "ratio": 0.986
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Optimal word-count adherence: 2957 words (98.6% of 3000 target)."
+          ]
+        },
+        "methodological_detail": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "has_design": true,
+            "has_dataset": true,
+            "has_metrics": true,
+            "has_stats": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Rigorous methodological specification (4/4 core components verified)."
+          ]
+        },
+        "technical_depth": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "vocab_count": 38,
+            "has_math": true,
+            "has_tables": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Dense academic domain terminology (38 concepts verified).",
+            "Incorporates formal mathematical formulations and notation."
+          ]
+        },
+        "argument_coherence": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "coherence_points": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Introduction establishes explicit Research Questions.",
+            "Formal academic roadmap structures subsequent argumentation.",
+            "Discussion systematically addresses threats to validity."
+          ]
+        },
+        "section_consistency": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "consistency_score": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Consistent terminology and cross-section metric harmony maintained."
+          ]
+        },
+        "repetition_and_filler": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "ttr": 0.258,
+            "platitudes_count": 0,
+            "total_tokens": 2957
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High lexical diversity (TTR 0.26).",
+            "Zero empty conversational platitudes or throat-clearing cliches."
+          ]
+        },
+        "unsupported_claims": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "is_results_uncollected": false
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Supplied empirical results preserved under draft state."
+          ]
+        },
+        "numerical_accuracy": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.3,
+          "details": {
+            "supplied_count": 6,
+            "unsupported_metrics_count": 0
+          },
+          "deficiencies": [
+            "Unverified integer counts in draft: 0"
+          ],
+          "strengths": []
+        },
+        "overall_readability": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "bullet_ratio": 0.072,
+            "fkgl": 22.35,
+            "fre": -34.61,
+            "asl": 17.14
+          },
+          "deficiencies": [
+            "Prose register overly convoluted (FKGL 22.35 > 20.0)."
+          ],
+          "strengths": [
+            "Continuous academic prose maintained (7.2% bullet lines, well under 15% threshold)."
+          ]
+        }
+      },
+      "review_warnings": [
+        "GENERAL_REVIEW",
+        "CLAIM_NEEDS_REVIEW",
+        "GENERAL_REVIEW"
+      ],
+      "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+    },
+    {
+      "case_id": "uncollected-quantitative-results",
+      "paper_title": "Adaptive Hierarchical Routing for Distributed Edge Model Inference",
+      "engine_type": "section-level-long-form",
+      "provider_name": "fake",
+      "model_name": "deterministic-demo",
+      "timestamp": "2026-11-01T14:57:41.107413+00:00",
+      "requested_words": 3000,
+      "generated_words": 2976,
+      "word_count_ratio": 0.992,
+      "duration_ms": 8,
+      "input_tokens": null,
+      "output_tokens": 4195,
+      "estimated_cost_usd": 0.0,
+      "overall_score": 96.53,
+      "passed": true,
+      "dimension_scores": {
+        "fact_preservation": {
+          "score": 81.82,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "recalled_count": 18,
+            "total_concepts": 22,
+            "ratio": 0.818
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High fact preservation: 18/22 key concepts retained."
+          ]
+        },
+        "citation_preservation": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "supplied": 1,
+            "preserved": 1,
+            "invented": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Zero fabricated or unsupplied citations introduced.",
+            "All 1 supplied references preserved."
+          ]
+        },
+        "section_completeness": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "total_sections": 6,
+            "missing": [],
+            "shallow": []
+          },
+          "deficiencies": [],
+          "strengths": [
+            "All 6 sections fully present with substantive multi-paragraph content."
+          ]
+        },
+        "word_count_adherence": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "actual_words": 2976,
+            "target_words": 3000,
+            "ratio": 0.992
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Optimal word-count adherence: 2976 words (99.2% of 3000 target)."
+          ]
+        },
+        "methodological_detail": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "has_design": true,
+            "has_dataset": true,
+            "has_metrics": true,
+            "has_stats": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Rigorous methodological specification (4/4 core components verified)."
+          ]
+        },
+        "technical_depth": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "vocab_count": 37,
+            "has_math": true,
+            "has_tables": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Dense academic domain terminology (37 concepts verified).",
+            "Incorporates formal mathematical formulations and notation."
+          ]
+        },
+        "argument_coherence": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "coherence_points": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Introduction establishes explicit Research Questions.",
+            "Formal academic roadmap structures subsequent argumentation.",
+            "Discussion systematically addresses threats to validity."
+          ]
+        },
+        "section_consistency": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "consistency_score": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Consistent terminology and cross-section metric harmony maintained."
+          ]
+        },
+        "repetition_and_filler": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "ttr": 0.246,
+            "platitudes_count": 0,
+            "total_tokens": 2976
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High lexical diversity (TTR 0.25).",
+            "Zero empty conversational platitudes or throat-clearing cliches."
+          ]
+        },
+        "unsupported_claims": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "is_results_uncollected": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Properly declared unconducted empirical status with explicit researcher input notice."
+          ]
+        },
+        "numerical_accuracy": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.3,
+          "details": {
+            "supplied_count": 1,
+            "unsupported_metrics_count": 0
+          },
+          "deficiencies": [
+            "Unverified integer counts in draft: 0"
+          ],
+          "strengths": []
+        },
+        "overall_readability": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "bullet_ratio": 0.07,
+            "fkgl": 22.5,
+            "fre": -35.18,
+            "asl": 17.44
+          },
+          "deficiencies": [
+            "Prose register overly convoluted (FKGL 22.5 > 20.0)."
+          ],
+          "strengths": [
+            "Continuous academic prose maintained (7.0% bullet lines, well under 15% threshold)."
+          ]
+        }
+      },
+      "review_warnings": [
+        "GENERAL_REVIEW",
+        "MISSING_RESULTS",
+        "CLAIM_NEEDS_REVIEW",
+        "GENERAL_REVIEW"
+      ],
+      "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+    },
+    {
+      "case_id": "technical-research-with-equations",
+      "paper_title": "Equivariant Graph Neural Networks for Molecular Conformation and Ground-State Energy Approximation",
+      "engine_type": "section-level-long-form",
+      "provider_name": "fake",
+      "model_name": "deterministic-demo",
+      "timestamp": "2026-11-01T14:57:41.140517+00:00",
+      "requested_words": 5000,
+      "generated_words": 4803,
+      "word_count_ratio": 0.961,
+      "duration_ms": 13,
+      "input_tokens": null,
+      "output_tokens": 6744,
+      "estimated_cost_usd": 0.0,
+      "overall_score": 96.28,
+      "passed": true,
+      "dimension_scores": {
+        "fact_preservation": {
+          "score": 79.17,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "recalled_count": 19,
+            "total_concepts": 24,
+            "ratio": 0.792
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High fact preservation: 19/24 key concepts retained."
+          ]
+        },
+        "citation_preservation": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "supplied": 2,
+            "preserved": 2,
+            "invented": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Zero fabricated or unsupplied citations introduced.",
+            "All 2 supplied references preserved."
+          ]
+        },
+        "section_completeness": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "total_sections": 6,
+            "missing": [],
+            "shallow": []
+          },
+          "deficiencies": [],
+          "strengths": [
+            "All 6 sections fully present with substantive multi-paragraph content."
+          ]
+        },
+        "word_count_adherence": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "actual_words": 4803,
+            "target_words": 5000,
+            "ratio": 0.961
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Optimal word-count adherence: 4803 words (96.1% of 5000 target)."
+          ]
+        },
+        "methodological_detail": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "has_design": true,
+            "has_dataset": true,
+            "has_metrics": true,
+            "has_stats": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Rigorous methodological specification (4/4 core components verified)."
+          ]
+        },
+        "technical_depth": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "vocab_count": 38,
+            "has_math": true,
+            "has_tables": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Dense academic domain terminology (38 concepts verified).",
+            "Incorporates formal mathematical formulations and notation."
+          ]
+        },
+        "argument_coherence": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "coherence_points": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Introduction establishes explicit Research Questions.",
+            "Formal academic roadmap structures subsequent argumentation.",
+            "Discussion systematically addresses threats to validity."
+          ]
+        },
+        "section_consistency": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "consistency_score": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Consistent terminology and cross-section metric harmony maintained."
+          ]
+        },
+        "repetition_and_filler": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "ttr": 0.16,
+            "platitudes_count": 0,
+            "total_tokens": 4803
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High lexical diversity (TTR 0.16).",
+            "Zero empty conversational platitudes or throat-clearing cliches."
+          ]
+        },
+        "unsupported_claims": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "is_results_uncollected": false
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Supplied empirical results preserved under draft state."
+          ]
+        },
+        "numerical_accuracy": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.3,
+          "details": {
+            "supplied_count": 4,
+            "unsupported_metrics_count": 0
+          },
+          "deficiencies": [
+            "Unverified integer counts in draft: 0"
+          ],
+          "strengths": []
+        },
+        "overall_readability": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "bullet_ratio": 0.042,
+            "fkgl": 22.4,
+            "fre": -35.89,
+            "asl": 16.64
+          },
+          "deficiencies": [
+            "Prose register overly convoluted (FKGL 22.4 > 20.0)."
+          ],
+          "strengths": [
+            "Continuous academic prose maintained (4.2% bullet lines, well under 15% threshold)."
+          ]
+        }
+      },
+      "review_warnings": [
+        "GENERAL_REVIEW",
+        "CLAIM_NEEDS_REVIEW",
+        "GENERAL_REVIEW"
+      ],
+      "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+    },
+    {
+      "case_id": "extensive-reference-material",
+      "paper_title": "Neural and Lexical Paradigms in Modern Information Retrieval: A Comprehensive Survey",
+      "engine_type": "section-level-long-form",
+      "provider_name": "fake",
+      "model_name": "deterministic-demo",
+      "timestamp": "2026-11-01T14:57:41.179458+00:00",
+      "requested_words": 5000,
+      "generated_words": 4811,
+      "word_count_ratio": 0.962,
+      "duration_ms": 14,
+      "input_tokens": null,
+      "output_tokens": 6687,
+      "estimated_cost_usd": 0.0,
+      "overall_score": 97.14,
+      "passed": true,
+      "dimension_scores": {
+        "fact_preservation": {
+          "score": 88.46,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "recalled_count": 23,
+            "total_concepts": 26,
+            "ratio": 0.885
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High fact preservation: 23/26 key concepts retained."
+          ]
+        },
+        "citation_preservation": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "supplied": 8,
+            "preserved": 8,
+            "invented": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Zero fabricated or unsupplied citations introduced.",
+            "All 8 supplied references preserved."
+          ]
+        },
+        "section_completeness": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "total_sections": 5,
+            "missing": [],
+            "shallow": []
+          },
+          "deficiencies": [],
+          "strengths": [
+            "All 5 sections fully present with substantive multi-paragraph content."
+          ]
+        },
+        "word_count_adherence": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "actual_words": 4811,
+            "target_words": 5000,
+            "ratio": 0.962
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Optimal word-count adherence: 4811 words (96.2% of 5000 target)."
+          ]
+        },
+        "methodological_detail": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "has_design": true,
+            "has_dataset": true,
+            "has_metrics": true,
+            "has_stats": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Rigorous methodological specification (4/4 core components verified)."
+          ]
+        },
+        "technical_depth": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "vocab_count": 36,
+            "has_math": true,
+            "has_tables": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Dense academic domain terminology (36 concepts verified).",
+            "Incorporates formal mathematical formulations and notation."
+          ]
+        },
+        "argument_coherence": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "coherence_points": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Introduction establishes explicit Research Questions.",
+            "Formal academic roadmap structures subsequent argumentation.",
+            "Discussion systematically addresses threats to validity."
+          ]
+        },
+        "section_consistency": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "consistency_score": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Consistent terminology and cross-section metric harmony maintained."
+          ]
+        },
+        "repetition_and_filler": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "ttr": 0.148,
+            "platitudes_count": 0,
+            "total_tokens": 4811
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High lexical diversity (TTR 0.15).",
+            "Zero empty conversational platitudes or throat-clearing cliches."
+          ]
+        },
+        "unsupported_claims": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "is_results_uncollected": false
+          },
+          "deficiencies": [],
+          "strengths": []
+        },
+        "numerical_accuracy": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.3,
+          "details": {
+            "supplied_count": 1,
+            "unsupported_metrics_count": 0
+          },
+          "deficiencies": [
+            "Unverified integer counts in draft: 0"
+          ],
+          "strengths": []
+        },
+        "overall_readability": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "bullet_ratio": 0.041,
+            "fkgl": 22.65,
+            "fre": -37.53,
+            "asl": 16.74
+          },
+          "deficiencies": [
+            "Prose register overly convoluted (FKGL 22.65 > 20.0)."
+          ],
+          "strengths": [
+            "Continuous academic prose maintained (4.1% bullet lines, well under 15% threshold)."
+          ]
+        }
+      },
+      "review_warnings": [
+        "GENERAL_REVIEW",
+        "CLAIM_NEEDS_REVIEW",
+        "GENERAL_REVIEW"
+      ],
+      "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+    },
+    {
+      "case_id": "conflicting-source-information",
+      "paper_title": "Quantization-Aware Training for Edge Transformer Deployment",
+      "engine_type": "section-level-long-form",
+      "provider_name": "fake",
+      "model_name": "deterministic-demo",
+      "timestamp": "2026-11-01T14:57:41.200012+00:00",
+      "requested_words": 3000,
+      "generated_words": 2916,
+      "word_count_ratio": 0.972,
+      "duration_ms": 7,
+      "input_tokens": null,
+      "output_tokens": 4091,
+      "estimated_cost_usd": 0.0,
+      "overall_score": 96.36,
+      "passed": true,
+      "dimension_scores": {
+        "fact_preservation": {
+          "score": 80.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "recalled_count": 12,
+            "total_concepts": 15,
+            "ratio": 0.8
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High fact preservation: 12/15 key concepts retained."
+          ]
+        },
+        "citation_preservation": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "supplied": 1,
+            "preserved": 1,
+            "invented": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Zero fabricated or unsupplied citations introduced.",
+            "All 1 supplied references preserved."
+          ]
+        },
+        "section_completeness": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "total_sections": 5,
+            "missing": [],
+            "shallow": []
+          },
+          "deficiencies": [],
+          "strengths": [
+            "All 5 sections fully present with substantive multi-paragraph content."
+          ]
+        },
+        "word_count_adherence": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "actual_words": 2916,
+            "target_words": 3000,
+            "ratio": 0.972
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Optimal word-count adherence: 2916 words (97.2% of 3000 target)."
+          ]
+        },
+        "methodological_detail": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "has_design": true,
+            "has_dataset": true,
+            "has_metrics": true,
+            "has_stats": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Rigorous methodological specification (4/4 core components verified)."
+          ]
+        },
+        "technical_depth": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "vocab_count": 36,
+            "has_math": true,
+            "has_tables": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Dense academic domain terminology (36 concepts verified).",
+            "Incorporates formal mathematical formulations and notation."
+          ]
+        },
+        "argument_coherence": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "coherence_points": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Introduction establishes explicit Research Questions.",
+            "Formal academic roadmap structures subsequent argumentation.",
+            "Discussion systematically addresses threats to validity."
+          ]
+        },
+        "section_consistency": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "consistency_score": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Consistent terminology and cross-section metric harmony maintained."
+          ]
+        },
+        "repetition_and_filler": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "ttr": 0.238,
+            "platitudes_count": 0,
+            "total_tokens": 2916
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High lexical diversity (TTR 0.24).",
+            "Zero empty conversational platitudes or throat-clearing cliches."
+          ]
+        },
+        "unsupported_claims": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "is_results_uncollected": false
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Supplied empirical results preserved under draft state."
+          ]
+        },
+        "numerical_accuracy": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.3,
+          "details": {
+            "supplied_count": 4,
+            "unsupported_metrics_count": 0
+          },
+          "deficiencies": [
+            "Unverified integer counts in draft: 0"
+          ],
+          "strengths": []
+        },
+        "overall_readability": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "bullet_ratio": 0.07,
+            "fkgl": 22.42,
+            "fre": -35.25,
+            "asl": 17.07
+          },
+          "deficiencies": [
+            "Prose register overly convoluted (FKGL 22.42 > 20.0)."
+          ],
+          "strengths": [
+            "Continuous academic prose maintained (7.0% bullet lines, well under 15% threshold)."
+          ]
+        }
+      },
+      "review_warnings": [
+        "GENERAL_REVIEW",
+        "INPUT_CONFLICT",
+        "CLAIM_NEEDS_REVIEW",
+        "GENERAL_REVIEW"
+      ],
+      "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+    },
+    {
+      "case_id": "long-research-dossier",
+      "paper_title": "Decoupled Cross-Attention Networks for High-Throughput Biomedical Signal Telemetry",
+      "engine_type": "section-level-long-form",
+      "provider_name": "fake",
+      "model_name": "deterministic-demo",
+      "timestamp": "2026-11-01T14:57:41.236633+00:00",
+      "requested_words": 7000,
+      "generated_words": 6792,
+      "word_count_ratio": 0.97,
+      "duration_ms": 14,
+      "input_tokens": null,
+      "output_tokens": 9437,
+      "estimated_cost_usd": 0.0,
+      "overall_score": 95.47,
+      "passed": true,
+      "dimension_scores": {
+        "fact_preservation": {
+          "score": 95.45,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "recalled_count": 21,
+            "total_concepts": 22,
+            "ratio": 0.955
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High fact preservation: 21/22 key concepts retained."
+          ]
+        },
+        "citation_preservation": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "supplied": 1,
+            "preserved": 1,
+            "invented": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Zero fabricated or unsupplied citations introduced.",
+            "All 1 supplied references preserved."
+          ]
+        },
+        "section_completeness": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "total_sections": 6,
+            "missing": [],
+            "shallow": []
+          },
+          "deficiencies": [],
+          "strengths": [
+            "All 6 sections fully present with substantive multi-paragraph content."
+          ]
+        },
+        "word_count_adherence": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "actual_words": 6792,
+            "target_words": 7000,
+            "ratio": 0.97
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Optimal word-count adherence: 6792 words (97.0% of 7000 target)."
+          ]
+        },
+        "methodological_detail": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "has_design": true,
+            "has_dataset": true,
+            "has_metrics": true,
+            "has_stats": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Rigorous methodological specification (4/4 core components verified)."
+          ]
+        },
+        "technical_depth": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "vocab_count": 36,
+            "has_math": true,
+            "has_tables": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Dense academic domain terminology (36 concepts verified).",
+            "Incorporates formal mathematical formulations and notation."
+          ]
+        },
+        "argument_coherence": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "coherence_points": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Introduction establishes explicit Research Questions.",
+            "Formal academic roadmap structures subsequent argumentation.",
+            "Discussion systematically addresses threats to validity."
+          ]
+        },
+        "section_consistency": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "consistency_score": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Consistent terminology and cross-section metric harmony maintained."
+          ]
+        },
+        "repetition_and_filler": {
+          "score": 70.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "ttr": 0.112,
+            "platitudes_count": 0,
+            "total_tokens": 6792
+          },
+          "deficiencies": [
+            "Low lexical diversity (TTR 0.11 < 0.12 indicates boilerplate repetition)."
+          ],
+          "strengths": [
+            "Zero empty conversational platitudes or throat-clearing cliches."
+          ]
+        },
+        "unsupported_claims": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "is_results_uncollected": false
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Supplied empirical results preserved under draft state."
+          ]
+        },
+        "numerical_accuracy": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.3,
+          "details": {
+            "supplied_count": 15,
+            "unsupported_metrics_count": 0
+          },
+          "deficiencies": [
+            "Unverified integer counts in draft: 0"
+          ],
+          "strengths": []
+        },
+        "overall_readability": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "bullet_ratio": 0.029,
+            "fkgl": 22.26,
+            "fre": -35.95,
+            "asl": 16.04
+          },
+          "deficiencies": [
+            "Prose register overly convoluted (FKGL 22.26 > 20.0)."
+          ],
+          "strengths": [
+            "Continuous academic prose maintained (2.9% bullet lines, well under 15% threshold)."
+          ]
+        }
+      },
+      "review_warnings": [
+        "GENERAL_REVIEW",
+        "CLAIM_NEEDS_REVIEW",
+        "GENERAL_REVIEW"
+      ],
+      "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+    },
+    {
+      "case_id": "short-project-notes",
+      "paper_title": "Federated Optimization with Dynamic Gradient Pruning for Resource-Constrained Telemetry",
+      "engine_type": "section-level-long-form",
+      "provider_name": "fake",
+      "model_name": "deterministic-demo",
+      "timestamp": "2026-11-01T14:57:41.250949+00:00",
+      "requested_words": 1500,
+      "generated_words": 1428,
+      "word_count_ratio": 0.952,
+      "duration_ms": 4,
+      "input_tokens": null,
+      "output_tokens": 2101,
+      "estimated_cost_usd": 0.0,
+      "overall_score": 92.93,
+      "passed": true,
+      "dimension_scores": {
+        "fact_preservation": {
+          "score": 78.95,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "recalled_count": 15,
+            "total_concepts": 19,
+            "ratio": 0.789
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High fact preservation: 15/19 key concepts retained."
+          ]
+        },
+        "citation_preservation": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "supplied": 1,
+            "preserved": 1,
+            "invented": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Zero fabricated or unsupplied citations introduced.",
+            "All 1 supplied references preserved."
+          ]
+        },
+        "section_completeness": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "total_sections": 4,
+            "missing": [],
+            "shallow": []
+          },
+          "deficiencies": [],
+          "strengths": [
+            "All 4 sections fully present with substantive multi-paragraph content."
+          ]
+        },
+        "word_count_adherence": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "actual_words": 1428,
+            "target_words": 1500,
+            "ratio": 0.952
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Optimal word-count adherence: 1428 words (95.2% of 1500 target)."
+          ]
+        },
+        "methodological_detail": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "has_design": true,
+            "has_dataset": true,
+            "has_metrics": true,
+            "has_stats": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Rigorous methodological specification (4/4 core components verified)."
+          ]
+        },
+        "technical_depth": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "vocab_count": 34,
+            "has_math": true,
+            "has_tables": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Dense academic domain terminology (34 concepts verified).",
+            "Incorporates formal mathematical formulations and notation."
+          ]
+        },
+        "argument_coherence": {
+          "score": 70.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "coherence_points": 70.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Introduction establishes explicit Research Questions.",
+            "Formal academic roadmap structures subsequent argumentation."
+          ]
+        },
+        "section_consistency": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "consistency_score": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Consistent terminology and cross-section metric harmony maintained."
+          ]
+        },
+        "repetition_and_filler": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "ttr": 0.442,
+            "platitudes_count": 0,
+            "total_tokens": 1428
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High lexical diversity (TTR 0.44).",
+            "Zero empty conversational platitudes or throat-clearing cliches."
+          ]
+        },
+        "unsupported_claims": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "is_results_uncollected": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Properly declared unconducted empirical status with explicit researcher input notice."
+          ]
+        },
+        "numerical_accuracy": {
+          "score": 80.0,
+          "passed": true,
+          "weight": 1.3,
+          "details": {
+            "supplied_count": 0,
+            "unsupported_metrics_count": 0
+          },
+          "deficiencies": [
+            "Unverified integer counts in draft: 0, 90"
+          ],
+          "strengths": []
+        },
+        "overall_readability": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "bullet_ratio": 0.077,
+            "fkgl": 22.57,
+            "fre": -34.16,
+            "asl": 18.3
+          },
+          "deficiencies": [
+            "Prose register overly convoluted (FKGL 22.57 > 20.0)."
+          ],
+          "strengths": [
+            "Continuous academic prose maintained (7.7% bullet lines, well under 15% threshold)."
+          ]
+        }
+      },
+      "review_warnings": [
+        "GENERAL_REVIEW",
+        "MISSING_RESULTS",
+        "CLAIM_NEEDS_REVIEW",
+        "GENERAL_REVIEW"
+      ],
+      "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+    },
+    {
+      "case_id": "explicit-simulated-data",
+      "paper_title": "Synthetic Evaluation Framework for End-to-End Latency in SDN-Governed Edge Topologies",
+      "engine_type": "section-level-long-form",
+      "provider_name": "fake",
+      "model_name": "deterministic-demo",
+      "timestamp": "2026-11-01T14:57:41.270842+00:00",
+      "requested_words": 3000,
+      "generated_words": 2956,
+      "word_count_ratio": 0.985,
+      "duration_ms": 7,
+      "input_tokens": null,
+      "output_tokens": 4199,
+      "estimated_cost_usd": 0.0,
+      "overall_score": 97.47,
+      "passed": true,
+      "dimension_scores": {
+        "fact_preservation": {
+          "score": 92.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "recalled_count": 23,
+            "total_concepts": 25,
+            "ratio": 0.92
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High fact preservation: 23/25 key concepts retained."
+          ]
+        },
+        "citation_preservation": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "supplied": 1,
+            "preserved": 1,
+            "invented": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Zero fabricated or unsupplied citations introduced.",
+            "All 1 supplied references preserved."
+          ]
+        },
+        "section_completeness": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "total_sections": 5,
+            "missing": [],
+            "shallow": []
+          },
+          "deficiencies": [],
+          "strengths": [
+            "All 5 sections fully present with substantive multi-paragraph content."
+          ]
+        },
+        "word_count_adherence": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "actual_words": 2956,
+            "target_words": 3000,
+            "ratio": 0.985
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Optimal word-count adherence: 2956 words (98.5% of 3000 target)."
+          ]
+        },
+        "methodological_detail": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "has_design": true,
+            "has_dataset": true,
+            "has_metrics": true,
+            "has_stats": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Rigorous methodological specification (4/4 core components verified)."
+          ]
+        },
+        "technical_depth": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "vocab_count": 35,
+            "has_math": true,
+            "has_tables": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Dense academic domain terminology (35 concepts verified).",
+            "Incorporates formal mathematical formulations and notation."
+          ]
+        },
+        "argument_coherence": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "coherence_points": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Introduction establishes explicit Research Questions.",
+            "Formal academic roadmap structures subsequent argumentation.",
+            "Discussion systematically addresses threats to validity."
+          ]
+        },
+        "section_consistency": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "consistency_score": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Consistent terminology and cross-section metric harmony maintained."
+          ]
+        },
+        "repetition_and_filler": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "ttr": 0.239,
+            "platitudes_count": 0,
+            "total_tokens": 2956
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High lexical diversity (TTR 0.24).",
+            "Zero empty conversational platitudes or throat-clearing cliches."
+          ]
+        },
+        "unsupported_claims": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "is_results_uncollected": false
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Supplied empirical results preserved under draft state."
+          ]
+        },
+        "numerical_accuracy": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.3,
+          "details": {
+            "supplied_count": 4,
+            "unsupported_metrics_count": 0
+          },
+          "deficiencies": [
+            "Unverified integer counts in draft: 0"
+          ],
+          "strengths": []
+        },
+        "overall_readability": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "bullet_ratio": 0.071,
+            "fkgl": 22.27,
+            "fre": -33.74,
+            "asl": 17.32
+          },
+          "deficiencies": [
+            "Prose register overly convoluted (FKGL 22.27 > 20.0)."
+          ],
+          "strengths": [
+            "Continuous academic prose maintained (7.1% bullet lines, well under 15% threshold)."
+          ]
+        }
+      },
+      "review_warnings": [
+        "GENERAL_REVIEW",
+        "CLAIM_NEEDS_REVIEW",
+        "GENERAL_REVIEW"
+      ],
+      "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+    }
+  ],
+  "comparator_results": [
+    {
+      "case_id": "complete-empirical-research",
+      "paper_title": "Evaluating Retrieval-Augmented Generation for Factual Question Answering over a University Policy Corpus",
+      "engine_type": "single-pass-legacy",
+      "provider_name": "fake",
+      "model_name": "deterministic-demo",
+      "timestamp": "2026-11-01T14:57:41.067287+00:00",
+      "requested_words": 5000,
+      "generated_words": 999,
+      "word_count_ratio": 0.2,
+      "duration_ms": 0,
+      "input_tokens": null,
+      "output_tokens": 1998,
+      "estimated_cost_usd": 0.0,
+      "overall_score": 78.94,
+      "passed": false,
+      "dimension_scores": {
+        "fact_preservation": {
+          "score": 77.78,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "recalled_count": 21,
+            "total_concepts": 27,
+            "ratio": 0.778
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High fact preservation: 21/27 key concepts retained."
+          ]
+        },
+        "citation_preservation": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "supplied": 2,
+            "preserved": 2,
+            "invented": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Zero fabricated or unsupplied citations introduced.",
+            "All 2 supplied references preserved."
+          ]
+        },
+        "section_completeness": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "total_sections": 6,
+            "missing": [],
+            "shallow": [
+              "related_work"
+            ]
+          },
+          "deficiencies": [
+            "Sections under-developed (< 80 words): related_work"
+          ],
+          "strengths": []
+        },
+        "word_count_adherence": {
+          "score": 20.0,
+          "passed": false,
+          "weight": 1.0,
+          "details": {
+            "actual_words": 999,
+            "target_words": 5000,
+            "ratio": 0.2
+          },
+          "deficiencies": [
+            "Significant length shortfall: 999 words (20.0% of 5000 target)."
+          ],
+          "strengths": []
+        },
+        "methodological_detail": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "has_design": true,
+            "has_dataset": true,
+            "has_metrics": true,
+            "has_stats": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Rigorous methodological specification (4/4 core components verified)."
+          ]
+        },
+        "technical_depth": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "vocab_count": 34,
+            "has_math": true,
+            "has_tables": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Dense academic domain terminology (34 concepts verified).",
+            "Incorporates formal mathematical formulations and notation."
+          ]
+        },
+        "argument_coherence": {
+          "score": 75.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "coherence_points": 75.0
+          },
+          "deficiencies": [
+            "Introduction missing explicit Research Questions."
+          ],
+          "strengths": [
+            "Formal academic roadmap structures subsequent argumentation.",
+            "Discussion systematically addresses threats to validity."
+          ]
+        },
+        "section_consistency": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "consistency_score": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Consistent terminology and cross-section metric harmony maintained."
+          ]
+        },
+        "repetition_and_filler": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "ttr": 0.541,
+            "platitudes_count": 0,
+            "total_tokens": 999
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High lexical diversity (TTR 0.54).",
+            "Zero empty conversational platitudes or throat-clearing cliches."
+          ]
+        },
+        "unsupported_claims": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "is_results_uncollected": false
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Supplied empirical results preserved under draft state."
+          ]
+        },
+        "numerical_accuracy": {
+          "score": 0.0,
+          "passed": false,
+          "weight": 1.3,
+          "details": {
+            "supplied_count": 19,
+            "unsupported_metrics_count": 10
+          },
+          "deficiencies": [
+            "Fabricated metric/statistical values not present in source context: 0.001, 118.0, 142.5, 2.3, 24.5"
+          ],
+          "strengths": []
+        },
+        "overall_readability": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "bullet_ratio": 0.0,
+            "fkgl": 18.75,
+            "fre": -14.76,
+            "asl": 13.82
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Continuous academic prose maintained (0.0% bullet lines, well under 15% threshold).",
+            "Authoritative academic readability (FKGL 18.75, Avg sentence length 13.82 words)."
+          ]
+        }
+      },
+      "review_warnings": [
+        "CLAIM_NEEDS_REVIEW",
+        "GENERAL_REVIEW"
+      ],
+      "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+    },
+    {
+      "case_id": "incomplete-experimental-research",
+      "paper_title": "Deep Multi-Task Learning for Histopathological Phenotype Screening: Preliminary Pilot Study",
+      "engine_type": "single-pass-legacy",
+      "provider_name": "fake",
+      "model_name": "deterministic-demo",
+      "timestamp": "2026-11-01T14:57:41.089514+00:00",
+      "requested_words": 3000,
+      "generated_words": 892,
+      "word_count_ratio": 0.297,
+      "duration_ms": 0,
+      "input_tokens": null,
+      "output_tokens": 1784,
+      "estimated_cost_usd": 0.0,
+      "overall_score": 75.83,
+      "passed": false,
+      "dimension_scores": {
+        "fact_preservation": {
+          "score": 52.0,
+          "passed": false,
+          "weight": 1.2,
+          "details": {
+            "recalled_count": 13,
+            "total_concepts": 25,
+            "ratio": 0.52
+          },
+          "deficiencies": [
+            "Low fact preservation: only 13/25 key concepts recalled."
+          ],
+          "strengths": []
+        },
+        "citation_preservation": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "supplied": 1,
+            "preserved": 1,
+            "invented": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Zero fabricated or unsupplied citations introduced.",
+            "All 1 supplied references preserved."
+          ]
+        },
+        "section_completeness": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "total_sections": 6,
+            "missing": [],
+            "shallow": [
+              "related_work"
+            ]
+          },
+          "deficiencies": [
+            "Sections under-developed (< 80 words): related_work"
+          ],
+          "strengths": []
+        },
+        "word_count_adherence": {
+          "score": 20.81,
+          "passed": false,
+          "weight": 1.0,
+          "details": {
+            "actual_words": 892,
+            "target_words": 3000,
+            "ratio": 0.297
+          },
+          "deficiencies": [
+            "Significant length shortfall: 892 words (29.7% of 3000 target)."
+          ],
+          "strengths": []
+        },
+        "methodological_detail": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "has_design": true,
+            "has_dataset": true,
+            "has_metrics": true,
+            "has_stats": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Rigorous methodological specification (4/4 core components verified)."
+          ]
+        },
+        "technical_depth": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "vocab_count": 34,
+            "has_math": true,
+            "has_tables": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Dense academic domain terminology (34 concepts verified).",
+            "Incorporates formal mathematical formulations and notation."
+          ]
+        },
+        "argument_coherence": {
+          "score": 75.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "coherence_points": 75.0
+          },
+          "deficiencies": [
+            "Introduction missing explicit Research Questions."
+          ],
+          "strengths": [
+            "Formal academic roadmap structures subsequent argumentation.",
+            "Discussion systematically addresses threats to validity."
+          ]
+        },
+        "section_consistency": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "consistency_score": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Consistent terminology and cross-section metric harmony maintained."
+          ]
+        },
+        "repetition_and_filler": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "ttr": 0.573,
+            "platitudes_count": 0,
+            "total_tokens": 892
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High lexical diversity (TTR 0.57).",
+            "Zero empty conversational platitudes or throat-clearing cliches."
+          ]
+        },
+        "unsupported_claims": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "is_results_uncollected": false
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Supplied empirical results preserved under draft state."
+          ]
+        },
+        "numerical_accuracy": {
+          "score": 0.0,
+          "passed": false,
+          "weight": 1.3,
+          "details": {
+            "supplied_count": 6,
+            "unsupported_metrics_count": 10
+          },
+          "deficiencies": [
+            "Fabricated metric/statistical values not present in source context: 0.001, 118.0, 142.5, 2.3, 24.5"
+          ],
+          "strengths": []
+        },
+        "overall_readability": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "bullet_ratio": 0.0,
+            "fkgl": 20.54,
+            "fre": -24.11,
+            "asl": 15.75
+          },
+          "deficiencies": [
+            "Prose register overly convoluted (FKGL 20.54 > 20.0)."
+          ],
+          "strengths": [
+            "Continuous academic prose maintained (0.0% bullet lines, well under 15% threshold)."
+          ]
+        }
+      },
+      "review_warnings": [
+        "CLAIM_NEEDS_REVIEW",
+        "GENERAL_REVIEW"
+      ],
+      "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+    },
+    {
+      "case_id": "uncollected-quantitative-results",
+      "paper_title": "Adaptive Hierarchical Routing for Distributed Edge Model Inference",
+      "engine_type": "single-pass-legacy",
+      "provider_name": "fake",
+      "model_name": "deterministic-demo",
+      "timestamp": "2026-11-01T14:57:41.113164+00:00",
+      "requested_words": 3000,
+      "generated_words": 846,
+      "word_count_ratio": 0.282,
+      "duration_ms": 0,
+      "input_tokens": null,
+      "output_tokens": 1692,
+      "estimated_cost_usd": 0.0,
+      "overall_score": 66.03,
+      "passed": false,
+      "dimension_scores": {
+        "fact_preservation": {
+          "score": 68.18,
+          "passed": false,
+          "weight": 1.2,
+          "details": {
+            "recalled_count": 15,
+            "total_concepts": 22,
+            "ratio": 0.682
+          },
+          "deficiencies": [
+            "Low fact preservation: only 15/22 key concepts recalled."
+          ],
+          "strengths": []
+        },
+        "citation_preservation": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "supplied": 1,
+            "preserved": 1,
+            "invented": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Zero fabricated or unsupplied citations introduced.",
+            "All 1 supplied references preserved."
+          ]
+        },
+        "section_completeness": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "total_sections": 6,
+            "missing": [],
+            "shallow": [
+              "related_work"
+            ]
+          },
+          "deficiencies": [
+            "Sections under-developed (< 80 words): related_work"
+          ],
+          "strengths": []
+        },
+        "word_count_adherence": {
+          "score": 20.0,
+          "passed": false,
+          "weight": 1.0,
+          "details": {
+            "actual_words": 846,
+            "target_words": 3000,
+            "ratio": 0.282
+          },
+          "deficiencies": [
+            "Significant length shortfall: 846 words (28.2% of 3000 target)."
+          ],
+          "strengths": []
+        },
+        "methodological_detail": {
+          "score": 75.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "has_design": true,
+            "has_dataset": true,
+            "has_metrics": false,
+            "has_stats": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Rigorous methodological specification (3/4 core components verified)."
+          ]
+        },
+        "technical_depth": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "vocab_count": 32,
+            "has_math": true,
+            "has_tables": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Dense academic domain terminology (32 concepts verified).",
+            "Incorporates formal mathematical formulations and notation."
+          ]
+        },
+        "argument_coherence": {
+          "score": 75.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "coherence_points": 75.0
+          },
+          "deficiencies": [
+            "Introduction missing explicit Research Questions."
+          ],
+          "strengths": [
+            "Formal academic roadmap structures subsequent argumentation.",
+            "Discussion systematically addresses threats to validity."
+          ]
+        },
+        "section_consistency": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "consistency_score": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Consistent terminology and cross-section metric harmony maintained."
+          ]
+        },
+        "repetition_and_filler": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "ttr": 0.57,
+            "platitudes_count": 0,
+            "total_tokens": 846
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High lexical diversity (TTR 0.57).",
+            "Zero empty conversational platitudes or throat-clearing cliches."
+          ]
+        },
+        "unsupported_claims": {
+          "score": 0.0,
+          "passed": false,
+          "weight": 1.2,
+          "details": {
+            "is_results_uncollected": true
+          },
+          "deficiencies": [
+            "Results were not collected, but the draft failed to set state 'needs_input' or omit fabricated metrics."
+          ],
+          "strengths": []
+        },
+        "numerical_accuracy": {
+          "score": 0.0,
+          "passed": false,
+          "weight": 1.3,
+          "details": {
+            "supplied_count": 1,
+            "unsupported_metrics_count": 10
+          },
+          "deficiencies": [
+            "Fabricated metric/statistical values not present in source context: 0.001, 118.0, 142.5, 2.3, 24.5"
+          ],
+          "strengths": []
+        },
+        "overall_readability": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "bullet_ratio": 0.0,
+            "fkgl": 21.72,
+            "fre": -30.04,
+            "asl": 17.18
+          },
+          "deficiencies": [
+            "Prose register overly convoluted (FKGL 21.72 > 20.0)."
+          ],
+          "strengths": [
+            "Continuous academic prose maintained (0.0% bullet lines, well under 15% threshold)."
+          ]
+        }
+      },
+      "review_warnings": [
+        "MISSING_RESULTS",
+        "CLAIM_NEEDS_REVIEW",
+        "GENERAL_REVIEW"
+      ],
+      "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+    },
+    {
+      "case_id": "technical-research-with-equations",
+      "paper_title": "Equivariant Graph Neural Networks for Molecular Conformation and Ground-State Energy Approximation",
+      "engine_type": "single-pass-legacy",
+      "provider_name": "fake",
+      "model_name": "deterministic-demo",
+      "timestamp": "2026-11-01T14:57:41.146168+00:00",
+      "requested_words": 5000,
+      "generated_words": 908,
+      "word_count_ratio": 0.182,
+      "duration_ms": 0,
+      "input_tokens": null,
+      "output_tokens": 1816,
+      "estimated_cost_usd": 0.0,
+      "overall_score": 76.74,
+      "passed": false,
+      "dimension_scores": {
+        "fact_preservation": {
+          "score": 83.33,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "recalled_count": 20,
+            "total_concepts": 24,
+            "ratio": 0.833
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High fact preservation: 20/24 key concepts retained."
+          ]
+        },
+        "citation_preservation": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "supplied": 2,
+            "preserved": 2,
+            "invented": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Zero fabricated or unsupplied citations introduced.",
+            "All 2 supplied references preserved."
+          ]
+        },
+        "section_completeness": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "total_sections": 6,
+            "missing": [],
+            "shallow": [
+              "related_work"
+            ]
+          },
+          "deficiencies": [
+            "Sections under-developed (< 80 words): related_work"
+          ],
+          "strengths": []
+        },
+        "word_count_adherence": {
+          "score": 20.0,
+          "passed": false,
+          "weight": 1.0,
+          "details": {
+            "actual_words": 908,
+            "target_words": 5000,
+            "ratio": 0.182
+          },
+          "deficiencies": [
+            "Significant length shortfall: 908 words (18.2% of 5000 target)."
+          ],
+          "strengths": []
+        },
+        "methodological_detail": {
+          "score": 75.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "has_design": true,
+            "has_dataset": true,
+            "has_metrics": false,
+            "has_stats": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Rigorous methodological specification (3/4 core components verified)."
+          ]
+        },
+        "technical_depth": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "vocab_count": 33,
+            "has_math": true,
+            "has_tables": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Dense academic domain terminology (33 concepts verified).",
+            "Incorporates formal mathematical formulations and notation."
+          ]
+        },
+        "argument_coherence": {
+          "score": 75.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "coherence_points": 75.0
+          },
+          "deficiencies": [
+            "Introduction missing explicit Research Questions."
+          ],
+          "strengths": [
+            "Formal academic roadmap structures subsequent argumentation.",
+            "Discussion systematically addresses threats to validity."
+          ]
+        },
+        "section_consistency": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "consistency_score": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Consistent terminology and cross-section metric harmony maintained."
+          ]
+        },
+        "repetition_and_filler": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "ttr": 0.574,
+            "platitudes_count": 0,
+            "total_tokens": 908
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High lexical diversity (TTR 0.57).",
+            "Zero empty conversational platitudes or throat-clearing cliches."
+          ]
+        },
+        "unsupported_claims": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "is_results_uncollected": false
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Supplied empirical results preserved under draft state."
+          ]
+        },
+        "numerical_accuracy": {
+          "score": 0.0,
+          "passed": false,
+          "weight": 1.3,
+          "details": {
+            "supplied_count": 4,
+            "unsupported_metrics_count": 10
+          },
+          "deficiencies": [
+            "Fabricated metric/statistical values not present in source context: 0.001, 118.0, 142.5, 2.3, 24.5"
+          ],
+          "strengths": []
+        },
+        "overall_readability": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "bullet_ratio": 0.0,
+            "fkgl": 20.64,
+            "fre": -23.77,
+            "asl": 16.37
+          },
+          "deficiencies": [
+            "Prose register overly convoluted (FKGL 20.64 > 20.0)."
+          ],
+          "strengths": [
+            "Continuous academic prose maintained (0.0% bullet lines, well under 15% threshold)."
+          ]
+        }
+      },
+      "review_warnings": [
+        "CLAIM_NEEDS_REVIEW",
+        "GENERAL_REVIEW"
+      ],
+      "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+    },
+    {
+      "case_id": "extensive-reference-material",
+      "paper_title": "Neural and Lexical Paradigms in Modern Information Retrieval: A Comprehensive Survey",
+      "engine_type": "single-pass-legacy",
+      "provider_name": "fake",
+      "model_name": "deterministic-demo",
+      "timestamp": "2026-11-01T14:57:41.184416+00:00",
+      "requested_words": 5000,
+      "generated_words": 690,
+      "word_count_ratio": 0.138,
+      "duration_ms": 0,
+      "input_tokens": null,
+      "output_tokens": 1380,
+      "estimated_cost_usd": 0.0,
+      "overall_score": 83.27,
+      "passed": false,
+      "dimension_scores": {
+        "fact_preservation": {
+          "score": 57.69,
+          "passed": false,
+          "weight": 1.2,
+          "details": {
+            "recalled_count": 15,
+            "total_concepts": 26,
+            "ratio": 0.577
+          },
+          "deficiencies": [
+            "Low fact preservation: only 15/26 key concepts recalled."
+          ],
+          "strengths": []
+        },
+        "citation_preservation": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "supplied": 8,
+            "preserved": 8,
+            "invented": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Zero fabricated or unsupplied citations introduced.",
+            "All 8 supplied references preserved."
+          ]
+        },
+        "section_completeness": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "total_sections": 5,
+            "missing": [],
+            "shallow": [
+              "related_work"
+            ]
+          },
+          "deficiencies": [
+            "Sections under-developed (< 80 words): related_work"
+          ],
+          "strengths": []
+        },
+        "word_count_adherence": {
+          "score": 20.0,
+          "passed": false,
+          "weight": 1.0,
+          "details": {
+            "actual_words": 690,
+            "target_words": 5000,
+            "ratio": 0.138
+          },
+          "deficiencies": [
+            "Significant length shortfall: 690 words (13.8% of 5000 target)."
+          ],
+          "strengths": []
+        },
+        "methodological_detail": {
+          "score": 75.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "has_design": true,
+            "has_dataset": true,
+            "has_metrics": false,
+            "has_stats": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Rigorous methodological specification (3/4 core components verified)."
+          ]
+        },
+        "technical_depth": {
+          "score": 85.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "vocab_count": 30,
+            "has_math": true,
+            "has_tables": false
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Dense academic domain terminology (30 concepts verified).",
+            "Incorporates formal mathematical formulations and notation."
+          ]
+        },
+        "argument_coherence": {
+          "score": 75.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "coherence_points": 75.0
+          },
+          "deficiencies": [
+            "Introduction missing explicit Research Questions."
+          ],
+          "strengths": [
+            "Formal academic roadmap structures subsequent argumentation.",
+            "Discussion systematically addresses threats to validity."
+          ]
+        },
+        "section_consistency": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "consistency_score": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Consistent terminology and cross-section metric harmony maintained."
+          ]
+        },
+        "repetition_and_filler": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "ttr": 0.613,
+            "platitudes_count": 0,
+            "total_tokens": 690
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High lexical diversity (TTR 0.61).",
+            "Zero empty conversational platitudes or throat-clearing cliches."
+          ]
+        },
+        "unsupported_claims": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "is_results_uncollected": false
+          },
+          "deficiencies": [],
+          "strengths": []
+        },
+        "numerical_accuracy": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.3,
+          "details": {
+            "supplied_count": 1,
+            "unsupported_metrics_count": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Strict numerical fidelity: 100% of reported statistics grounded in supplied evidence."
+          ]
+        },
+        "overall_readability": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "bullet_ratio": 0.0,
+            "fkgl": 22.98,
+            "fre": -33.91,
+            "asl": 20.09
+          },
+          "deficiencies": [
+            "Prose register overly convoluted (FKGL 22.98 > 20.0)."
+          ],
+          "strengths": [
+            "Continuous academic prose maintained (0.0% bullet lines, well under 15% threshold)."
+          ]
+        }
+      },
+      "review_warnings": [
+        "CLAIM_NEEDS_REVIEW",
+        "GENERAL_REVIEW"
+      ],
+      "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+    },
+    {
+      "case_id": "conflicting-source-information",
+      "paper_title": "Quantization-Aware Training for Edge Transformer Deployment",
+      "engine_type": "single-pass-legacy",
+      "provider_name": "fake",
+      "model_name": "deterministic-demo",
+      "timestamp": "2026-11-01T14:57:41.204966+00:00",
+      "requested_words": 3000,
+      "generated_words": 765,
+      "word_count_ratio": 0.255,
+      "duration_ms": 0,
+      "input_tokens": null,
+      "output_tokens": 1530,
+      "estimated_cost_usd": 0.0,
+      "overall_score": 76.05,
+      "passed": false,
+      "dimension_scores": {
+        "fact_preservation": {
+          "score": 46.67,
+          "passed": false,
+          "weight": 1.2,
+          "details": {
+            "recalled_count": 7,
+            "total_concepts": 15,
+            "ratio": 0.467
+          },
+          "deficiencies": [
+            "Low fact preservation: only 7/15 key concepts recalled."
+          ],
+          "strengths": []
+        },
+        "citation_preservation": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "supplied": 1,
+            "preserved": 1,
+            "invented": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Zero fabricated or unsupplied citations introduced.",
+            "All 1 supplied references preserved."
+          ]
+        },
+        "section_completeness": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "total_sections": 5,
+            "missing": [],
+            "shallow": []
+          },
+          "deficiencies": [],
+          "strengths": [
+            "All 5 sections fully present with substantive multi-paragraph content."
+          ]
+        },
+        "word_count_adherence": {
+          "score": 20.0,
+          "passed": false,
+          "weight": 1.0,
+          "details": {
+            "actual_words": 765,
+            "target_words": 3000,
+            "ratio": 0.255
+          },
+          "deficiencies": [
+            "Significant length shortfall: 765 words (25.5% of 3000 target)."
+          ],
+          "strengths": []
+        },
+        "methodological_detail": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "has_design": true,
+            "has_dataset": true,
+            "has_metrics": true,
+            "has_stats": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Rigorous methodological specification (4/4 core components verified)."
+          ]
+        },
+        "technical_depth": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "vocab_count": 33,
+            "has_math": true,
+            "has_tables": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Dense academic domain terminology (33 concepts verified).",
+            "Incorporates formal mathematical formulations and notation."
+          ]
+        },
+        "argument_coherence": {
+          "score": 75.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "coherence_points": 75.0
+          },
+          "deficiencies": [
+            "Introduction missing explicit Research Questions."
+          ],
+          "strengths": [
+            "Formal academic roadmap structures subsequent argumentation.",
+            "Discussion systematically addresses threats to validity."
+          ]
+        },
+        "section_consistency": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "consistency_score": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Consistent terminology and cross-section metric harmony maintained."
+          ]
+        },
+        "repetition_and_filler": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "ttr": 0.605,
+            "platitudes_count": 0,
+            "total_tokens": 765
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High lexical diversity (TTR 0.61).",
+            "Zero empty conversational platitudes or throat-clearing cliches."
+          ]
+        },
+        "unsupported_claims": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "is_results_uncollected": false
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Supplied empirical results preserved under draft state."
+          ]
+        },
+        "numerical_accuracy": {
+          "score": 0.0,
+          "passed": false,
+          "weight": 1.3,
+          "details": {
+            "supplied_count": 4,
+            "unsupported_metrics_count": 10
+          },
+          "deficiencies": [
+            "Fabricated metric/statistical values not present in source context: 0.001, 118.0, 142.5, 2.3, 24.5"
+          ],
+          "strengths": []
+        },
+        "overall_readability": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "bullet_ratio": 0.0,
+            "fkgl": 21.36,
+            "fre": -29.43,
+            "asl": 16.09
+          },
+          "deficiencies": [
+            "Prose register overly convoluted (FKGL 21.36 > 20.0)."
+          ],
+          "strengths": [
+            "Continuous academic prose maintained (0.0% bullet lines, well under 15% threshold)."
+          ]
+        }
+      },
+      "review_warnings": [
+        "INPUT_CONFLICT",
+        "CLAIM_NEEDS_REVIEW",
+        "GENERAL_REVIEW"
+      ],
+      "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+    },
+    {
+      "case_id": "long-research-dossier",
+      "paper_title": "Decoupled Cross-Attention Networks for High-Throughput Biomedical Signal Telemetry",
+      "engine_type": "single-pass-legacy",
+      "provider_name": "fake",
+      "model_name": "deterministic-demo",
+      "timestamp": "2026-11-01T14:57:41.242455+00:00",
+      "requested_words": 7000,
+      "generated_words": 977,
+      "word_count_ratio": 0.14,
+      "duration_ms": 0,
+      "input_tokens": null,
+      "output_tokens": 1954,
+      "estimated_cost_usd": 0.0,
+      "overall_score": 76.96,
+      "passed": false,
+      "dimension_scores": {
+        "fact_preservation": {
+          "score": 77.27,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "recalled_count": 17,
+            "total_concepts": 22,
+            "ratio": 0.773
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High fact preservation: 17/22 key concepts retained."
+          ]
+        },
+        "citation_preservation": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "supplied": 1,
+            "preserved": 1,
+            "invented": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Zero fabricated or unsupplied citations introduced.",
+            "All 1 supplied references preserved."
+          ]
+        },
+        "section_completeness": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "total_sections": 6,
+            "missing": [],
+            "shallow": [
+              "related_work"
+            ]
+          },
+          "deficiencies": [
+            "Sections under-developed (< 80 words): related_work"
+          ],
+          "strengths": []
+        },
+        "word_count_adherence": {
+          "score": 20.0,
+          "passed": false,
+          "weight": 1.0,
+          "details": {
+            "actual_words": 977,
+            "target_words": 7000,
+            "ratio": 0.14
+          },
+          "deficiencies": [
+            "Significant length shortfall: 977 words (14.0% of 7000 target)."
+          ],
+          "strengths": []
+        },
+        "methodological_detail": {
+          "score": 75.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "has_design": true,
+            "has_dataset": true,
+            "has_metrics": false,
+            "has_stats": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Rigorous methodological specification (3/4 core components verified)."
+          ]
+        },
+        "technical_depth": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "vocab_count": 32,
+            "has_math": true,
+            "has_tables": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Dense academic domain terminology (32 concepts verified).",
+            "Incorporates formal mathematical formulations and notation."
+          ]
+        },
+        "argument_coherence": {
+          "score": 75.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "coherence_points": 75.0
+          },
+          "deficiencies": [
+            "Introduction missing explicit Research Questions."
+          ],
+          "strengths": [
+            "Formal academic roadmap structures subsequent argumentation.",
+            "Discussion systematically addresses threats to validity."
+          ]
+        },
+        "section_consistency": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "consistency_score": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Consistent terminology and cross-section metric harmony maintained."
+          ]
+        },
+        "repetition_and_filler": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "ttr": 0.562,
+            "platitudes_count": 0,
+            "total_tokens": 977
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High lexical diversity (TTR 0.56).",
+            "Zero empty conversational platitudes or throat-clearing cliches."
+          ]
+        },
+        "unsupported_claims": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "is_results_uncollected": false
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Supplied empirical results preserved under draft state."
+          ]
+        },
+        "numerical_accuracy": {
+          "score": 0.0,
+          "passed": false,
+          "weight": 1.3,
+          "details": {
+            "supplied_count": 15,
+            "unsupported_metrics_count": 10
+          },
+          "deficiencies": [
+            "Fabricated metric/statistical values not present in source context: 0.001, 118.0, 142.5, 2.3, 24.5"
+          ],
+          "strengths": []
+        },
+        "overall_readability": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "bullet_ratio": 0.0,
+            "fkgl": 18.98,
+            "fre": -16.6,
+            "asl": 13.7
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Continuous academic prose maintained (0.0% bullet lines, well under 15% threshold).",
+            "Authoritative academic readability (FKGL 18.98, Avg sentence length 13.7 words)."
+          ]
+        }
+      },
+      "review_warnings": [
+        "CLAIM_NEEDS_REVIEW",
+        "GENERAL_REVIEW"
+      ],
+      "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+    },
+    {
+      "case_id": "short-project-notes",
+      "paper_title": "Federated Optimization with Dynamic Gradient Pruning for Resource-Constrained Telemetry",
+      "engine_type": "single-pass-legacy",
+      "provider_name": "fake",
+      "model_name": "deterministic-demo",
+      "timestamp": "2026-11-01T14:57:41.255283+00:00",
+      "requested_words": 1500,
+      "generated_words": 610,
+      "word_count_ratio": 0.407,
+      "duration_ms": 0,
+      "input_tokens": null,
+      "output_tokens": 1220,
+      "estimated_cost_usd": 0.0,
+      "overall_score": 64.67,
+      "passed": false,
+      "dimension_scores": {
+        "fact_preservation": {
+          "score": 63.16,
+          "passed": false,
+          "weight": 1.2,
+          "details": {
+            "recalled_count": 12,
+            "total_concepts": 19,
+            "ratio": 0.632
+          },
+          "deficiencies": [
+            "Low fact preservation: only 12/19 key concepts recalled."
+          ],
+          "strengths": []
+        },
+        "citation_preservation": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "supplied": 1,
+            "preserved": 1,
+            "invented": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Zero fabricated or unsupplied citations introduced.",
+            "All 1 supplied references preserved."
+          ]
+        },
+        "section_completeness": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "total_sections": 4,
+            "missing": [],
+            "shallow": []
+          },
+          "deficiencies": [],
+          "strengths": [
+            "All 4 sections fully present with substantive multi-paragraph content."
+          ]
+        },
+        "word_count_adherence": {
+          "score": 28.47,
+          "passed": false,
+          "weight": 1.0,
+          "details": {
+            "actual_words": 610,
+            "target_words": 1500,
+            "ratio": 0.407
+          },
+          "deficiencies": [
+            "Significant length shortfall: 610 words (40.7% of 1500 target)."
+          ],
+          "strengths": []
+        },
+        "methodological_detail": {
+          "score": 75.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "has_design": true,
+            "has_dataset": true,
+            "has_metrics": false,
+            "has_stats": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Rigorous methodological specification (3/4 core components verified)."
+          ]
+        },
+        "technical_depth": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "vocab_count": 29,
+            "has_math": true,
+            "has_tables": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Dense academic domain terminology (29 concepts verified).",
+            "Incorporates formal mathematical formulations and notation."
+          ]
+        },
+        "argument_coherence": {
+          "score": 45.0,
+          "passed": false,
+          "weight": 1.0,
+          "details": {
+            "coherence_points": 45.0
+          },
+          "deficiencies": [
+            "Introduction missing explicit Research Questions."
+          ],
+          "strengths": [
+            "Formal academic roadmap structures subsequent argumentation."
+          ]
+        },
+        "section_consistency": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "consistency_score": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Consistent terminology and cross-section metric harmony maintained."
+          ]
+        },
+        "repetition_and_filler": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "ttr": 0.623,
+            "platitudes_count": 0,
+            "total_tokens": 610
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High lexical diversity (TTR 0.62).",
+            "Zero empty conversational platitudes or throat-clearing cliches."
+          ]
+        },
+        "unsupported_claims": {
+          "score": 0.0,
+          "passed": false,
+          "weight": 1.2,
+          "details": {
+            "is_results_uncollected": true
+          },
+          "deficiencies": [
+            "Results were not collected, but the draft failed to set state 'needs_input' or omit fabricated metrics."
+          ],
+          "strengths": []
+        },
+        "numerical_accuracy": {
+          "score": 0.0,
+          "passed": false,
+          "weight": 1.3,
+          "details": {
+            "supplied_count": 0,
+            "unsupported_metrics_count": 10
+          },
+          "deficiencies": [
+            "Fabricated metric/statistical values not present in source context: 0.001, 118.0, 142.5, 2.3, 24.5"
+          ],
+          "strengths": []
+        },
+        "overall_readability": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "bullet_ratio": 0.0,
+            "fkgl": 21.23,
+            "fre": -27.06,
+            "asl": 16.91
+          },
+          "deficiencies": [
+            "Prose register overly convoluted (FKGL 21.23 > 20.0)."
+          ],
+          "strengths": [
+            "Continuous academic prose maintained (0.0% bullet lines, well under 15% threshold)."
+          ]
+        }
+      },
+      "review_warnings": [
+        "MISSING_RESULTS",
+        "CLAIM_NEEDS_REVIEW",
+        "GENERAL_REVIEW"
+      ],
+      "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+    },
+    {
+      "case_id": "explicit-simulated-data",
+      "paper_title": "Synthetic Evaluation Framework for End-to-End Latency in SDN-Governed Edge Topologies",
+      "engine_type": "single-pass-legacy",
+      "provider_name": "fake",
+      "model_name": "deterministic-demo",
+      "timestamp": "2026-11-01T14:57:41.275853+00:00",
+      "requested_words": 3000,
+      "generated_words": 798,
+      "word_count_ratio": 0.266,
+      "duration_ms": 0,
+      "input_tokens": null,
+      "output_tokens": 1596,
+      "estimated_cost_usd": 0.0,
+      "overall_score": 75.35,
+      "passed": false,
+      "dimension_scores": {
+        "fact_preservation": {
+          "score": 60.0,
+          "passed": false,
+          "weight": 1.2,
+          "details": {
+            "recalled_count": 15,
+            "total_concepts": 25,
+            "ratio": 0.6
+          },
+          "deficiencies": [
+            "Low fact preservation: only 15/25 key concepts recalled."
+          ],
+          "strengths": []
+        },
+        "citation_preservation": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "supplied": 1,
+            "preserved": 1,
+            "invented": 0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Zero fabricated or unsupplied citations introduced.",
+            "All 1 supplied references preserved."
+          ]
+        },
+        "section_completeness": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "total_sections": 5,
+            "missing": [],
+            "shallow": []
+          },
+          "deficiencies": [],
+          "strengths": [
+            "All 5 sections fully present with substantive multi-paragraph content."
+          ]
+        },
+        "word_count_adherence": {
+          "score": 20.0,
+          "passed": false,
+          "weight": 1.0,
+          "details": {
+            "actual_words": 798,
+            "target_words": 3000,
+            "ratio": 0.266
+          },
+          "deficiencies": [
+            "Significant length shortfall: 798 words (26.6% of 3000 target)."
+          ],
+          "strengths": []
+        },
+        "methodological_detail": {
+          "score": 75.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "has_design": true,
+            "has_dataset": true,
+            "has_metrics": false,
+            "has_stats": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Rigorous methodological specification (3/4 core components verified)."
+          ]
+        },
+        "technical_depth": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "vocab_count": 33,
+            "has_math": true,
+            "has_tables": true
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Dense academic domain terminology (33 concepts verified).",
+            "Incorporates formal mathematical formulations and notation."
+          ]
+        },
+        "argument_coherence": {
+          "score": 75.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "coherence_points": 75.0
+          },
+          "deficiencies": [
+            "Introduction missing explicit Research Questions."
+          ],
+          "strengths": [
+            "Formal academic roadmap structures subsequent argumentation.",
+            "Discussion systematically addresses threats to validity."
+          ]
+        },
+        "section_consistency": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "consistency_score": 100.0
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Consistent terminology and cross-section metric harmony maintained."
+          ]
+        },
+        "repetition_and_filler": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "ttr": 0.585,
+            "platitudes_count": 0,
+            "total_tokens": 798
+          },
+          "deficiencies": [],
+          "strengths": [
+            "High lexical diversity (TTR 0.59).",
+            "Zero empty conversational platitudes or throat-clearing cliches."
+          ]
+        },
+        "unsupported_claims": {
+          "score": 100.0,
+          "passed": true,
+          "weight": 1.2,
+          "details": {
+            "is_results_uncollected": false
+          },
+          "deficiencies": [],
+          "strengths": [
+            "Supplied empirical results preserved under draft state."
+          ]
+        },
+        "numerical_accuracy": {
+          "score": 0.0,
+          "passed": false,
+          "weight": 1.3,
+          "details": {
+            "supplied_count": 4,
+            "unsupported_metrics_count": 10
+          },
+          "deficiencies": [
+            "Fabricated metric/statistical values not present in source context: 0.001, 118.0, 142.5, 2.3, 24.5"
+          ],
+          "strengths": []
+        },
+        "overall_readability": {
+          "score": 90.0,
+          "passed": true,
+          "weight": 1.0,
+          "details": {
+            "bullet_ratio": 0.0,
+            "fkgl": 20.96,
+            "fre": -27.14,
+            "asl": 15.76
+          },
+          "deficiencies": [
+            "Prose register overly convoluted (FKGL 20.96 > 20.0)."
+          ],
+          "strengths": [
+            "Continuous academic prose maintained (0.0% bullet lines, well under 15% threshold)."
+          ]
+        }
+      },
+      "review_warnings": [
+        "CLAIM_NEEDS_REVIEW",
+        "GENERAL_REVIEW"
+      ],
+      "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+    }
+  ],
+  "summary_metrics": {
+    "total_cases_evaluated": 9,
+    "active_engine": {
+      "name": "section-level-long-form",
+      "model": "deterministic-demo",
+      "passed_cases": 9,
+      "pass_rate": 1.0,
+      "avg_generated_words": 3829.11,
+      "avg_target_adherence_ratio": 0.97,
+      "avg_overall_score": 96.42,
+      "avg_latency_ms": 9.67,
+      "total_estimated_cost_usd": 0.0
+    },
+    "comparator_engine": {
+      "name": "single-pass-legacy",
+      "model": "deterministic-demo",
+      "passed_cases": 0,
+      "pass_rate": 0.0,
+      "avg_generated_words": 831.67,
+      "avg_target_adherence_ratio": 0.24,
+      "avg_overall_score": 74.87,
+      "avg_latency_ms": 0.0,
+      "total_estimated_cost_usd": 0.0
+    },
+    "comparative_deltas": {
+      "word_count_multiplier": 4.6,
+      "score_delta": 21.55,
+      "adherence_ratio_delta": 0.73
+    }
+  },
+  "regression_passed": true,
+  "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
+}
