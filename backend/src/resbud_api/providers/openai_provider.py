@@ -64,6 +64,9 @@ class OpenAIProvider:
     ) -> ProviderResult:
         return await self._request(regeneration_input.prompt, PaperSection)
 
+    async def generate_section(self, prompt: GenerationPrompt) -> ProviderResult:
+        return await self._request(prompt, PaperSection)
+
     async def _request(
         self,
         prompt: GenerationPrompt,

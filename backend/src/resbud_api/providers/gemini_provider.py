@@ -217,6 +217,9 @@ class GeminiProvider:
     ) -> ProviderResult:
         return await self._request(regeneration_input.prompt, PaperSection)
 
+    async def generate_section(self, prompt: GenerationPrompt) -> ProviderResult:
+        return await self._request(prompt, PaperSection)
+
     async def analyze_research(self, request: ResearchAnalysisRequest) -> ResearchAnalysisResponse:
         from resbud_api.services.analysis import assess_research_quality
 

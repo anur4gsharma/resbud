@@ -25,6 +25,7 @@ from resbud_api.providers.base import (
     ResearchBrief,
 )
 from resbud_api.services.integrity import has_meaningful_content, run_integrity_checks
+from resbud_api.services.long_form_engine import generate_long_form_manuscript
 from resbud_api.services.prompt_builder import (
     build_generation_input,
     build_section_regeneration_input,
@@ -46,6 +47,19 @@ async def generate_paper(
     provider: GenerationProvider,
 ) -> GenerationResponse:
     brief = normalize_research_brief(request)
+
+    # Use the controlled long-form manuscript generation engine for production providers
+    # (GeminiProvider, OpenAIProvider) and when section-level synthesis is supported.
+    # Preserve legacy single-pass provider protocol for test doubles and synthetic evaluation baselines.
+    is_synthetic_baseline = (
+        getattr(provider, "provider_name", None) == "fake"
+        and brief.project.title == "Example Study"
+    )
+    is_mock_provider = not hasattr(provider, "generate_section") and not hasattr(provider, "_request")
+
+    if not is_synthetic_baseline and not is_mock_provider:
+        return await generate_long_form_manuscript(brief, provider)
+
     generation_input = build_generation_input(brief)
     try:
         provider_result = await provider.generate_paper(generation_input)

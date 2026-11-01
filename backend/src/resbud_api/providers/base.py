@@ -88,3 +88,6 @@ class DisabledProvider:
         self, _regeneration_input: SectionRegenerationInput
     ) -> ProviderResult:
         raise ProviderUnavailable
+
+    async def generate_section(self, _prompt: GenerationPrompt) -> ProviderResult:
+        raise ProviderUnavailable

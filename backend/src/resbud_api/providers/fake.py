@@ -128,6 +128,57 @@ class FakeProvider:
             duration_ms=0,
         )
 
+    async def generate_section(self, prompt: GenerationPrompt) -> ProviderResult:
+        self.call_count += 1
+        if self.outcome is FakeOutcome.TIMEOUT:
+            raise ProviderTimeout
+        if self.outcome is FakeOutcome.UNAVAILABLE:
+            raise ProviderUnavailable
+        if self.outcome is FakeOutcome.RATE_LIMITED:
+            raise ProviderRateLimited
+        if self.outcome is FakeOutcome.MALFORMED:
+            return ProviderResult("not-json", self.provider_name, self.model_name, 0)
+
+        target_id = "sec_generated"
+        target_heading = "Section"
+        target_words = 600
+        try:
+            payload_str = prompt.user_message.split("\n", 1)[-1]
+            data = json.loads(payload_str)
+            target_spec = data.get("target_section_specification", {})
+            target_id = target_spec.get("id", target_id)
+            target_heading = target_spec.get("heading", target_heading)
+            target_words = target_spec.get("allocated_target_words", target_words)
+        except Exception:
+            pass
+
+        paragraphs = []
+        words_so_far = 0
+        while words_so_far < target_words:
+            p = (
+                f"In addressing {target_heading.lower()}, empirical evaluation demonstrates significant methodological "
+                "rigor across operational dimensions. The analytical framework establishes foundational baseline metrics, "
+                "incorporating statistical significance bounds and systematic controls against confounding parameters. "
+                "Cross-validation across partitioned subsets confirms structural stability under diverse operational regimes, "
+                "providing reproducible insights into model convergence, error distributions, and system throughput. "
+                "Further comparative analysis highlights quantifiable improvements over prior state-of-the-art benchmarks."
+            )
+            paragraphs.append(p)
+            words_so_far += len(p.split())
+
+        section_obj = {
+            "id": target_id,
+            "heading": target_heading,
+            "content": "\n\n".join(paragraphs),
+            "state": "draft",
+        }
+        return ProviderResult(
+            structured_output=json.dumps(section_obj),
+            provider_name=self.provider_name,
+            model_name=self.model_name,
+            duration_ms=0,
+        )
+
     @staticmethod
     def _paper(brief: ResearchBrief) -> dict[str, object]:
         project = brief.project
