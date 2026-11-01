@@ -189,57 +189,44 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          widget.paper.title,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontFamily: 'serif',
-            fontSize: 18.0 * zoom,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-            height: 1.25,
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.0 * zoom, vertical: 8.0 * zoom),
+          child: Text(
+            widget.paper.title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'serif',
+              fontSize: 18.0 * zoom,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+              height: 1.25,
+            ),
           ),
         ),
-        SizedBox(height: 10 * zoom),
-        Text(
-          'Automated Research Synthesis · Generated with Formal Academic Reference Formatting',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontFamily: 'serif',
-            fontSize: 9.5 * zoom,
-            fontStyle: FontStyle.italic,
-            color: Colors.grey.shade800,
-          ),
-        ),
-        SizedBox(height: 6 * zoom),
-        Divider(color: Colors.grey.shade400, thickness: 0.75 * zoom),
+        SizedBox(height: 14 * zoom),
       ],
     );
   }
 
   Widget _buildAbstractSection(double zoom) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16 * zoom, vertical: 12 * zoom),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFAFAFA),
-        border: Border(
-          left: BorderSide(color: Colors.grey.shade400, width: 3.0 * zoom),
-        ),
-      ),
+    if (widget.paper.abstractText.trim().isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 20.0 * zoom, vertical: 6.0 * zoom),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text(
             'ABSTRACT',
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: 'serif',
-              fontSize: 10.5 * zoom,
+              fontSize: 10.0 * zoom,
               fontWeight: FontWeight.bold,
-              letterSpacing: 1.1,
-              color: Colors.black87,
+              letterSpacing: 1.2,
+              color: Colors.black,
             ),
           ),
-          SizedBox(height: 6 * zoom),
+          SizedBox(height: 8 * zoom),
           Text(
             widget.paper.abstractText,
             textAlign: TextAlign.justify,
@@ -247,9 +234,34 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
               fontFamily: 'serif',
               fontSize: 10.0 * zoom,
               height: 1.35,
-              color: const Color(0xFF1A1A1A),
+              color: Colors.black,
             ),
           ),
+          if (widget.paper.keywords.isNotEmpty) ...[
+            SizedBox(height: 8.0 * zoom),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: RichText(
+                textAlign: TextAlign.justify,
+                text: TextSpan(
+                  style: TextStyle(
+                    fontFamily: 'serif',
+                    fontSize: 9.5 * zoom,
+                    height: 1.3,
+                    color: Colors.black,
+                  ),
+                  children: [
+                    const TextSpan(
+                      text: 'Index Terms— ',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontStyle: FontStyle.italic),
+                    ),
+                    TextSpan(text: widget.paper.keywords.join(', ')),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          SizedBox(height: 16.0 * zoom),
         ],
       ),
     );

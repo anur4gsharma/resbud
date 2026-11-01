@@ -13,14 +13,14 @@ extension type DocxRenderResult(JSObject _) implements JSObject {
 
 @JS('renderDocxToElement')
 external JSPromise<DocxRenderResult?>? _renderDocxToElement(
-  JSString containerId,
+  JSAny containerOrId,
   JSString base64Data,
   JSNumber zoom,
 );
 
 @JS('setDocxZoom')
 external JSBoolean? _setDocxZoom(
-  JSString containerId,
+  JSAny containerOrId,
   JSNumber zoom,
 );
 
@@ -63,6 +63,7 @@ class _DocxWebEmbedWidgetState extends State<_DocxWebEmbedWidget> {
   static final Set<String> _registeredViewTypes = {};
   late final String _containerDomId;
   late final String _viewType;
+  web.HTMLDivElement? _containerElement;
 
   @override
   void initState() {
@@ -79,6 +80,7 @@ class _DocxWebEmbedWidgetState extends State<_DocxWebEmbedWidget> {
         container.style.height = '100%';
         container.style.overflow = 'auto';
         container.style.backgroundColor = '#525659';
+        _containerElement = container;
         return container;
       });
     }
@@ -102,11 +104,14 @@ class _DocxWebEmbedWidgetState extends State<_DocxWebEmbedWidget> {
     if (!mounted || widget.base64Bytes.isEmpty) return;
 
     // Small delay to ensure DOM element is attached to document tree
-    Future<void>.delayed(const Duration(milliseconds: 50), () async {
+    Future<void>.delayed(const Duration(milliseconds: 70), () async {
       if (!mounted) return;
       try {
+        final JSAny target = _containerElement != null
+            ? _containerElement! as JSObject
+            : _containerDomId.toJS;
         final promise = _renderDocxToElement(
-          _containerDomId.toJS,
+          target,
           widget.base64Bytes.toJS,
           widget.zoom.toJS,
         );
@@ -122,6 +127,7 @@ class _DocxWebEmbedWidgetState extends State<_DocxWebEmbedWidget> {
           widget.onError();
         }
       } catch (e) {
+        debugPrint('DOCX web render failure: $e');
         if (mounted) widget.onError();
       }
     });
@@ -129,7 +135,10 @@ class _DocxWebEmbedWidgetState extends State<_DocxWebEmbedWidget> {
 
   void _updateZoom() {
     try {
-      _setDocxZoom(_containerDomId.toJS, widget.zoom.toJS);
+      final JSAny target = _containerElement != null
+          ? _containerElement! as JSObject
+          : _containerDomId.toJS;
+      _setDocxZoom(target, widget.zoom.toJS);
     } catch (_) {}
   }
 

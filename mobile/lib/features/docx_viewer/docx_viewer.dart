@@ -8,7 +8,7 @@ import '../export/docx_file_saver.dart';
 import '../generation/generation_models.dart';
 import 'docx_document_canvas.dart';
 import 'docx_web_embed_stub.dart'
-    if (dart.library.html) 'docx_web_embed.dart';
+    if (dart.library.js_interop) 'docx_web_embed.dart';
 
 /// Embedded Native DOCX Viewer for Research Buddy.
 ///
@@ -90,6 +90,7 @@ class _DocxViewerState extends State<DocxViewer> {
     final token = ++_renderGenerationToken;
     setState(() {
       _isExportingDocx = true;
+      _useCanvasFallback = false;
     });
 
     try {
@@ -368,6 +369,31 @@ class _DocxViewerState extends State<DocxViewer> {
   }
 
   Widget _buildViewerContent() {
+    // 0. Dedicated loading state while fetching native DOCX binary
+    if (_isExportingDocx && _docxBytes == null) {
+      return const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: CircularProgressIndicator(strokeWidth: 3),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Rendering native Word document layout...',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     // 1. On Web with DOCX bytes and no canvas override: Use embedded docx-preview
     if (kIsWeb &&
         isDocxWebEmbedSupported &&
@@ -376,7 +402,7 @@ class _DocxViewerState extends State<DocxViewer> {
         _docxBytes!.isNotEmpty) {
       final base64Str = base64Encode(_docxBytes!);
       return buildDocxWebEmbed(
-        viewId: 'paper-${_docxBytes.hashCode}',
+        viewId: 'paper-${widget.paper.title.hashCode}-${_docxBytes!.length}',
         base64Bytes: base64Str,
         zoom: _zoom,
         onPageCountResolved: _onPageCountResolved,
