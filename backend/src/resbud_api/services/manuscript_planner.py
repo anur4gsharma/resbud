@@ -11,6 +11,7 @@ from resbud_api.domain.manuscript_plan import (
     PlannedSubsection,
 )
 from resbud_api.providers.base import ResearchBrief
+from resbud_api.services.section_allocation import compute_adaptive_section_budgets
 
 
 def _normalize_title(brief: ResearchBrief) -> str:
@@ -108,167 +109,35 @@ def create_manuscript_plan(
     brief: ResearchBrief,
     provider: Any | None = None,
 ) -> ManuscriptPlan:
-    """Construct a validated ManuscriptPlan with rigorous word budgets and evidence mappings."""
+    """Construct a validated ManuscriptPlan with rigorous adaptive word budgets and evidence mappings."""
     total_target = max(500, min(8000, brief.preferences.target_word_count))
-    abstract_words = 200
-    net_section_words = max(300, total_target - abstract_words)
+    abstract_words, budget_plans, evidence_restrictions = compute_adaptive_section_budgets(
+        brief, total_target
+    )
 
     title = _normalize_title(brief)
     abstract = _synthesize_abstract(brief, total_target)
     keywords = _extract_domain_keywords(brief)
     glossary = _extract_terminology_glossary(brief)
 
-    # 1. Determine Section Types and Headings
-    desired = [s.strip() for s in brief.preferences.desired_sections if s.strip()]
-    if not desired:
-        # Synthesize domain-aware academic sections
-        section_blueprints = [
-            (
-                "introduction",
-                "1. Introduction and Problem Formulation",
-                "Establish historical context, theoretical motivation, research gap, specific research questions, and explicit paper contributions.",
-                0.18,
-                [
-                    ("Context & Motivation", "Broader scientific landscape and core engineering challenges."),
-                    ("Problem Formulation", "Formal technical definition of the operational bottleneck."),
-                    ("Research Questions & Contributions", "Explicit enumeration of questions (RQ1, RQ2) and specific contributions."),
-                ],
-            ),
-            (
-                "related_work",
-                "2. Theoretical Foundations and Related Work",
-                "Situate work within existing academic literature, contrasting prior methodologies with the current approach.",
-                0.14,
-                [
-                    ("Classical & Baseline Approaches", "Historical algorithms and their scaling bounds."),
-                    ("Recent Advances in the Domain", "Modern paradigms, algorithmic variants, and benchmark limits."),
-                    ("Differentiation from Prior Art", "Specific limitations in existing literature addressed by this paper."),
-                ],
-            ),
-            (
-                "methodology",
-                "3. System Architecture and Experimental Methodology",
-                "Detail step-by-step technical architecture, parameters, data sampling protocols, and evaluation metrics.",
-                0.28,
-                [
-                    ("System Architecture & Pipeline", "End-to-end component flow, module interfaces, and representations."),
-                    ("Dataset Construction & Sampling", "Data curation, filtering criteria, and benchmark splits."),
-                    ("Evaluation Metrics & Annotation Protocol", "Formal metrics, inter-annotator agreement, and scoring criteria."),
-                ],
-            ),
-            (
-                "results",
-                "4. Empirical Results and Quantitative Evaluation",
-                "Present empirical measurements, paired comparison tables, statistical significance tests, and ablation insights.",
-                0.26,
-                [
-                    ("Primary Benchmark Findings", "Comparative performance tables against baseline conditions."),
-                    ("Statistical Significance & Error Breakdown", "Hypothesis testing, p-values, discordant pair analysis."),
-                    ("Ablation & Sensitivity Analysis", "Impact of architectural components, parameter sweeps, and failure modes."),
-                ],
-            ),
-            (
-                "discussion",
-                "5. In-Depth Discussion and Critical Limitations",
-                "Interpret findings, evaluate practical trade-offs, state explicit assumptions, and disclose limitations.",
-                0.10,
-                [
-                    ("Analytical Interpretation", "Theoretical implications of observed performance differentials."),
-                    ("Deployment Trade-offs", "Latency, computational cost, and engineering practicalities."),
-                    ("Disclosed Limitations", "Corpus scope, synthetic artifacts, and unverified assumptions."),
-                ],
-            ),
-            (
-                "conclusion",
-                "6. Conclusion and Future Directions",
-                "Synthesize core conclusions, summarize validated takeaways, and outline prioritized future research avenues.",
-                0.04,
-                [
-                    ("Summary of Contributions", "Concise restatement of validated empirical takeaways."),
-                    ("Future Trajectories", "Prioritized avenues for scaling, generalization, and open questions."),
-                ],
-            ),
-        ]
-    else:
-        # Map user desired section IDs to academic sections
-        raw_map = {
-            "abstract": (
-                "abstract",
-                "Abstract",
-                "Formal synthesis of problem, method, and key findings.",
-                0.05,
-            ),
-            "introduction": (
-                "introduction",
-                "1. Introduction",
-                "Scientific context, research questions, and contributions.",
-                0.20,
-            ),
-            "literature_review": (
-                "literature_review",
-                "2. Literature Review",
-                "Theoretical background and comparative literature review.",
-                0.15,
-            ),
-            "methodology": (
-                "methodology",
-                "3. Methodology",
-                "System architecture, mathematical formulations, and experimental design.",
-                0.30,
-            ),
-            "results": (
-                "results",
-                "4. Results",
-                "Quantitative benchmarks, paired comparisons, and ablation findings.",
-                0.25,
-            ),
-            "discussion": (
-                "discussion",
-                "5. Discussion",
-                "Critical analysis of trade-offs, boundary conditions, and limitations.",
-                0.15,
-            ),
-            "conclusion": (
-                "conclusion",
-                "6. Conclusion",
-                "Synthesized conclusions and future trajectories.",
-                0.05,
-            ),
-        }
-        total_weight = sum(raw_map.get(s, (None, None, None, 0.20))[3] for s in desired)
-        section_blueprints = []
-        for s in desired:
-            if s in raw_map:
-                sec_id, heading, purpose, weight = raw_map[s]
-            else:
-                clean_heading = s.replace("_", " ").title()
-                raw_sec = s.lower().replace("-", "_")[:40]
-                sec_id = raw_sec if raw_sec and raw_sec[0].isalpha() else f"sec_{raw_sec}"
-                heading = clean_heading
-                purpose = f"Exhaustive academic analysis of {clean_heading}."
-                weight = 0.20
-            norm_weight = weight / total_weight if total_weight > 0 else (1.0 / len(desired))
-            section_blueprints.append((sec_id, heading, purpose, norm_weight, []))
-
-    # 2. Mathematically Compute Section Word Allocations
+    # Mathematically Map Adaptive Plans to PlannedSections
     planned_sections: list[PlannedSection] = []
     ref_ids = [r.id for r in brief.references]
 
-    # Map available facts and limitations from ResearchBrief
-    source_snippet = brief.source_draft[:3000]
     method_status = brief.project.methodology_status
     results_status = brief.project.results_status
     limitations_status = brief.project.limitations_status
 
-    for sec_id, heading, purpose, weight, sub_specs in section_blueprints:
-        alloc_words = max(100, int(round(net_section_words * weight)))
+    for plan in budget_plans:
+        sec_id = plan.section_id
+        alloc_words = plan.target_words
 
         # Subsections allocation
         subsections: list[PlannedSubsection] = []
-        if sub_specs:
-            sub_count = len(sub_specs)
+        if plan.subsections:
+            sub_count = len(plan.subsections)
             sub_word_budget = max(50, alloc_words // sub_count)
-            for sub_title, sub_purpose in sub_specs:
+            for sub_title, sub_purpose in plan.subsections:
                 subsections.append(
                     PlannedSubsection(
                         title=sub_title,
@@ -280,7 +149,7 @@ def create_manuscript_plan(
 
         evidence: list[str] = []
         missing_info: list[str] = []
-        requires_notice = False
+        requires_notice = plan.is_evidence_constrained
 
         if "intro" in sec_id:
             if brief.project.objectives:
@@ -311,14 +180,14 @@ def create_manuscript_plan(
         planned_sections.append(
             PlannedSection(
                 id=sec_id,
-                heading=heading,
-                purpose=purpose,
+                heading=plan.heading,
+                purpose=plan.purpose,
                 allocated_words=alloc_words,
                 subsections=subsections,
                 available_evidence=evidence,
                 relevant_references=ref_ids[:4],
                 key_arguments=[
-                    f"Rigorously develop {heading.split('. ')[-1]} in accordance with academic standards.",
+                    f"Rigorously develop {plan.heading.split('. ')[-1]} in accordance with academic standards.",
                     "Ground all empirical arguments in the provided source documentation.",
                 ],
                 missing_information=missing_info,
@@ -327,15 +196,15 @@ def create_manuscript_plan(
         )
 
     relationships = [
-        "Section 1 establishes core research questions evaluated empirically in Sections 3 and 4.",
-        "Section 3 outlines experimental controls directly measured in Section 4.",
-        "Section 5 critically evaluates assumptions and threats to validity identified in Section 4.",
+        "Section 1 establishes core research questions evaluated empirically in subsequent sections.",
+        "Methodology outlines experimental controls directly measured in empirical analyses.",
+        "Discussion critically evaluates assumptions, trade-offs, and threats to validity.",
     ]
 
-    limitations = []
+    limitations = list(evidence_restrictions)
     if brief.project.limitations:
         limitations.append(brief.project.limitations)
-    if limitations_status != "provided":
+    if limitations_status != "provided" and "limitations" not in limitations:
         limitations.append("Source material lacked explicit disclosures of technical boundary limitations.")
 
     return ManuscriptPlan(

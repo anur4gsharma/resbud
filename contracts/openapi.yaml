@@ -332,6 +332,18 @@ components:
             duration_ms: { type: integer, minimum: 0 }
             input_tokens: { type: [integer, 'null'], minimum: 0 }
             output_tokens: { type: [integer, 'null'], minimum: 0 }
+            requested_words: { type: [integer, 'null'], minimum: 0 }
+            generated_words: { type: [integer, 'null'], minimum: 0 }
+            words_per_section: { type: [object, 'null'], additionalProperties: { type: integer } }
+            completion_status:
+              type: [string, 'null']
+              enum: [completed, partially_complete, evidence_constrained, under_generated, null]
+            missing_sections:
+              type: [array, 'null']
+              items: { type: string }
+            evidence_restrictions:
+              type: [array, 'null']
+              items: { type: string }
     SectionRegenerationRequest:
       description: A proposal request. The section_id must occur exactly once in current_paper.sections; an unknown or duplicate ID, or a target with state not_applicable, is rejected with 422 VALIDATION_ERROR.
       type: object

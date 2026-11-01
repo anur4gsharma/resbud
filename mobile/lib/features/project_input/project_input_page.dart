@@ -1586,6 +1586,18 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           'provider_name': result.response.meta.providerName,
           'model_name': result.response.meta.modelName,
           if (result.requestId != null) 'request_id': result.requestId,
+          if (result.response.meta.requestedWords != null)
+            'requested_words': result.response.meta.requestedWords,
+          if (result.response.meta.generatedWords != null)
+            'generated_words': result.response.meta.generatedWords,
+          if (result.response.meta.wordsPerSection != null)
+            'words_per_section': result.response.meta.wordsPerSection,
+          if (result.response.meta.completionStatus != null)
+            'completion_status': result.response.meta.completionStatus,
+          if (result.response.meta.missingSections != null)
+            'missing_sections': result.response.meta.missingSections,
+          if (result.response.meta.evidenceRestrictions != null)
+            'evidence_restrictions': result.response.meta.evidenceRestrictions,
         },
       );
       if (!mounted) return;
@@ -2834,27 +2846,36 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   Widget _buildManuscriptDepthSelector() {
     final depths = [
       (
-        id: 'journal',
-        title: 'Academic Journal Article',
-        scope: '~6,000–8,000 words',
-        targetWords: 7000,
-        description: 'Exhaustive, multi-paragraph analysis across theoretical foundations, extensive methodology, ablation benchmarks, and thorough discussion.',
+        id: 'short',
+        title: 'Short',
+        scope: '~1,500 words',
+        targetWords: 1500,
+        description: 'Concise scientific communication focusing on the primary problem, core methodology, and immediate takeaways.',
       ),
       (
-        id: 'conference',
-        title: 'Full Conference Paper',
-        scope: '~4,500–6,000 words',
-        targetWords: 5000,
-        description: 'Standard peer-reviewed conference depth (NeurIPS, ICML, CVPR). Formal methodology, experimental validation, and analytical discussion.',
-      ),
-      (
-        id: 'letter',
-        title: 'Short Paper / Rapid Letter',
-        scope: '~2,500–3,500 words',
+        id: 'standard',
+        title: 'Standard',
+        scope: '~3,000 words',
         targetWords: 3000,
-        description: 'Concise, high-density scientific communication focusing on primary methodology and core empirical findings.',
+        description: 'Standard academic paper length. Balanced distribution across literature context, methodology, results, and discussion.',
+      ),
+      (
+        id: 'detailed',
+        title: 'Detailed',
+        scope: '~5,000 words',
+        targetWords: 5000,
+        description: 'Full peer-reviewed conference depth (NeurIPS, ICML). Formal technical architecture, multi-paragraph validation, and extensive analysis.',
+      ),
+      (
+        id: 'extended',
+        title: 'Extended',
+        scope: '~7,000 words',
+        targetWords: 7000,
+        description: 'Exhaustive journal article depth. Deep theoretical foundations, thorough methodology, comprehensive ablation benchmarks, and complete limitations.',
       ),
     ];
+
+    final isCustom = !depths.any((d) => d.targetWords == _targetWordCount);
 
     return Card(
       elevation: 0,
@@ -2868,13 +2889,35 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Manuscript Depth & Publication Format',
+              'Manuscript Depth & Length Target',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
             Text(
-              'Select the target academic scope. The AI structures sections and paragraph depth accordingly.',
+              'Select the target academic scope. The AI adapts section budgets and paragraph depth accordingly.',
               style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Theme.of(context).colorScheme.outlineVariant.withValues(alpha: 0.5)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Target word count covers manuscript body text and abstract. References, tables, figures, captions, and supplementary materials are excluded from this limit.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11.5),
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
             for (final depth in depths) ...[
@@ -2891,17 +2934,12 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: (_targetWordCount >= depth.targetWords - 1000 &&
-                              _targetWordCount <= depth.targetWords + 1000)
+                      color: (_targetWordCount == depth.targetWords)
                           ? Theme.of(context).colorScheme.primary
                           : Theme.of(context).colorScheme.outlineVariant,
-                      width: (_targetWordCount >= depth.targetWords - 1000 &&
-                              _targetWordCount <= depth.targetWords + 1000)
-                          ? 1.5
-                          : 1.0,
+                      width: (_targetWordCount == depth.targetWords) ? 1.5 : 1.0,
                     ),
-                    color: (_targetWordCount >= depth.targetWords - 1000 &&
-                            _targetWordCount <= depth.targetWords + 1000)
+                    color: (_targetWordCount == depth.targetWords)
                         ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.18)
                         : Theme.of(context).colorScheme.surface,
                   ),
@@ -2911,13 +2949,11 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                       Padding(
                         padding: const EdgeInsets.only(top: 2, right: 8),
                         child: Icon(
-                          (_targetWordCount >= depth.targetWords - 1000 &&
-                                  _targetWordCount <= depth.targetWords + 1000)
+                          (_targetWordCount == depth.targetWords)
                               ? Icons.radio_button_checked
                               : Icons.radio_button_unchecked,
                           size: 20,
-                          color: (_targetWordCount >= depth.targetWords - 1000 &&
-                                  _targetWordCount <= depth.targetWords + 1000)
+                          color: (_targetWordCount == depth.targetWords)
                               ? Theme.of(context).colorScheme.primary
                               : Colors.grey.shade500,
                         ),
@@ -2963,27 +2999,92 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                 ),
               ),
             ],
-            // Custom Word Target Expandable
-            ExpansionTile(
-              key: const ValueKey('expansion-custom-target-words'),
-              dense: true,
-              title: Text(
-                'Custom word target: $_targetWordCount words',
-                style: const TextStyle(fontSize: 12),
-              ),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Slider(
-                    value: _targetWordCount.toDouble().clamp(500, 8000),
-                    min: 500,
-                    max: 8000,
-                    divisions: 15,
-                    label: '$_targetWordCount words',
-                    onChanged: (value) => setState(() => _targetWordCount = value.round()),
+            // Custom Word Target Option
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () {
+                if (!isCustom) {
+                  setState(() => _targetWordCount = 4000);
+                }
+              },
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isCustom
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.outlineVariant,
+                    width: isCustom ? 1.5 : 1.0,
                   ),
+                  color: isCustom
+                      ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.18)
+                      : Theme.of(context).colorScheme.surface,
                 ),
-              ],
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2, right: 8),
+                      child: Icon(
+                        isCustom ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                        size: 20,
+                        color: isCustom
+                            ? Theme.of(context).colorScheme.primary
+                            : Colors.grey.shade500,
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text(
+                                'Custom',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                              const Spacer(),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.secondaryContainer.withValues(alpha: 0.5),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  '$_targetWordCount words',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Theme.of(context).colorScheme.onSecondaryContainer,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Specify any exact target length within configured boundaries (500 to 8,000 words).',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11.5),
+                          ),
+                          if (isCustom) ...[
+                            const SizedBox(height: 8),
+                            Slider(
+                              value: _targetWordCount.toDouble().clamp(500, 8000),
+                              min: 500,
+                              max: 8000,
+                              divisions: 15,
+                              label: '$_targetWordCount words',
+                              onChanged: (value) => setState(() => _targetWordCount = value.round()),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(

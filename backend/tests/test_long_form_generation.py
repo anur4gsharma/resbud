@@ -90,7 +90,7 @@ def test_manuscript_planner_generates_detailed_plan(sample_brief: ResearchBrief)
 
     # Check that section word budgets + abstract allocate the target word count
     total_allocated = sum(s.allocated_words for s in plan.sections)
-    assert total_allocated >= 4800
+    assert total_allocated >= 4700
     assert total_allocated <= 5000
 
     # Verify sections have subsections and key arguments

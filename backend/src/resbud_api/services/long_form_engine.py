@@ -32,6 +32,11 @@ from resbud_api.services.section_generator import (
     build_section_prompt,
     execute_section_generation,
 )
+from resbud_api.services.section_validator import (
+    count_words,
+    perform_bounded_expansion,
+    validate_section_depth,
+)
 
 
 def _extract_section_summary(section: PaperSection) -> str:
@@ -117,6 +122,16 @@ async def generate_long_form_manuscript(
                     continue
 
         if section is not None:
+            # Stage 2b: Actual Depth Validation and Bounded Continuation (Prompt 3)
+            val_result = validate_section_depth(section, section_plan, brief)
+            if val_result.is_under_generated:
+                section, val_result = await perform_bounded_expansion(
+                    section=section,
+                    section_plan=section_plan,
+                    brief=brief,
+                    val_result=val_result,
+                    provider=provider,
+                )
             assembled_sections.append(section)
             previous_summary = _extract_section_summary(section)
         else:
@@ -132,10 +147,25 @@ async def generate_long_form_manuscript(
                 )
             )
 
-    # Stage 3: Manuscript Assembly & Validation (Requirement 4)
-    # Estimate or accumulate token metrics
-    total_words = sum(len(s.content.split()) for s in assembled_sections)
-    approx_output_tokens = int(total_words * 1.35)
+    # Stage 3: Manuscript Assembly & Completion Reporting (Requirement 4)
+    words_per_section = {s.id: count_words(s.content) for s in assembled_sections}
+    abstract_words = count_words(plan.abstract)
+    generated_words = sum(words_per_section.values()) + abstract_words
+    requested_words = brief.preferences.target_word_count
+    approx_output_tokens = int(generated_words * 1.35)
+
+    missing_sections = [s.id for s in assembled_sections if s.state == "needs_input"]
+    evidence_restrictions = list(plan.identified_limitations)
+
+    # Determine completion status based on acceptance tolerance and evidence constraints
+    if failure_warnings:
+        completion_status = "partially_complete"
+    elif generated_words >= int(requested_words * 0.75):
+        completion_status = "completed"
+    elif any(s.state == "needs_input" for s in assembled_sections) or evidence_restrictions:
+        completion_status = "evidence_constrained"
+    else:
+        completion_status = "under_generated"
 
     paper = PaperDraft(
         schema_version=1,
@@ -150,9 +180,22 @@ async def generate_long_form_manuscript(
     if not has_meaningful_content(paper):
         raise ResbudError(502)
 
-    # Stage 4: Research Integrity & Warnings Verification
+    # Stage 4: Research Integrity & Completion Review Warnings
     integrity_warnings = run_integrity_checks(brief, paper, provider_name)
-    all_warnings = integrity_warnings + failure_warnings
+    completion_msg = (
+        f"Manuscript Completion: [{completion_status.upper()}]. "
+        f"Generated {generated_words} of {requested_words} requested words across {len(assembled_sections)} sections."
+    )
+    if evidence_restrictions:
+        completion_msg += f" Limitations: {evidence_restrictions[0]}."
+    completion_warning = ReviewWarning(
+        code="GENERAL_REVIEW",
+        message=completion_msg,
+        severity="info" if completion_status in ("completed", "evidence_constrained") else "warning",
+        section_id=None,
+    )
+
+    all_warnings = [completion_warning] + integrity_warnings + failure_warnings
     paper = paper.model_copy(update={"review_warnings": all_warnings})
 
     elapsed_ms = int((perf_counter() - started) * 1000)
@@ -168,5 +211,11 @@ async def generate_long_form_manuscript(
             duration_ms=elapsed_ms,
             input_tokens=None,
             output_tokens=approx_output_tokens,
+            requested_words=requested_words,
+            generated_words=generated_words,
+            words_per_section=words_per_section,
+            completion_status=completion_status,
+            missing_sections=missing_sections,
+            evidence_restrictions=evidence_restrictions,
         ),
     )

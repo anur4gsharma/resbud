@@ -470,6 +470,12 @@ class GenerationMetaPayload {
     required this.durationMs,
     required this.inputTokens,
     required this.outputTokens,
+    this.requestedWords,
+    this.generatedWords,
+    this.wordsPerSection,
+    this.completionStatus,
+    this.missingSections,
+    this.evidenceRestrictions,
   });
 
   final String providerName;
@@ -477,11 +483,21 @@ class GenerationMetaPayload {
   final int durationMs;
   final int? inputTokens;
   final int? outputTokens;
+  final int? requestedWords;
+  final int? generatedWords;
+  final Map<String, int>? wordsPerSection;
+  final String? completionStatus;
+  final List<String>? missingSections;
+  final List<String>? evidenceRestrictions;
 
   factory GenerationMetaPayload.fromJson(Map<String, Object?> json) {
     _requireKeys(json, const {
       'provider_name', 'model_name', 'duration_ms',
-    }, 'meta', optional: const {'input_tokens', 'output_tokens'});
+    }, 'meta', optional: const {
+      'input_tokens', 'output_tokens',
+      'requested_words', 'generated_words', 'words_per_section',
+      'completion_status', 'missing_sections', 'evidence_restrictions',
+    });
     final duration = _integer(json['duration_ms'], 'meta.duration_ms');
     final inputTokens = json['input_tokens'] == null
         ? null
@@ -493,12 +509,45 @@ class GenerationMetaPayload {
         (outputTokens != null && outputTokens < 0)) {
       throw const FormatException('Generation metadata counts cannot be negative.');
     }
+
+    final reqWords = json['requested_words'] == null
+        ? null
+        : _integer(json['requested_words'], 'meta.requested_words');
+    final genWords = json['generated_words'] == null
+        ? null
+        : _integer(json['generated_words'], 'meta.generated_words');
+
+    Map<String, int>? wordsPerSec;
+    if (json['words_per_section'] is Map) {
+      wordsPerSec = {};
+      final map = json['words_per_section'] as Map;
+      for (final entry in map.entries) {
+        if (entry.value is int) {
+          wordsPerSec[entry.key.toString()] = entry.value as int;
+        }
+      }
+    }
+
+    final compStatus = json['completion_status'] as String?;
+    final missSec = json['missing_sections'] is List
+        ? (json['missing_sections'] as List).map((e) => e.toString()).toList()
+        : null;
+    final evidRest = json['evidence_restrictions'] is List
+        ? (json['evidence_restrictions'] as List).map((e) => e.toString()).toList()
+        : null;
+
     return GenerationMetaPayload(
       providerName: _boundedString(json['provider_name'], 'meta.provider_name', 0, 100),
       modelName: _boundedString(json['model_name'], 'meta.model_name', 0, 100),
       durationMs: duration,
       inputTokens: inputTokens,
       outputTokens: outputTokens,
+      requestedWords: reqWords,
+      generatedWords: genWords,
+      wordsPerSection: wordsPerSec,
+      completionStatus: compStatus,
+      missingSections: missSec,
+      evidenceRestrictions: evidRest,
     );
   }
 
@@ -508,6 +557,12 @@ class GenerationMetaPayload {
     'duration_ms': durationMs,
     'input_tokens': inputTokens,
     'output_tokens': outputTokens,
+    if (requestedWords != null) 'requested_words': requestedWords,
+    if (generatedWords != null) 'generated_words': generatedWords,
+    if (wordsPerSection != null) 'words_per_section': wordsPerSection,
+    if (completionStatus != null) 'completion_status': completionStatus,
+    if (missingSections != null) 'missing_sections': missingSections,
+    if (evidenceRestrictions != null) 'evidence_restrictions': evidenceRestrictions,
   };
 }
 

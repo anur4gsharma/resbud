@@ -83,6 +83,12 @@
     "model_name": "deterministic-demo",
     "duration_ms": 0,
     "input_tokens": null,
-    "output_tokens": null
+    "output_tokens": null,
+    "requested_words": null,
+    "generated_words": null,
+    "words_per_section": null,
+    "completion_status": null,
+    "missing_sections": null,
+    "evidence_restrictions": null
   }
 }

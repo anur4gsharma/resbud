@@ -962,6 +962,286 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
     _showFeedback('Viewing Version ${targetVersion.versionNumber}');
   }
 
+  int _computeTotalWords() {
+    int words = 0;
+    words += _titleController.text.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
+    words += _abstractController.text.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
+    for (final controller in _sectionControllers.values) {
+      words += controller.text.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length;
+    }
+    return words;
+  }
+
+  Widget _buildCompletionStatusBanner() {
+    final meta = _currentVersion.metadata;
+    final preferences = widget.project.projectContext['preferences'] as Map?;
+    final int requestedWords = (meta?['requested_words'] as int?) ??
+        (preferences?['target_word_count'] as int?) ??
+        5000;
+    final int actualWords = (meta?['generated_words'] as int?) ?? _computeTotalWords();
+    final String completionStatus = (meta?['completion_status'] as String?) ??
+        (actualWords >= (requestedWords * 0.75) ? 'completed' : 'under_generated');
+    final double pct = ((actualWords / requestedWords) * 100).clamp(0, 500);
+
+    Color cardColor;
+    Color iconColor;
+    Color textColor;
+    IconData icon;
+    String titleText;
+    String descText;
+
+    if (completionStatus == 'completed' || (actualWords >= (requestedWords * 0.75))) {
+      cardColor = Colors.green.shade50;
+      iconColor = Colors.green.shade800;
+      textColor = Colors.green.shade900;
+      icon = Icons.check_circle_outline;
+      titleText = 'Manuscript Completed: $actualWords / $requestedWords words (${pct.toStringAsFixed(0)}%)';
+      descText = 'The draft satisfies requested length requirements within academic depth tolerances.';
+    } else if (completionStatus == 'evidence_constrained') {
+      cardColor = Colors.blue.shade50;
+      iconColor = Colors.blue.shade800;
+      textColor = Colors.blue.shade900;
+      icon = Icons.info_outline;
+      titleText = 'Evidence-Constrained Manuscript: $actualWords / $requestedWords words (${pct.toStringAsFixed(0)}%)';
+      descText = 'Generation was capped by missing empirical results or source material to prevent fabrication.';
+    } else {
+      cardColor = Colors.amber.shade50;
+      iconColor = Colors.amber.shade900;
+      textColor = Colors.amber.shade900;
+      icon = Icons.warning_amber_outlined;
+      titleText = 'Under-Generated Manuscript: $actualWords / $requestedWords words (${pct.toStringAsFixed(0)}%)';
+      descText = 'This draft fell short of your requested target length. Inspect individual section depths.';
+    }
+
+    return Card(
+      key: const ValueKey('manuscript-completion-banner'),
+      color: cardColor,
+      margin: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: _showManuscriptCompletionDialog,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: iconColor),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      titleText,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      descText,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: textColor.withValues(alpha: 0.85)),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, size: 20, color: iconColor),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showManuscriptCompletionDialog() {
+    final meta = _currentVersion.metadata;
+    final preferences = widget.project.projectContext['preferences'] as Map?;
+    final int requestedWords = (meta?['requested_words'] as int?) ??
+        (preferences?['target_word_count'] as int?) ??
+        5000;
+    final int actualWords = (meta?['generated_words'] as int?) ?? _computeTotalWords();
+    final String completionStatus = (meta?['completion_status'] as String?) ??
+        (actualWords >= (requestedWords * 0.75) ? 'completed' : 'under_generated');
+    final Map? wordsPerSection = meta?['words_per_section'] as Map?;
+    final List? restrictions = meta?['evidence_restrictions'] as List?;
+    final List? missingSections = meta?['missing_sections'] as List?;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.65,
+          minChildSize: 0.4,
+          maxChildSize: 0.9,
+          expand: false,
+          builder: (context, scrollController) {
+            return Padding(
+              padding: const EdgeInsets.all(20),
+              child: ListView(
+                controller: scrollController,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            completionStatus == 'completed'
+                                ? Icons.verified_outlined
+                                : (completionStatus == 'evidence_constrained'
+                                    ? Icons.info_outline
+                                    : Icons.warning_amber_rounded),
+                            color: completionStatus == 'completed'
+                                ? Colors.green.shade700
+                                : (completionStatus == 'evidence_constrained'
+                                    ? Colors.blue.shade700
+                                    : Colors.orange.shade800),
+                            size: 24,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Length & Depth Report',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 20),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Length Fulfillment',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                            Text(
+                              '$actualWords / $requestedWords words (${((actualWords / requestedWords) * 100).toStringAsFixed(0)}%)',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: actualWords >= (requestedWords * 0.75) ? Colors.green.shade700 : Colors.orange.shade800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: (actualWords / requestedWords).clamp(0.0, 1.0),
+                            minHeight: 6,
+                            backgroundColor: Colors.grey.shade300,
+                            color: actualWords >= (requestedWords * 0.75) ? Colors.green : Colors.orange,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Status: ${completionStatus.replaceAll('_', ' ').toUpperCase()}',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.primary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Section Word Distribution',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  for (final section in _paper.sections) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              section.heading,
+                              style: const TextStyle(fontSize: 13),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '${wordsPerSection?[section.id] ?? _sectionControllers[section.id]?.text.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).length ?? 0} words',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  if (restrictions != null && restrictions.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'Evidence Restrictions & Limitations',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, color: Colors.blue.shade900),
+                    ),
+                    const SizedBox(height: 6),
+                    for (final r in restrictions)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('• ', style: TextStyle(fontWeight: FontWeight.bold)),
+                            Expanded(child: Text(r.toString(), style: const TextStyle(fontSize: 12))),
+                          ],
+                        ),
+                      ),
+                  ],
+                  if (missingSections != null && missingSections.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'Missing / Incomplete Sections',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, color: Colors.orange.shade900),
+                    ),
+                    const SizedBox(height: 6),
+                    for (final s in missingSections)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('• ', style: TextStyle(fontWeight: FontWeight.bold)),
+                            Expanded(child: Text('Section requires input: $s', style: const TextStyle(fontSize: 12))),
+                          ],
+                        ),
+                      ),
+                  ],
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildCompactVersionSelector() {
     return FutureBuilder<List<PaperVersion>>(
       future: _versionsFuture,
@@ -1359,6 +1639,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                         padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
                         children: [
+                          _buildCompletionStatusBanner(),
                           _buildIntegrityBanner(),
                           const SizedBox(height: ResbudDesignTokens.contentSpacing),
                           _buildReviewWarningsSummary(),

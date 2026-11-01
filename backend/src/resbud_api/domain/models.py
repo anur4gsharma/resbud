@@ -150,6 +150,15 @@ class GenerationMeta(ContractModel):
     duration_ms: StrictInt = Field(ge=0)
     input_tokens: TokenCount | None = None
     output_tokens: TokenCount | None = None
+    requested_words: int | None = Field(default=None, ge=0)
+    generated_words: int | None = Field(default=None, ge=0)
+    words_per_section: dict[str, int] | None = None
+    completion_status: (
+        Literal["completed", "partially_complete", "evidence_constrained", "under_generated"]
+        | None
+    ) = None
+    missing_sections: list[str] | None = None
+    evidence_restrictions: list[str] | None = None
 
 
 class GenerationResponse(ContractModel):
