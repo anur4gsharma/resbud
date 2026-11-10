@@ -27,6 +27,7 @@ class DocxViewer extends StatefulWidget {
     this.fileSaver,
     this.versionSelector,
     this.onDownload,
+    this.onDownloadPdf,
     this.onSwitchToEdit,
     this.isEditMode = false,
   });
@@ -37,6 +38,7 @@ class DocxViewer extends StatefulWidget {
   final DocxFileSaver? fileSaver;
   final Widget? versionSelector;
   final VoidCallback? onDownload;
+  final VoidCallback? onDownloadPdf;
   final VoidCallback? onSwitchToEdit;
   final bool isEditMode;
 
@@ -167,6 +169,40 @@ class _DocxViewerState extends State<DocxViewer> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Download failed: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadPdf() async {
+    if (widget.onDownloadPdf != null) {
+      widget.onDownloadPdf!();
+      return;
+    }
+
+    try {
+      final result = await _exportApi.exportPdf(widget.paper);
+      final filename = '${widget.paper.title.replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '_')}.pdf';
+      final path = await _fileSaver.savePdf(
+        bytes: result.bytes,
+        suggestedFilename: filename,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Downloaded PDF: $path'),
+            backgroundColor: Colors.green.shade800,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF download failed: $e'),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
@@ -347,6 +383,14 @@ class _DocxViewerState extends State<DocxViewer> {
               tooltip: 'Download DOCX',
               icon: const Icon(Icons.download, color: Colors.white, size: 20),
               onPressed: _downloadDocx,
+            ),
+
+            // Download PDF
+            IconButton(
+              key: const ValueKey('button-docx-viewer-download-pdf'),
+              tooltip: 'Download PDF',
+              icon: const Icon(Icons.picture_as_pdf, color: Colors.white, size: 20),
+              onPressed: _downloadPdf,
             ),
 
             // Fullscreen Toggle

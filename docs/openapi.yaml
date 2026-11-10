@@ -151,6 +151,40 @@ paths:
         '422': { $ref: '#/components/responses/ApiError' }
         '429': { $ref: '#/components/responses/ApiError' }
         '500': { $ref: '#/components/responses/ApiError' }
+  /api/v1/exports/pdf:
+    post:
+      operationId: exportPdf
+      summary: Export the submitted current draft as a PDF file
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaperDraft'
+      responses:
+        '200':
+          description: Generated academic PDF document; not stored by the server.
+          headers:
+            Content-Disposition:
+              description: Sanitized attachment filename; the file is generated in memory and is not stored.
+              schema: { type: string, example: 'attachment; filename="resbud-research-paper.pdf"' }
+            X-Request-ID: { $ref: '#/components/headers/RequestId' }
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '400': { $ref: '#/components/responses/ApiError' }
+        '401': { $ref: '#/components/responses/ApiError' }
+        '403': { $ref: '#/components/responses/ApiError' }
+        '405': { $ref: '#/components/responses/ApiError' }
+        '413': { $ref: '#/components/responses/ApiError' }
+        '415': { $ref: '#/components/responses/ApiError' }
+        '422': { $ref: '#/components/responses/ApiError' }
+        '429': { $ref: '#/components/responses/ApiError' }
+        '500': { $ref: '#/components/responses/ApiError' }
 components:
   headers:
     RequestId:

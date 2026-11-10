@@ -133,3 +133,45 @@ def test_oversized_export_is_rejected_with_safe_error(monkeypatch: pytest.Monkey
 
     assert response.status_code == 413
     assert response.json()["code"] == "INPUT_TOO_LARGE"
+
+
+def test_export_renders_latex_equations_as_omml() -> None:
+    import zipfile
+
+    paper = copy.deepcopy(PAPER)
+    paper["sections"][0]["content"] = (
+        "Inline relation $E = mc^2$ in body.\n\n"
+        r"$$\sigma = \sqrt{\frac{1}{N}\sum_{i=1}^N (x_i - \mu)^2}$$"
+        "\n\nConcluded."
+    )
+    response = _request(_app(), paper)
+
+    assert response.status_code == 200
+    assert response.content.startswith(b"PK")
+
+    with zipfile.ZipFile(BytesIO(response.content)) as z:
+        xml = z.read("word/document.xml").decode("utf-8")
+        assert "http://schemas.openxmlformats.org/officeDocument/2006/math" in xml
+        assert "oMath" in xml
+
+
+def test_docx_renders_declarative_chart_block() -> None:
+    paper = copy.deepcopy(PAPER)
+    paper["sections"][0]["content"] = (
+        "Preliminary observation.\n\n"
+        "```chart\n"
+        "type: line\n"
+        "title: Convergence Rate\n"
+        "labels: [E1, E2, E3]\n"
+        "values: [0.9, 0.4, 0.1]\n"
+        "ylabel: Loss\n"
+        "```\n\n"
+        "Concluding observation."
+    )
+    response = _request(_app(), paper)
+
+    assert response.status_code == 200
+    assert response.content.startswith(b"PK")
+    doc = Document(BytesIO(response.content))
+    paragraphs = [p.text for p in doc.paragraphs]
+    assert any("Convergence Rate" in p for p in paragraphs)

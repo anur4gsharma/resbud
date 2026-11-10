@@ -292,5 +292,88 @@ void main() {
       );
       expect(p.basename(path4), 'summary (3).docx');
     });
+
+    test('LocalDocxFileSaver saves PDF bytes and sanitizes filenames', () async {
+      final saver = LocalDocxFileSaver(targetDirectory: tempDir);
+      final pdfBytes = Uint8List.fromList(utf8.encode('%PDF-1.4 sample content'));
+
+      final path = await saver.savePdf(
+        bytes: pdfBytes,
+        suggestedFilename: '../../nested/paper:report?.pdf',
+      );
+
+      expect(File(path).existsSync(), isTrue);
+      expect(p.dirname(path), tempDir.path);
+      expect(p.basename(path), isNot(contains('/')));
+      expect(p.basename(path), isNot(contains(':')));
+      expect(p.basename(path), isNot(contains('?')));
+      expect(p.extension(path), '.pdf');
+    });
+  });
+
+  group('PDF Export API client', () {
+    const samplePaper = PaperDraftPayload(
+      schemaVersion: 1,
+      title: 'Quantum Computing Overview',
+      abstractText: 'This is a brief summary.',
+      keywords: ['quantum', 'algorithms'],
+      sections: [
+        PaperSectionPayload(
+          id: 'intro',
+          heading: 'Introduction',
+          content: 'Introductory content.',
+          state: 'draft',
+        ),
+      ],
+      references: [],
+      reviewWarnings: [],
+    );
+
+    test('DocxExportApiClient successfully exports PDF with disposition header', () async {
+      final validPdfBytes = Uint8List.fromList(utf8.encode('%PDF-1.4\ntest content'));
+      final mockClient = MockClient((request) async {
+        expect(request.url.path, '/api/v1/exports/pdf');
+        expect(request.headers['accept'], 'application/pdf');
+        return http.Response.bytes(
+          validPdfBytes,
+          200,
+          headers: {
+            'content-disposition': 'attachment; filename="quantum-overview.pdf"',
+            'x-request-id': 'req-pdf-123',
+          },
+        );
+      });
+
+      final client = DocxExportApiClient(
+        baseUri: Uri.parse('https://api.example.com'),
+        client: mockClient,
+      );
+
+      final result = await client.exportPdf(samplePaper);
+      expect(result.bytes, validPdfBytes);
+      expect(result.suggestedFilename, 'quantum-overview.pdf');
+      expect(result.requestId, 'req-pdf-123');
+    });
+
+    test('DocxExportApiClient rejects invalid PDF magic bytes', () async {
+      final invalidPdfBytes = Uint8List.fromList(utf8.encode('NOT-A-PDF'));
+      final mockClient = MockClient((request) async {
+        return http.Response.bytes(invalidPdfBytes, 200);
+      });
+
+      final client = DocxExportApiClient(
+        baseUri: Uri.parse('https://api.example.com'),
+        client: mockClient,
+      );
+
+      expect(
+        () => client.exportPdf(samplePaper),
+        throwsA(isA<DocxExportFailure>().having(
+          (e) => e.code,
+          'code',
+          DocxExportFailureCode.invalidResponse,
+        )),
+      );
+    });
   });
 }

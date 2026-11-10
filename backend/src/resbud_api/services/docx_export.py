@@ -9,13 +9,16 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
+import math2docx
 from docx import Document
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
+from PIL import Image as PILImage
 
 from resbud_api.core.errors import ResbudError
 from resbud_api.domain.models import PaperDraft
+from resbud_api.services.chart_generator import render_academic_chart_from_spec
 
 MAX_EXPORT_BYTES = 8 * 1024 * 1024
 DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -165,11 +168,22 @@ def _create_document(paper: PaperDraft) -> Any:
     return document
 
 
+INLINE_MATH_PATTERN = re.compile(
+    r"(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\$[^$\n]+\$|\\\([\s\S]*?\\\))"
+)
+BLOCK_MATH_PATTERN = re.compile(
+    r"^(?:\$\$([\s\S]*?)\$\$|\\\[([\s\S]*?)\\\]|\\begin\{(?:equation|align|gather)\*?}([\s\S]*?)\\end\{(?:equation|align|gather)\*?})$"
+)
+
+
 def _render_section_content(document: Any, content: str) -> None:
     has_image = bool(re.search(r"!\[(.*?)\]\((.*?)\)", content))
     has_table = bool(re.search(r"\|.*\|", content) and "---" in content)
+    has_block_math = bool(
+        re.search(r"\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\begin\{equation", content)
+    )
 
-    if not has_image and not has_table:
+    if not has_image and not has_table and not has_block_math:
         _add_text_paragraph(document, content)
         return
 
@@ -178,6 +192,18 @@ def _render_section_content(document: Any, content: str) -> None:
         trimmed = block.strip()
         if not trimmed:
             continue
+        chart_match = re.match(r"^```chart\s*([\s\S]*?)\s*```$", trimmed)
+        if chart_match:
+            spec_content = chart_match.group(1)
+            chart_bytes = render_academic_chart_from_spec(spec_content)
+            if chart_bytes:
+                caption = "Figure: Quantitative Results"
+                for c_line in spec_content.split("\n"):
+                    if c_line.strip().lower().startswith("title:"):
+                        caption = f"Figure: {c_line.split(':', 1)[1].strip()}"
+                        break
+                _insert_figure_from_bytes(document, chart_bytes, caption)
+                continue
         fig_match = re.match(r"^!\[(.*?)\]\((.*?)\)$", trimmed)
         if fig_match:
             caption_text = fig_match.group(1)
@@ -188,21 +214,62 @@ def _render_section_content(document: Any, content: str) -> None:
         if len(lines) >= 2 and all(line.startswith("|") and line.endswith("|") for line in lines):
             _insert_table(document, lines)
             continue
+        if BLOCK_MATH_PATTERN.match(trimmed) or (
+            trimmed.startswith("$$") and trimmed.endswith("$$")
+        ):
+            _insert_equation_block(document, trimmed)
+            continue
         _add_text_paragraph(document, trimmed)
 
 
-def _insert_figure_from_src(document: Any, img_src: str, caption: str) -> None:
+def _insert_equation_block(document: Any, latex_formula: str) -> None:
+    formula = latex_formula.strip()
+    match = BLOCK_MATH_PATTERN.match(formula)
+    if match:
+        clean_latex = (match.group(1) or match.group(2) or match.group(3) or formula).strip()
+    elif formula.startswith("$$") and formula.endswith("$$"):
+        clean_latex = formula[2:-2].strip()
+    elif formula.startswith(r"\[") and formula.endswith(r"\]"):
+        clean_latex = formula[2:-2].strip()
+    else:
+        clean_latex = formula
+
+    p = document.add_paragraph()
+    p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_before = Pt(8)
+    p.paragraph_format.space_after = Pt(8)
     try:
-        raw_b64 = img_src
-        if "base64," in raw_b64:
-            raw_b64 = raw_b64.split("base64,", 1)[1]
-        img_bytes = base64.b64decode(raw_b64)
+        math2docx.add_math(p, clean_latex)
+    except Exception:
+        run = p.add_run(formula)
+        run.font.name = "Times New Roman"
+        run.font.italic = True
+        run.font.color.rgb = RGBColor(0, 0, 0)
+
+
+def _insert_figure_from_bytes(document: Any, img_bytes: bytes, caption: str) -> None:
+    try:
+        target_w = 5.2
+        target_h = 3.0
+        try:
+            with PILImage.open(BytesIO(img_bytes)) as pil_img:
+                orig_w, orig_h = pil_img.size
+                if orig_w > 0:
+                    aspect = orig_h / orig_w
+                    target_w = min(5.5, max(2.5, orig_w / 150.0))
+                    target_h = target_w * aspect
+                    if target_h > 4.5:
+                        target_h = 4.5
+                        target_w = target_h / aspect
+        except Exception:
+            pass
+
         p = document.add_paragraph()
         p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p.paragraph_format.space_before = Pt(8)
         p.paragraph_format.space_after = Pt(4)
         run = p.add_run()
-        run.add_picture(BytesIO(img_bytes), width=Inches(5.0))
+        run.add_picture(BytesIO(img_bytes), width=Inches(target_w), height=Inches(target_h))
 
         caption_p = document.add_paragraph()
         caption_p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -214,8 +281,61 @@ def _insert_figure_from_src(document: Any, img_src: str, caption: str) -> None:
         c_run.font.italic = True
         c_run.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
     except Exception:
-        p = document.add_paragraph(f"[{caption}]")
-        _ensure_run_style(p)
+        p = document.add_paragraph()
+        p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run(f"[{caption}]")
+        run.font.name = "Times New Roman"
+        run.font.italic = True
+
+
+def _insert_figure_from_src(document: Any, img_src: str, caption: str) -> None:
+    try:
+        raw_b64 = img_src.strip()
+        if "base64," in raw_b64:
+            raw_b64 = raw_b64.split("base64,", 1)[1]
+        raw_b64 = re.sub(r"\s+", "", raw_b64)
+        img_bytes = base64.b64decode(raw_b64)
+
+        target_w = 5.2
+        target_h = 3.2
+        try:
+            with PILImage.open(BytesIO(img_bytes)) as pil_img:
+                orig_w, orig_h = pil_img.size
+                if orig_w > 0:
+                    aspect = orig_h / orig_w
+                    target_w = min(5.5, max(2.0, orig_w / 96.0))
+                    target_h = target_w * aspect
+                    if target_h > 4.5:
+                        target_h = 4.5
+                        target_w = target_h / aspect
+        except Exception:
+            pass
+
+        p = document.add_paragraph()
+        p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.space_before = Pt(8)
+        p.paragraph_format.space_after = Pt(4)
+        run = p.add_run()
+        run.add_picture(BytesIO(img_bytes), width=Inches(target_w), height=Inches(target_h))
+
+        caption_p = document.add_paragraph()
+        caption_p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        caption_p.paragraph_format.space_before = Pt(2)
+        caption_p.paragraph_format.space_after = Pt(12)
+        c_run = caption_p.add_run(caption)
+        c_run.font.name = "Times New Roman"
+        c_run.font.size = Pt(9.5)
+        c_run.font.italic = True
+        c_run.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
+    except Exception:
+        p = document.add_paragraph()
+        p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.space_before = Pt(6)
+        p.paragraph_format.space_after = Pt(6)
+        run = p.add_run(f"[{caption}]")
+        run.font.name = "Times New Roman"
+        run.font.italic = True
+        run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
 
 
 def _insert_table(document: Any, lines: list[str]) -> None:
@@ -252,6 +372,37 @@ def _insert_table(document: Any, lines: list[str]) -> None:
         _add_text_paragraph(document, "\n".join(lines))
 
 
+def _append_line_with_math(paragraph: Any, line: str) -> None:
+    tokens = INLINE_MATH_PATTERN.split(line)
+    for token in tokens:
+        if not token:
+            continue
+        is_math = False
+        clean_math = token
+        if token.startswith("$$") and token.endswith("$$") and len(token) > 4:
+            is_math = True
+            clean_math = token[2:-2].strip()
+        elif token.startswith(r"\[") and token.endswith(r"\]") and len(token) > 4:
+            is_math = True
+            clean_math = token[2:-2].strip()
+        elif token.startswith("$") and token.endswith("$") and len(token) > 2:
+            is_math = True
+            clean_math = token[1:-1].strip()
+        elif token.startswith(r"\(") and token.endswith(r"\)") and len(token) > 4:
+            is_math = True
+            clean_math = token[2:-2].strip()
+
+        if is_math and clean_math:
+            try:
+                math2docx.add_math(paragraph, clean_math)
+                continue
+            except Exception:
+                pass
+        run = paragraph.add_run(token)
+        run.font.name = "Times New Roman"
+        run.font.color.rgb = RGBColor(0, 0, 0)
+
+
 def _add_text_paragraph(document: Any, text: str) -> None:
     paragraph = document.add_paragraph()
     paragraph.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
@@ -260,9 +411,7 @@ def _add_text_paragraph(document: Any, text: str) -> None:
     lines = text.split("\n")
     for index, line in enumerate(lines):
         if line:
-            run = paragraph.add_run(line)
-            run.font.name = "Times New Roman"
-            run.font.color.rgb = RGBColor(0, 0, 0)
+            _append_line_with_math(paragraph, line)
         if index < len(lines) - 1:
             break_run = paragraph.add_run()
             break_run.font.name = "Times New Roman"

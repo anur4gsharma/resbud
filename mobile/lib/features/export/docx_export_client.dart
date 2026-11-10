@@ -78,8 +78,21 @@ class DocxExportResult {
   final String? requestId;
 }
 
+class PdfExportResult {
+  const PdfExportResult({
+    required this.bytes,
+    required this.suggestedFilename,
+    this.requestId,
+  });
+
+  final Uint8List bytes;
+  final String suggestedFilename;
+  final String? requestId;
+}
+
 abstract interface class PaperExportApi {
   Future<DocxExportResult> exportDocx(PaperDraftPayload paper);
+  Future<PdfExportResult> exportPdf(PaperDraftPayload paper);
 }
 
 class DocxExportApiClient implements PaperExportApi {
@@ -119,6 +132,7 @@ class DocxExportApiClient implements PaperExportApi {
   final Duration timeout;
 
   Uri get _exportUri => baseUri.resolve('/api/v1/exports/docx');
+  Uri get _pdfExportUri => baseUri.resolve('/api/v1/exports/pdf');
 
   Future<void> close() async {
     if (_ownsClient) _client.close();
@@ -185,6 +199,78 @@ class DocxExportApiClient implements PaperExportApi {
       suggestedFilename: suggestedFilename,
       requestId: requestId,
     );
+  }
+
+  @override
+  Future<PdfExportResult> exportPdf(PaperDraftPayload paper) async {
+    final token = await tokenProvider?.call();
+    final headers = <String, String>{
+      'content-type': 'application/json',
+      'accept': 'application/pdf',
+    };
+    if (token != null && token.trim().isNotEmpty) {
+      headers['authorization'] = 'Bearer ${token.trim()}';
+    }
+
+    final payloadJson = jsonEncode(paper.toJson());
+
+    late final http.Response response;
+    try {
+      response = await _client
+          .post(
+            _pdfExportUri,
+            headers: headers,
+            body: payloadJson,
+          )
+          .timeout(timeout);
+    } on TimeoutException {
+      throw const DocxExportFailure(
+        code: DocxExportFailureCode.networkTimeout,
+      );
+    } on SocketException {
+      throw const DocxExportFailure(
+        code: DocxExportFailureCode.networkUnavailable,
+      );
+    } on http.ClientException {
+      throw const DocxExportFailure(
+        code: DocxExportFailureCode.networkUnavailable,
+      );
+    }
+
+    final requestId = _requestIdFromHeaders(response.headers);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw _errorFromResponse(response, requestId);
+    }
+
+    final bytes = response.bodyBytes;
+    if (!_isValidPdfBytes(bytes)) {
+      throw DocxExportFailure(
+        code: DocxExportFailureCode.invalidResponse,
+        statusCode: response.statusCode,
+        requestId: requestId,
+        details: 'The server returned data that is not a valid PDF document.',
+      );
+    }
+
+    final suggestedFilename = _extractFilename(
+      response.headers['content-disposition'],
+      defaultName: safePdfFilename(paper.title),
+    );
+
+    return PdfExportResult(
+      bytes: bytes,
+      suggestedFilename: suggestedFilename,
+      requestId: requestId,
+    );
+  }
+
+  static bool _isValidPdfBytes(Uint8List bytes) {
+    if (bytes.length < 5 || bytes.length > 8 * 1024 * 1024) return false;
+    return bytes[0] == 0x25 && // %
+        bytes[1] == 0x50 && // P
+        bytes[2] == 0x44 && // D
+        bytes[3] == 0x46 && // F
+        bytes[4] == 0x2D; // -
   }
 
   static bool _isValidDocxBytes(Uint8List bytes) {
@@ -265,4 +351,13 @@ String safeDocxFilename(String title) {
       .replaceAll(RegExp(r'^-+|-+$'), '');
   final clamped = slug.length > 64 ? slug.substring(0, 64).replaceAll(RegExp(r'^-+|-+$'), '') : slug;
   return 'resbud-${clamped.isEmpty ? 'research-paper' : clamped}.docx';
+}
+
+String safePdfFilename(String title) {
+  final slug = title
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+      .replaceAll(RegExp(r'^-+|-+$'), '');
+  final clamped = slug.length > 64 ? slug.substring(0, 64).replaceAll(RegExp(r'^-+|-+$'), '') : slug;
+  return 'resbud-${clamped.isEmpty ? 'research-paper' : clamped}.pdf';
 }

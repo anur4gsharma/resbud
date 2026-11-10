@@ -227,6 +227,63 @@ void main() {
       expect(find.textContaining('Downloaded:'), findsOneWidget);
     });
 
+    testWidgets('download PDF button saves PDF and surfaces snackbar', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DocxViewer(
+              paper: samplePaper,
+              exportApi: fakeExportApi,
+              fileSaver: fakeSaver,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('button-docx-viewer-download-pdf')));
+      await tester.pumpAndSettle();
+
+      expect(fakeSaver.saveCallCount, 1);
+      expect(fakeSaver.lastSuggestedFilename, contains('.pdf'));
+      expect(find.textContaining('Downloaded PDF:'), findsOneWidget);
+    });
+
+    testWidgets('renders LaTeX math block and inline equations in document canvas', (tester) async {
+      const mathPaper = PaperDraftPayload(
+        schemaVersion: 1,
+        title: 'Analytical Formulations',
+        abstractText: 'Abstract with math.',
+        keywords: ['math', 'physics'],
+        sections: [
+          PaperSectionPayload(
+            id: 'theory',
+            heading: 'Theoretical Derivations',
+            content:
+                'Einstein mass-energy equivalence is \$E = mc^2\$ in flat space.\n\n'
+                r'$$\sigma = \sqrt{\frac{1}{N}\sum (x_i - \mu)^2}$$'
+                '\n\nSubsequent remarks.',
+            state: 'draft',
+          ),
+        ],
+        references: [],
+        reviewWarnings: [],
+      );
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: DocxDocumentCanvas(paper: mathPaper),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Theoretical Derivations'), findsOneWidget);
+      // Verify math widget renders
+      expect(find.textContaining('Einstein mass-energy equivalence'), findsOneWidget);
+    });
+
     testWidgets('fullscreen toggle toggles state and icon', (tester) async {
       await tester.pumpWidget(
         MaterialApp(

@@ -10,6 +10,7 @@ from resbud_api.core.auth import get_current_user
 from resbud_api.core.rate_limit import check_rate_limit
 from resbud_api.domain.models import PaperDraft
 from resbud_api.services.docx_export import DOCX_MEDIA_TYPE, export_paper_docx, safe_docx_filename
+from resbud_api.services.pdf_export import PDF_MEDIA_TYPE, export_paper_pdf, safe_pdf_filename
 
 router = APIRouter(
     prefix="/api/v1/exports",
@@ -47,5 +48,33 @@ async def export_docx(paper: PaperDraft) -> Response:
     return Response(
         content=content,
         media_type=DOCX_MEDIA_TYPE,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post(
+    "/pdf",
+    operation_id="exportPdf",
+    response_class=Response,
+    responses={
+        **EXPORT_ERROR_RESPONSES,
+        200: {
+            "description": "Generated academic PDF document; not stored by the server.",
+            "headers": {
+                **REQUEST_ID_HEADER,
+                "Content-Disposition": {"schema": {"type": "string"}},
+            },
+            "content": {
+                PDF_MEDIA_TYPE: {"schema": {"type": "string", "format": "binary"}},
+            },
+        },
+    },
+)
+async def export_pdf(paper: PaperDraft) -> Response:
+    content = export_paper_pdf(paper)
+    filename = safe_pdf_filename(paper.title)
+    return Response(
+        content=content,
+        media_type=PDF_MEDIA_TYPE,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

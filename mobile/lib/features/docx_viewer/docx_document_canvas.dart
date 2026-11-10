@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_math_fork/flutter_math.dart';
 
 import '../generation/generation_models.dart';
 
@@ -326,6 +327,11 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
           return _buildFigureBlock(trimmed, zoom);
         }
 
+        // Check for chart specification
+        if (trimmed.startsWith('```chart') && trimmed.endsWith('```')) {
+          return _buildChartBlock(trimmed, zoom);
+        }
+
         // Check for bullet or numbered list
         if (trimmed.startsWith('- ') ||
             trimmed.startsWith('* ') ||
@@ -333,21 +339,144 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
           return _buildListBlock(trimmed, zoom);
         }
 
-        // Standard body paragraph: 10.5pt, 1.15 line spacing, 6pt after
-        return Padding(
-          padding: EdgeInsets.only(bottom: 8.0 * zoom),
-          child: Text(
-            trimmed,
-            textAlign: TextAlign.justify,
-            style: TextStyle(
-              fontFamily: 'serif',
-              fontSize: 10.5 * zoom,
-              height: 1.35,
-              color: const Color(0xFF111111),
+        // Check for block math equation
+        if ((trimmed.startsWith(r'$$') && trimmed.endsWith(r'$$') && trimmed.length > 4) ||
+            (trimmed.startsWith(r'\[') && trimmed.endsWith(r'\]') && trimmed.length > 4) ||
+            (trimmed.startsWith(r'\begin{equation}') && trimmed.endsWith(r'\end{equation}')) ||
+            (trimmed.startsWith(r'\begin{align}') && trimmed.endsWith(r'\end{align}'))) {
+          return _buildMathEquationBlock(trimmed, zoom);
+        }
+
+        // Standard body paragraph with potential inline math
+        return _buildParagraphWithInlineMath(trimmed, zoom);
+      }).toList(),
+    );
+  }
+
+  Widget _buildMathEquationBlock(String equationText, double zoom) {
+    String cleanLatex = equationText.trim();
+    if (cleanLatex.startsWith(r'$$') && cleanLatex.endsWith(r'$$')) {
+      cleanLatex = cleanLatex.substring(2, cleanLatex.length - 2).trim();
+    } else if (cleanLatex.startsWith(r'\[') && cleanLatex.endsWith(r'\]')) {
+      cleanLatex = cleanLatex.substring(2, cleanLatex.length - 2).trim();
+    }
+
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 10.0 * zoom),
+      child: Center(
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Math.tex(
+            cleanLatex,
+            mathStyle: MathStyle.display,
+            textStyle: TextStyle(
+              fontSize: 11.5 * zoom,
+              color: Colors.black,
+            ),
+            onErrorFallback: (_) => Text(
+              equationText,
+              style: TextStyle(
+                fontFamily: 'serif',
+                fontStyle: FontStyle.italic,
+                fontSize: 10.5 * zoom,
+                color: Colors.black87,
+              ),
             ),
           ),
-        );
-      }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildParagraphWithInlineMath(String text, double zoom) {
+    final bodyStyle = TextStyle(
+      fontFamily: 'serif',
+      fontSize: 10.5 * zoom,
+      height: 1.35,
+      color: const Color(0xFF111111),
+    );
+
+    if (!text.contains(r'$') && !text.contains(r'\(') && !text.contains(r'\[')) {
+      return Padding(
+        padding: EdgeInsets.only(bottom: 8.0 * zoom),
+        child: Text(
+          text,
+          textAlign: TextAlign.justify,
+          style: bodyStyle,
+        ),
+      );
+    }
+
+    final mathRegex = RegExp(r'(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\$[^$\n]+\$|\\\([\s\S]*?\\\))');
+    final matches = mathRegex.allMatches(text);
+    if (matches.isEmpty) {
+      return Padding(
+        padding: EdgeInsets.only(bottom: 8.0 * zoom),
+        child: Text(
+          text,
+          textAlign: TextAlign.justify,
+          style: bodyStyle,
+        ),
+      );
+    }
+
+    final spans = <InlineSpan>[];
+    var lastIndex = 0;
+
+    for (final match in matches) {
+      if (match.start > lastIndex) {
+        spans.add(TextSpan(
+          text: text.substring(lastIndex, match.start),
+          style: bodyStyle,
+        ));
+      }
+
+      final rawMath = match.group(0)!;
+      String cleanLatex = rawMath;
+      if (rawMath.startsWith(r'$$') && rawMath.endsWith(r'$$')) {
+        cleanLatex = rawMath.substring(2, rawMath.length - 2).trim();
+      } else if (rawMath.startsWith(r'\[') && rawMath.endsWith(r'\]')) {
+        cleanLatex = rawMath.substring(2, rawMath.length - 2).trim();
+      } else if (rawMath.startsWith(r'$') && rawMath.endsWith(r'$')) {
+        cleanLatex = rawMath.substring(1, rawMath.length - 1).trim();
+      } else if (rawMath.startsWith(r'\(') && rawMath.endsWith(r'\)')) {
+        cleanLatex = rawMath.substring(2, rawMath.length - 2).trim();
+      }
+
+      spans.add(
+        WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: Math.tex(
+            cleanLatex,
+            mathStyle: MathStyle.text,
+            textStyle: TextStyle(
+              fontSize: 10.5 * zoom,
+              color: Colors.black,
+            ),
+            onErrorFallback: (_) => Text(
+              rawMath,
+              style: bodyStyle.copyWith(fontStyle: FontStyle.italic),
+            ),
+          ),
+        ),
+      );
+
+      lastIndex = match.end;
+    }
+
+    if (lastIndex < text.length) {
+      spans.add(TextSpan(
+        text: text.substring(lastIndex),
+        style: bodyStyle,
+      ));
+    }
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: 8.0 * zoom),
+      child: Text.rich(
+        TextSpan(children: spans),
+        textAlign: TextAlign.justify,
+      ),
     );
   }
 
@@ -456,6 +585,108 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildChartBlock(String chartText, double zoom) {
+    final lines = chartText.replaceAll('```chart', '').replaceAll('```', '').trim().split('\n');
+    String title = 'Figure: Quantitative Analysis';
+    String ylabel = 'Value';
+    List<String> labels = [];
+    List<double> values = [];
+
+    for (final rawLine in lines) {
+      final line = rawLine.trim();
+      if (line.toLowerCase().startsWith('title:')) {
+        title = line.substring(6).trim().replaceAll("'", '').replaceAll('"', '');
+      } else if (line.toLowerCase().startsWith('ylabel:')) {
+        ylabel = line.substring(7).trim().replaceAll("'", '').replaceAll('"', '');
+      } else if (line.toLowerCase().startsWith('labels:')) {
+        final listStr = line.substring(7).replaceAll('[', '').replaceAll(']', '').trim();
+        labels = listStr.split(',').map((e) => e.trim().replaceAll("'", '').replaceAll('"', '')).toList();
+      } else if (line.toLowerCase().startsWith('values:')) {
+        final listStr = line.substring(7).replaceAll('[', '').replaceAll(']', '').trim();
+        values = listStr.split(',').map((e) => double.tryParse(e.trim()) ?? 0.0).toList();
+      }
+    }
+
+    final maxVal = values.isNotEmpty ? values.reduce((a, b) => a > b ? a : b) : 1.0;
+    final effectiveMax = maxVal == 0 ? 1.0 : maxVal;
+
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 14.0 * zoom),
+      child: Center(
+        child: Container(
+          width: 480.0 * zoom,
+          padding: EdgeInsets.all(12.0 * zoom),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            border: Border.all(color: Colors.grey.shade400, width: 0.75 * zoom),
+            borderRadius: BorderRadius.circular(4.0),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontFamily: 'serif',
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10.5 * zoom,
+                ),
+              ),
+              SizedBox(height: 12.0 * zoom),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  for (var i = 0; i < values.length; i++)
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          values[i].toStringAsFixed(1),
+                          style: TextStyle(
+                            fontFamily: 'serif',
+                            fontSize: 8.5 * zoom,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        SizedBox(height: 4.0 * zoom),
+                        Container(
+                          width: 32.0 * zoom,
+                          height: (values[i] / effectiveMax * 100.0).clamp(10.0, 100.0) * zoom,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0072B2),
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(2.0 * zoom)),
+                          ),
+                        ),
+                        SizedBox(height: 6.0 * zoom),
+                        Text(
+                          i < labels.length ? labels[i] : 'Item ${i + 1}',
+                          style: TextStyle(
+                            fontFamily: 'serif',
+                            fontSize: 8.5 * zoom,
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+              SizedBox(height: 8.0 * zoom),
+              Text(
+                ylabel,
+                style: TextStyle(
+                  fontFamily: 'serif',
+                  fontStyle: FontStyle.italic,
+                  fontSize: 8.5 * zoom,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

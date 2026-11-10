@@ -30,6 +30,9 @@
   <link rel="icon" type="image/png" href="favicon.png"/>
 
   <!-- Native In-Browser DOCX Rendering Scripts -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/docx-preview@0.3.3/dist/docx-preview.min.js"></script>
   <script src="docx_helper.js"></script>
@@ -120,6 +123,23 @@
                 pages[p].style.marginBottom = "24px";
                 pages[p].style.backgroundColor = "#ffffff";
                 pages[p].style.borderRadius = "2px";
+              }
+
+              // Auto-render LaTeX math formulas if KaTeX is available
+              if (window.renderMathInElement) {
+                try {
+                  window.renderMathInElement(contentDiv, {
+                    delimiters: [
+                      { left: "$$", right: "$$", display: true },
+                      { left: "\\[", right: "\\]", display: true },
+                      { left: "$", right: "$", display: false },
+                      { left: "\\(", right: "\\)", display: false }
+                    ],
+                    throwOnError: false
+                  });
+                } catch (mathErr) {
+                  console.warn("KaTeX math auto-render error:", mathErr);
+                }
               }
 
               var currentZoom = zoomLevel || 1.0;

@@ -29,6 +29,7 @@ class FakePaperExportApi implements PaperExportApi {
   int exportCallCount = 0;
   PaperDraftPayload? lastExportedPaper;
   DocxExportResult? resultToReturn;
+  PdfExportResult? pdfResultToReturn;
   Object? errorToThrow;
 
   @override
@@ -50,6 +51,22 @@ class FakePaperExportApi implements PaperExportApi {
           requestId: 'test-export-req-1',
         );
   }
+
+  @override
+  Future<PdfExportResult> exportPdf(PaperDraftPayload paper) async {
+    exportCallCount++;
+    lastExportedPaper = paper;
+    if (errorToThrow != null) {
+      throw errorToThrow!;
+    }
+    return pdfResultToReturn ??
+        PdfExportResult(
+          bytes: Uint8List.fromList(utf8.encode('%PDF-1.4\nmock test pdf bytes')),
+          suggestedFilename:
+              'resbud-${paper.title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-')}.pdf',
+          requestId: 'test-export-pdf-1',
+        );
+  }
 }
 
 class FakeDocxFileSaver implements DocxFileSaver {
@@ -61,6 +78,20 @@ class FakeDocxFileSaver implements DocxFileSaver {
 
   @override
   Future<String> saveDocx({
+    required Uint8List bytes,
+    required String suggestedFilename,
+  }) async {
+    saveCallCount++;
+    lastSavedBytes = bytes;
+    lastSuggestedFilename = suggestedFilename;
+    if (errorToThrow != null) {
+      throw errorToThrow!;
+    }
+    return pathToReturn ?? '/simulated/documents/$suggestedFilename';
+  }
+
+  @override
+  Future<String> savePdf({
     required Uint8List bytes,
     required String suggestedFilename,
   }) async {

@@ -534,6 +534,27 @@ void main() {
     );
   });
 
+  testWidgets('export PDF exports current saved paper and invokes file saver without unsaved prompt', (
+    tester,
+  ) async {
+    await pumpEditor(tester);
+
+    await tester.tap(find.byKey(const ValueKey('button-export-pdf')));
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(fakeExportApi.exportCallCount, 1);
+    expect(fakeExportApi.lastExportedPaper?.title, 'Test Paper Title');
+    expect(fakeFileSaver.saveCallCount, 1);
+    expect(
+      find.textContaining('Exported PDF: /simulated/documents/resbud-test-paper-title.pdf'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('export DOCX with unsaved edits prompts choice and allows exporting saved snapshot without widget edits', (
     tester,
   ) async {

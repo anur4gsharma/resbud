@@ -1413,6 +1413,87 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
     }
   }
 
+  Future<void> _exportPdf() async {
+    if (_isExporting) return;
+
+    PaperDraftPayload paperToExport = _paper;
+
+    if (_isDirty) {
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Unsaved edits'),
+          content: Text(
+            'You have unsaved changes in the editor. Save your changes before exporting, '
+            'or export the currently saved Version ${_currentVersion.versionNumber}?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, 'cancel'),
+              child: const Text('Cancel'),
+            ),
+            OutlinedButton(
+              key: const ValueKey('export-saved-pdf-button'),
+              onPressed: () => Navigator.pop(dialogContext, 'export_saved'),
+              child: Text('Export saved (v${_currentVersion.versionNumber})'),
+            ),
+            FilledButton(
+              key: const ValueKey('save-and-export-pdf-button'),
+              onPressed: () => Navigator.pop(dialogContext, 'save_and_export'),
+              child: const Text('Save & export'),
+            ),
+          ],
+        ),
+      );
+
+      if (!mounted || choice == null || choice == 'cancel') return;
+
+      if (choice == 'save_and_export') {
+        await _saveManualEdits();
+        if (_isDirty || !mounted) {
+          return;
+        }
+        paperToExport = _paper;
+      } else if (choice == 'export_saved') {
+        paperToExport = PaperDraftPayload.fromJson(_currentVersion.paper);
+      }
+    }
+
+    if (paperToExport.title.trim().isEmpty) {
+      _showFeedback('Cannot export: Paper title cannot be blank.', isError: true);
+      return;
+    }
+    if (paperToExport.sections.isEmpty) {
+      _showFeedback('Cannot export: Paper must contain at least one section.', isError: true);
+      return;
+    }
+
+    setState(() => _isExporting = true);
+
+    try {
+      final result = await _exportApi.exportPdf(paperToExport);
+      final savedPath = await _fileSaver.savePdf(
+        bytes: result.bytes,
+        suggestedFilename: result.suggestedFilename,
+      );
+      if (!mounted) return;
+      setState(() => _isExporting = false);
+      _showFeedback('Exported PDF: $savedPath');
+    } on DocxExportFailure catch (failure) {
+      if (!mounted) return;
+      setState(() => _isExporting = false);
+      _showFeedback(failure.supportDetail, isError: true);
+    } on DocxFileSaverException catch (saverError) {
+      if (!mounted) return;
+      setState(() => _isExporting = false);
+      _showFeedback('File save error: ${saverError.message}', isError: true);
+    } on Object catch (error) {
+      if (!mounted) return;
+      setState(() => _isExporting = false);
+      _showFeedback('Export failed: $error', isError: true);
+    }
+  }
+
   static String _formatDateTime(DateTime dt) {
     final local = dt.toLocal();
     final y = local.year;
@@ -1473,6 +1554,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
         child: Scaffold(
           appBar: AppBar(
             titleSpacing: 0,
+            leadingWidth: 36,
             leading: IconButton(
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
@@ -1569,8 +1651,8 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                 key: const ValueKey('button-readiness-review'),
                 padding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                icon: const Icon(Icons.fact_check_outlined, size: 20),
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                icon: const Icon(Icons.fact_check_outlined, size: 19),
                 tooltip: 'Manuscript readiness review',
                 onPressed: _openReadinessReview,
               ),
@@ -1578,8 +1660,8 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                 key: const ValueKey('button-compare-source'),
                 padding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                icon: const Icon(Icons.source_outlined, size: 20),
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                icon: const Icon(Icons.source_outlined, size: 19),
                 tooltip: 'Compare source draft',
                 onPressed: _compareSourceDraft,
               ),
@@ -1587,8 +1669,8 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                 key: const ValueKey('button-version-history'),
                 padding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                icon: const Icon(Icons.history, size: 20),
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                icon: const Icon(Icons.history, size: 19),
                 tooltip: 'Version history',
                 onPressed: _openVersionHistory,
               ),
@@ -1596,29 +1678,44 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                 key: const ValueKey('button-export-docx'),
                 padding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                 icon: _isExporting
                     ? const SizedBox(
-                        width: 18,
-                        height: 18,
+                        width: 16,
+                        height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.file_download_outlined, size: 20),
+                    : const Icon(Icons.file_download_outlined, size: 19),
                 tooltip: 'Export DOCX',
                 onPressed: _isExporting ? null : _exportDocx,
+              ),
+              IconButton(
+                key: const ValueKey('button-export-pdf'),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                icon: _isExporting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.picture_as_pdf_outlined, size: 19),
+                tooltip: 'Export PDF',
+                onPressed: _isExporting ? null : _exportPdf,
               ),
               IconButton(
                 key: const ValueKey('button-save-edits'),
                 padding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                 icon: _isSaving
                     ? const SizedBox(
-                        width: 18,
-                        height: 18,
+                        width: 16,
+                        height: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Icon(Icons.save_outlined, size: 20),
+                    : const Icon(Icons.save_outlined, size: 19),
                 tooltip: 'Save edits',
                 onPressed: _isSaving ? null : _saveManualEdits,
               ),
@@ -1677,6 +1774,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                 exportApi: _exportApi,
                 fileSaver: _fileSaver,
                 onDownload: _exportDocx,
+                onDownloadPdf: _exportPdf,
                 onSwitchToEdit: () => setState(() => _workspaceMode = PaperWorkspaceMode.editor),
               ),
             ],

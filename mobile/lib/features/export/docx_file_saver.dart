@@ -26,6 +26,13 @@ abstract interface class DocxFileSaver {
     required Uint8List bytes,
     required String suggestedFilename,
   });
+
+  /// Saves [bytes] as a PDF file using [suggestedFilename] as the base filename,
+  /// returning the absolute file path of the saved document.
+  Future<String> savePdf({
+    required Uint8List bytes,
+    required String suggestedFilename,
+  });
 }
 
 class DocxFileSaverException implements Exception {
@@ -100,6 +107,55 @@ class LocalDocxFileSaver implements DocxFileSaver {
     }
   }
 
+  @override
+  Future<String> savePdf({
+    required Uint8List bytes,
+    required String suggestedFilename,
+  }) async {
+    if (bytes.isEmpty) {
+      throw const DocxFileSaverException('Cannot save an empty PDF document.');
+    }
+
+    final sanitized = sanitizePdfFilename(suggestedFilename);
+
+    if (kIsWeb) {
+      try {
+        if (webSaveHandler != null) {
+          await webSaveHandler!(fileName: sanitized, bytes: bytes);
+        } else {
+          await FilePicker.saveFile(
+            fileName: sanitized,
+            bytes: bytes,
+            mimeType: 'application/pdf',
+          );
+        }
+        return sanitized;
+      } on Object catch (error) {
+        throw DocxFileSaverException('Could not save exported PDF: $error');
+      }
+    }
+
+    try {
+      final dir = targetDirectory ??
+          (directoryResolver != null
+              ? await directoryResolver!()
+              : await _defaultExportDirectory());
+
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+
+      final uniqueFile = resolveUniqueFile(dir, sanitized);
+
+      await uniqueFile.writeAsBytes(bytes, flush: true);
+      return uniqueFile.path;
+    } on DocxFileSaverException {
+      rethrow;
+    } on Object catch (error) {
+      throw DocxFileSaverException('Could not save exported PDF: $error');
+    }
+  }
+
   static Future<Directory> _defaultExportDirectory() async {
     final baseDir = Directory(p.join(Directory.systemTemp.path, 'resbud_exports'));
     if (!await baseDir.exists()) {
@@ -127,6 +183,28 @@ String sanitizeDocxFilename(String name) {
   }
   if (!sanitized.toLowerCase().endsWith('.docx')) {
     sanitized = '$sanitized.docx';
+  }
+
+  final base = p.basenameWithoutExtension(sanitized);
+  final ext = p.extension(sanitized);
+  final clampedBase = base.length > 60 ? base.substring(0, 60).trim() : base;
+  final finalBase = clampedBase.isEmpty ? 'research-paper' : clampedBase;
+  return '$finalBase$ext';
+}
+
+/// Sanitizes a user- or server-provided filename for PDF:
+String sanitizePdfFilename(String name) {
+  var sanitized = name.replaceAll(RegExp(r'[\x00-\x1F\x7F]'), '');
+  sanitized = sanitized.replaceAll(RegExp(r'[\\/:\*\?"<>|]'), '-');
+  sanitized = sanitized.trim();
+  while (sanitized.startsWith('.')) {
+    sanitized = sanitized.substring(1).trim();
+  }
+  if (sanitized.isEmpty) {
+    sanitized = 'research-paper.pdf';
+  }
+  if (!sanitized.toLowerCase().endsWith('.pdf')) {
+    sanitized = '$sanitized.pdf';
   }
 
   final base = p.basenameWithoutExtension(sanitized);

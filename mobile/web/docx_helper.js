@@ -87,6 +87,23 @@
               pages[p].style.borderRadius = "2px";
             }
 
+            // Auto-render LaTeX math formulas if KaTeX is available
+            if (window.renderMathInElement) {
+              try {
+                window.renderMathInElement(contentDiv, {
+                  delimiters: [
+                    { left: "$$", right: "$$", display: true },
+                    { left: "\\[", right: "\\]", display: true },
+                    { left: "$", right: "$", display: false },
+                    { left: "\\(", right: "\\)", display: false }
+                  ],
+                  throwOnError: false
+                });
+              } catch (mathErr) {
+                console.warn("KaTeX math auto-render error:", mathErr);
+              }
+            }
+
             var currentZoom = zoomLevel || 1.0;
             if (currentZoom !== 1.0) {
               contentDiv.style.transform = "scale(" + currentZoom + ")";
