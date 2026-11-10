@@ -1,18 +1,23 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/local_project_repository.dart';
+import '../docx_viewer/docx_viewer.dart';
 import '../export/docx_export_client.dart';
 import '../export/docx_file_saver.dart';
 import '../generation/generation_api_client.dart';
 import '../generation/generation_models.dart';
+import '../pdf_viewer/pdf_viewer.dart';
 import '../readiness/manuscript_readiness_service.dart';
 import '../readiness/manuscript_readiness_sheet.dart';
-import '../docx_viewer/docx_viewer.dart';
 import '../../shared/design_tokens.dart';
 
 enum _RegenerationReviewChoice { reject, accept }
 
-enum PaperWorkspaceMode { document, editor }
+enum PaperWorkspaceMode { document, pdf, editor }
 
 class PaperEditorPage extends StatefulWidget {
   const PaperEditorPage({
@@ -476,6 +481,67 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
       setState(() {});
     } else {
       _showFeedback('"${section.heading}" has not been modified.');
+    }
+  }
+
+  Future<void> _pickAndInsertFigure(PaperSectionPayload section) async {
+    try {
+      List<PlatformFile> pickedFiles = [];
+      try {
+        final result = await FilePicker.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'],
+        );
+        pickedFiles = result;
+      } catch (_) {
+        final result = await FilePicker.pickFiles(type: FileType.image);
+        pickedFiles = result;
+      }
+
+      if (pickedFiles.isEmpty || !mounted) return;
+
+      final controller = _sectionControllers[section.id];
+      if (controller == null) return;
+
+      final buffer = StringBuffer();
+      int count = 0;
+      for (final file in pickedFiles) {
+        Uint8List? bytes;
+        try {
+          bytes = await file.readAsBytes();
+        } catch (_) {}
+        if (bytes == null || bytes.isEmpty) continue;
+
+        final ext = file.name.split('.').last.toLowerCase();
+        final mediaType = switch (ext) {
+          'jpg' || 'jpeg' => 'image/jpeg',
+          'webp' => 'image/webp',
+          'gif' => 'image/gif',
+          'bmp' => 'image/bmp',
+          _ => 'image/png',
+        };
+        final cleanName = file.name
+            .replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '')
+            .replaceAll('_', ' ');
+        final b64 = 'data:$mediaType;base64,${base64Encode(bytes)}';
+
+        buffer.writeln();
+        buffer.writeln('![Figure: $cleanName]($b64)');
+        buffer.writeln();
+        count++;
+      }
+
+      if (count > 0) {
+        final currentText = controller.text;
+        final newText = currentText.isEmpty
+            ? buffer.toString().trim()
+            : '$currentText\n${buffer.toString()}';
+        controller.text = newText;
+        _saveManualEdits();
+        _showFeedback('Inserted $count image${count == 1 ? '' : 's'} into ${section.heading}');
+      }
+    } catch (e) {
+      _showFeedback('Failed to insert image: $e', isError: true);
     }
   }
 
@@ -1064,11 +1130,13 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
     final int actualWords = (meta?['generated_words'] as int?) ?? _computeTotalWords();
     final String completionStatus = (meta?['completion_status'] as String?) ??
         (actualWords >= (requestedWords * 0.75) ? 'completed' : 'under_generated');
-    final Map? wordsPerSection = meta?['words_per_section'] as Map?;
-    final List? restrictions = meta?['evidence_restrictions'] as List?;
-    final List? missingSections = meta?['missing_sections'] as List?;
+    final Map<String, dynamic>? wordsPerSection = meta?['words_per_section'] is Map
+        ? (meta!['words_per_section'] as Map).cast<String, dynamic>()
+        : null;
+    final List<dynamic>? restrictions = meta?['evidence_restrictions'] as List<dynamic>?;
+    final List<dynamic>? missingSections = meta?['missing_sections'] as List<dynamic>?;
 
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -1633,6 +1701,11 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                         icon: Icon(Icons.article_outlined, size: 16),
                       ),
                       ButtonSegment(
+                        value: PaperWorkspaceMode.pdf,
+                        label: Text('View as PDF', style: TextStyle(fontSize: 12)),
+                        icon: Icon(Icons.picture_as_pdf_outlined, size: 16),
+                      ),
+                      ButtonSegment(
                         value: PaperWorkspaceMode.editor,
                         label: Text('Edit & Outline', style: TextStyle(fontSize: 12)),
                         icon: Icon(Icons.edit_note, size: 16),
@@ -1723,7 +1796,9 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
           ),
           body: IndexedStack(
             key: const ValueKey('workspace-indexed-stack'),
-            index: _workspaceMode == PaperWorkspaceMode.document ? 1 : 0,
+            index: _workspaceMode == PaperWorkspaceMode.editor
+                ? 0
+                : (_workspaceMode == PaperWorkspaceMode.pdf ? 2 : 1),
             children: [
               LayoutBuilder(
                 builder: (context, constraints) {
@@ -1775,6 +1850,17 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                 fileSaver: _fileSaver,
                 onDownload: _exportDocx,
                 onDownloadPdf: _exportPdf,
+                onSwitchToPdf: () => setState(() => _workspaceMode = PaperWorkspaceMode.pdf),
+                onSwitchToEdit: () => setState(() => _workspaceMode = PaperWorkspaceMode.editor),
+              ),
+              PdfViewer(
+                key: ValueKey('pdf-viewer-${_currentVersion.id}'),
+                paper: _paper,
+                exportApi: _exportApi,
+                fileSaver: _fileSaver,
+                onDownload: _exportDocx,
+                onDownloadPdf: _exportPdf,
+                onSwitchToDocx: () => setState(() => _workspaceMode = PaperWorkspaceMode.document),
                 onSwitchToEdit: () => setState(() => _workspaceMode = PaperWorkspaceMode.editor),
               ),
             ],
@@ -2131,6 +2217,12 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
               runSpacing: 6,
               children: [
                 if (!isNotApplicable) ...[
+                  TextButton.icon(
+                    key: ValueKey('button-insert-figure-${section.id}'),
+                    onPressed: () => _pickAndInsertFigure(section),
+                    icon: const Icon(Icons.add_photo_alternate_outlined, size: 16),
+                    label: const Text('Insert Figure'),
+                  ),
                   TextButton.icon(
                     key: ValueKey('button-revert-${section.id}'),
                     onPressed: () => _revertSection(section),

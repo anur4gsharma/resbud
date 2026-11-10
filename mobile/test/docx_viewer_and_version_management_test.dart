@@ -10,6 +10,7 @@ import 'package:resbud_mobile/features/docx_viewer/docx_document_canvas.dart';
 import 'package:resbud_mobile/features/docx_viewer/docx_viewer.dart';
 import 'package:resbud_mobile/features/generation/generation_models.dart';
 import 'package:resbud_mobile/features/paper_editor/paper_editor_page.dart';
+import 'package:resbud_mobile/features/pdf_viewer/pdf_viewer.dart';
 
 import 'helpers/fake_export_api.dart';
 import 'helpers/fake_generation_api.dart';
@@ -466,6 +467,62 @@ void main() {
 
       // Successfully switched to Version 1
       expect(find.text('Viewing Version 1'), findsOneWidget);
+    });
+
+    testWidgets('PdfViewer Core Functionality renders toolbar, controls, and document canvas in PDF mode', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PdfViewer(
+              paper: samplePaper,
+              exportApi: fakeExportApi,
+              fileSaver: fakeSaver,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('pdf-viewer-toolbar')), findsOneWidget);
+      expect(find.byKey(const ValueKey('pdf-page-indicator')), findsOneWidget);
+      expect(find.byKey(const ValueKey('button-pdf-zoom-in')), findsOneWidget);
+      expect(find.byKey(const ValueKey('button-pdf-zoom-out')), findsOneWidget);
+      expect(find.byKey(const ValueKey('button-pdf-fit-width')), findsOneWidget);
+      expect(find.byKey(const ValueKey('button-pdf-viewer-download')), findsOneWidget);
+      expect(find.byKey(const ValueKey('button-pdf-viewer-download-docx')), findsOneWidget);
+      expect(find.text('Equivariant Neural Decoders for Surface Codes'), findsOneWidget);
+    });
+
+    testWidgets('Version Management & In-App Version Switching switching mode to View as PDF displays PdfViewer', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PaperEditorPage(
+            repository: repository,
+            generationApi: fakeApi,
+            project: testProject,
+            initialVersion: version2,
+            initialMode: PaperWorkspaceMode.editor,
+            exportApi: fakeExportApi,
+            fileSaver: fakeSaver,
+          ),
+        ),
+      );
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await tester.pumpAndSettle();
+
+      // Switch to View as PDF mode via SegmentedButton
+      final pdfModeSegment = find.text('View as PDF');
+      expect(pdfModeSegment, findsOneWidget);
+      await tester.tap(pdfModeSegment);
+      await tester.pumpAndSettle();
+
+      // PdfViewer is active and toolbar is displayed
+      expect(find.byKey(const ValueKey('pdf-viewer-toolbar')), findsOneWidget);
+      expect(find.byKey(const ValueKey('button-pdf-viewer-download')), findsOneWidget);
     });
   });
 }

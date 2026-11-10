@@ -146,4 +146,47 @@
     }
     return false;
   };
+
+  window.renderPdfToElement = function(targetOrId, base64Data) {
+    return new Promise(function(resolve, reject) {
+      function attempt(retriesLeft) {
+        var container = _findDocxContainer(targetOrId);
+        if (!container) {
+          if (retriesLeft > 0) {
+            setTimeout(function() { attempt(retriesLeft - 1); }, 70);
+            return;
+          }
+          return reject("Container element not found: " + targetOrId);
+        }
+        try {
+          var cleanB64 = base64Data;
+          if (cleanB64.indexOf("base64,") !== -1) {
+            cleanB64 = cleanB64.split("base64,")[1];
+          }
+          cleanB64 = cleanB64.replace(/\s+/g, "");
+          var binaryString = window.atob(cleanB64);
+          var len = binaryString.length;
+          var bytes = new Uint8Array(len);
+          for (var i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          var blob = new Blob([bytes], { type: "application/pdf" });
+          var blobUrl = URL.createObjectURL(blob);
+
+          container.innerHTML = "";
+          var iframe = document.createElement("iframe");
+          iframe.src = blobUrl;
+          iframe.style.width = "100%";
+          iframe.style.height = "100%";
+          iframe.style.border = "none";
+          container.appendChild(iframe);
+          resolve({ success: true, url: blobUrl });
+        } catch (e) {
+          console.error("PDF rendering error:", e);
+          reject(e.toString());
+        }
+      }
+      attempt(6);
+    });
+  };
 })();

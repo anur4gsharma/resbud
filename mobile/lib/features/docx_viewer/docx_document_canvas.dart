@@ -698,10 +698,27 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
     final src = match.group(2) ?? '';
 
     Widget imageWidget;
-    if (src.contains('base64,')) {
+    if (src.startsWith('http://') || src.startsWith('https://')) {
+      imageWidget = Image.network(
+        src,
+        fit: BoxFit.contain,
+        errorBuilder: (_, __, ___) => _buildPlaceholderFigure(caption, zoom),
+      );
+    } else if (src.contains('base64,')) {
       try {
-        final b64 = src.split('base64,').last;
+        final b64 = src.split('base64,').last.replaceAll(RegExp(r'\s+'), '');
         final bytes = base64Decode(b64);
+        imageWidget = Image.memory(
+          bytes,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => _buildPlaceholderFigure(caption, zoom),
+        );
+      } catch (_) {
+        imageWidget = _buildPlaceholderFigure(caption, zoom);
+      }
+    } else if (src.length > 80 && !src.contains(' ') && !src.contains('/')) {
+      try {
+        final bytes = base64Decode(src.replaceAll(RegExp(r'\s+'), ''));
         imageWidget = Image.memory(
           bytes,
           fit: BoxFit.contain,

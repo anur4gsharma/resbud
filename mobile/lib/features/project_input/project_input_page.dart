@@ -859,6 +859,73 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     }
   }
 
+  Future<void> _downloadVersionPdf(PaperVersion version) async {
+    if (_isExporting) return;
+    PaperDraftPayload paperToExport;
+    try {
+      paperToExport = PaperDraftPayload.fromJson(version.paper);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Cannot parse version data: $e')),
+      );
+      return;
+    }
+
+    if (paperToExport.title.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot export: Paper title cannot be blank.')),
+      );
+      return;
+    }
+    if (paperToExport.sections.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cannot export: Paper must contain at least one section.')),
+      );
+      return;
+    }
+
+    setState(() => _isExporting = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Exporting Version ${version.versionNumber} to PDF…'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+
+    try {
+      final result = await _exportApi.exportPdf(paperToExport);
+      final savedPath = await _fileSaver.savePdf(
+        bytes: result.bytes,
+        suggestedFilename: result.suggestedFilename,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Exported PDF: $savedPath'),
+          backgroundColor: Colors.green.shade800,
+        ),
+      );
+    } on DocxExportFailure catch (failure) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Export failed: ${failure.userMessage}'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Export error: $e'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
   String _formatDate(DateTime date) {
     final local = date.toLocal();
     return '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
@@ -996,6 +1063,15 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                                         backgroundColor: Colors.teal.shade700,
                                       ),
                                     ),
+                                    FilledButton.icon(
+                                      key: const ValueKey('button-view-latest-pdf'),
+                                      onPressed: () => _viewVersion(latest, mode: PaperWorkspaceMode.pdf),
+                                      icon: const Icon(Icons.picture_as_pdf, size: 18),
+                                      label: const Text('View as PDF'),
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: Colors.indigo.shade700,
+                                      ),
+                                    ),
                                     FilledButton.tonalIcon(
                                       key: const ValueKey('button-download-latest-docx'),
                                       onPressed: _isExporting ? null : () => _downloadVersionDocx(latest),
@@ -1007,6 +1083,12 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                                             )
                                           : const Icon(Icons.download, size: 18),
                                       label: const Text('Download DOCX'),
+                                    ),
+                                    FilledButton.tonalIcon(
+                                      key: const ValueKey('button-download-latest-pdf'),
+                                      onPressed: _isExporting ? null : () => _downloadVersionPdf(latest),
+                                      icon: const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                                      label: const Text('Download PDF'),
                                     ),
                                   ],
                                 ),
@@ -1047,10 +1129,22 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                                     onPressed: () => _viewVersion(v),
                                   ),
                                   IconButton(
+                                    key: ValueKey('button-view-version-pdf-${v.versionNumber}'),
+                                    tooltip: 'View as PDF',
+                                    icon: const Icon(Icons.picture_as_pdf, size: 20),
+                                    onPressed: () => _viewVersion(v, mode: PaperWorkspaceMode.pdf),
+                                  ),
+                                  IconButton(
                                     key: ValueKey('button-download-version-${v.versionNumber}'),
                                     tooltip: 'Download DOCX',
                                     icon: const Icon(Icons.file_download_outlined, size: 20),
                                     onPressed: _isExporting ? null : () => _downloadVersionDocx(v),
+                                  ),
+                                  IconButton(
+                                    key: ValueKey('button-download-version-pdf-${v.versionNumber}'),
+                                    tooltip: 'Download PDF',
+                                    icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
+                                    onPressed: _isExporting ? null : () => _downloadVersionPdf(v),
                                   ),
                                 ],
                               ),
@@ -1573,13 +1667,66 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     }
   }
 
+  Map<String, dynamic> _embedFiguresInPaper(
+    Map<String, dynamic> paperJson,
+    List<Map<String, dynamic>> figures,
+  ) {
+    if (figures.isEmpty) return paperJson;
+    final copy = Map<String, dynamic>.from(paperJson);
+    final rawSections = copy['sections'];
+    if (rawSections is! List) return paperJson;
+
+    final sections = rawSections
+        .map((s) => Map<String, dynamic>.from(s as Map))
+        .toList();
+
+    bool anyFigureFound = false;
+    for (final s in sections) {
+      String content = s['content'] as String? ?? '';
+      for (final fig in figures) {
+        final figId = fig['id'] as String? ?? '';
+        final b64 = fig['base64'] as String? ?? '';
+        if (figId.isNotEmpty && b64.isNotEmpty && content.contains('($figId)')) {
+          content = content.replaceAll('($figId)', '($b64)');
+          anyFigureFound = true;
+        }
+      }
+      s['content'] = content;
+    }
+
+    if (!anyFigureFound && sections.isNotEmpty) {
+      final targetIdx = sections.indexWhere((s) {
+        final sid = (s['id'] as String? ?? '').toLowerCase();
+        return sid.contains('method') || sid.contains('result') || sid.contains('approach');
+      });
+      final idx = targetIdx >= 0 ? targetIdx : 0;
+      final target = sections[idx];
+      final buf = StringBuffer(target['content'] as String? ?? '');
+      for (final fig in figures) {
+        final caption = fig['caption'] as String? ?? 'Figure';
+        final b64 = fig['base64'] as String? ?? '';
+        if (b64.isNotEmpty) {
+          buf.writeln('\n\n![$caption]($b64)\n');
+        }
+      }
+      target['content'] = buf.toString();
+    }
+
+    copy['sections'] = sections;
+    return copy;
+  }
+
   Future<void> _acceptGeneratedPaper(GenerationResult result) async {
     if (!await _save(showMessage: false) || !mounted) return;
     try {
+      final enrichedPaper = _embedFiguresInPaper(
+        result.response.paper.toJson(),
+        _attachedFigures,
+      );
       await widget.repository.savePaperVersion(
         projectId: widget.project.id,
         schemaVersion: result.response.paper.schemaVersion,
-        paper: result.response.paper.toJson(),
+        paper: enrichedPaper,
         origin: PaperVersionOrigin.generation,
         metadata: {
           'generation_id': result.response.generationId,
@@ -1747,7 +1894,10 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
 
       final result = await FilePicker.pickFiles(
         type: FileType.custom,
-        allowedExtensions: ['txt', 'md', 'markdown', 'docx', 'pdf'],
+        allowedExtensions: [
+          'txt', 'md', 'markdown', 'docx', 'pdf',
+          'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp',
+        ],
       );
       if (result.isEmpty || !mounted) {
         if (mounted) setState(() => _importing = false);
@@ -1755,17 +1905,64 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       }
 
       final filesToProcess = <({String fileName, Uint8List bytes, String? contentType})>[];
+      int imagesAdded = 0;
+
       for (final file in result) {
-        final bytes = await file.readAsBytes();
-        if (bytes.isEmpty) {
-          setState(() {
-            _importError = true;
-            _importMessage = 'File "${file.name}" is empty. Please provide research material.';
-            _importing = false;
-          });
-          return;
+        Uint8List? bytes;
+        try {
+          bytes = await file.readAsBytes();
+        } catch (_) {}
+        if (bytes == null || bytes.isEmpty) {
+          continue;
         }
-        filesToProcess.add((fileName: file.name, bytes: bytes, contentType: null));
+
+        final ext = file.name.split('.').last.toLowerCase();
+        final isImage = const {'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'}.contains(ext);
+
+        if (isImage) {
+          final mediaType = switch (ext) {
+            'jpg' || 'jpeg' => 'image/jpeg',
+            'webp' => 'image/webp',
+            'gif' => 'image/gif',
+            'bmp' => 'image/bmp',
+            _ => 'image/png',
+          };
+          final b64 = 'data:$mediaType;base64,${base64Encode(bytes)}';
+          final figNumber = _attachedFigures.length + 1;
+          final cleanName = file.name
+              .replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '')
+              .replaceAll('_', ' ');
+
+          _attachedFigures.add({
+            'id': 'fig_$figNumber',
+            'name': file.name,
+            'caption': 'Figure $figNumber: $cleanName',
+            'description': '',
+            'base64': b64,
+            'bytes': bytes,
+          });
+          imagesAdded++;
+        } else {
+          filesToProcess.add((fileName: file.name, bytes: bytes, contentType: null));
+        }
+      }
+
+      if (filesToProcess.isEmpty && imagesAdded > 0) {
+        setState(() {
+          _importing = false;
+          _importMessage = 'Attached $imagesAdded figure${imagesAdded == 1 ? '' : 's'} to Illustrations & Figures.';
+          _importError = false;
+        });
+        return;
+      }
+
+      if (filesToProcess.isEmpty) {
+        setState(() {
+          _importError = true;
+          _importMessage = 'The selected file(s) could not be read.';
+          _importing = false;
+        });
+        return;
       }
 
       final imported = const SourceDocumentImporter().importMultipleFiles(
@@ -1778,9 +1975,12 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           _attachedFiles.add((name: f.fileName, size: f.bytes.length));
         }
         _controllers['source_draft']!.text = imported.text;
-        _importMessage = filesToProcess.length == 1
-            ? 'Imported ${filesToProcess.first.fileName} (${imported.text.length} characters).'
-            : 'Imported ${filesToProcess.length} files (${imported.text.length} characters).';
+        final docMsg = filesToProcess.length == 1
+            ? 'Imported ${filesToProcess.first.fileName} (${imported.text.length} characters)'
+            : 'Imported ${filesToProcess.length} files (${imported.text.length} characters)';
+        _importMessage = imagesAdded > 0
+            ? '$docMsg and attached $imagesAdded figure${imagesAdded == 1 ? '' : 's'}.'
+            : '$docMsg.';
         _importing = false;
         _analysisResponse = null;
         _showAdditionalInfoInterface = false;
@@ -2687,33 +2887,58 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
 
   Future<void> _pickFigureImage() async {
     try {
-      final result = await FilePicker.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['png', 'jpg', 'jpeg', 'webp'],
-      );
-      if (result.isEmpty || !mounted) return;
-      final file = result.first;
-      final bytes = await file.readAsBytes();
-      final ext = file.name.split('.').last.toLowerCase();
-      final mediaType = ext == 'jpg' || ext == 'jpeg'
-          ? 'image/jpeg'
-          : (ext == 'webp' ? 'image/webp' : 'image/png');
-      final b64 = 'data:$mediaType;base64,${base64Encode(bytes)}';
-      final figNumber = _attachedFigures.length + 1;
-      final cleanName = file.name.replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '').replaceAll('_', ' ');
+      List<PlatformFile> pickedFiles = [];
+      try {
+        final result = await FilePicker.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'],
+        );
+        pickedFiles = result;
+      } catch (_) {
+        final result = await FilePicker.pickFiles(type: FileType.image);
+        pickedFiles = result;
+      }
 
-      setState(() {
-        _attachedFigures.add({
-          'id': 'fig_$figNumber',
-          'name': file.name,
-          'caption': 'Figure $figNumber: $cleanName',
-          'description': '',
-          'base64': b64,
-          'bytes': bytes,
+      if (pickedFiles.isEmpty || !mounted) return;
+
+      int addedCount = 0;
+      for (final file in pickedFiles) {
+        Uint8List? bytes;
+        try {
+          bytes = await file.readAsBytes();
+        } catch (_) {}
+        if (bytes == null || bytes.isEmpty) continue;
+
+        final ext = file.name.split('.').last.toLowerCase();
+        final mediaType = switch (ext) {
+          'jpg' || 'jpeg' => 'image/jpeg',
+          'webp' => 'image/webp',
+          'gif' => 'image/gif',
+          'bmp' => 'image/bmp',
+          _ => 'image/png',
+        };
+        final b64 = 'data:$mediaType;base64,${base64Encode(bytes)}';
+        final figNumber = _attachedFigures.length + 1;
+        final cleanName = file.name.replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '').replaceAll('_', ' ');
+
+        setState(() {
+          _attachedFigures.add({
+            'id': 'fig_$figNumber',
+            'name': file.name,
+            'caption': 'Figure $figNumber: $cleanName',
+            'description': '',
+            'base64': b64,
+            'bytes': bytes,
+          });
         });
-      });
-    } catch (_) {
-      // Gracefully ignore pick cancellations or unsupported formats
+        addedCount++;
+      }
+
+      if (addedCount > 0 && mounted) {
+        _showMessage('Added $addedCount figure${addedCount == 1 ? '' : 's'} to manuscript.');
+      }
+    } catch (e) {
+      if (mounted) _showMessage('Could not attach figure: $e', isError: true);
     }
   }
 
@@ -2769,7 +2994,14 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
 
   Widget _buildFigureItemCard(int index) {
     final fig = _attachedFigures[index];
-    final bytes = fig['bytes'] as Uint8List?;
+    Uint8List? bytes = fig['bytes'] as Uint8List?;
+    if (bytes == null && fig['base64'] is String) {
+      try {
+        final b64 = (fig['base64'] as String).split('base64,').last;
+        bytes = base64Decode(b64);
+        fig['bytes'] = bytes;
+      } catch (_) {}
+    }
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(

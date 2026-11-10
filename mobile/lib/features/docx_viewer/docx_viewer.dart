@@ -28,6 +28,7 @@ class DocxViewer extends StatefulWidget {
     this.versionSelector,
     this.onDownload,
     this.onDownloadPdf,
+    this.onSwitchToPdf,
     this.onSwitchToEdit,
     this.isEditMode = false,
   });
@@ -39,6 +40,7 @@ class DocxViewer extends StatefulWidget {
   final Widget? versionSelector;
   final VoidCallback? onDownload;
   final VoidCallback? onDownloadPdf;
+  final VoidCallback? onSwitchToPdf;
   final VoidCallback? onSwitchToEdit;
   final bool isEditMode;
 
@@ -284,6 +286,17 @@ class _DocxViewerState extends State<DocxViewer> {
               const SizedBox(width: 8),
               Container(width: 1, height: 20, color: Colors.white24),
               const SizedBox(width: 8),
+            ],
+
+            // Switch to PDF View
+            if (widget.onSwitchToPdf != null) ...[
+              IconButton(
+                key: const ValueKey('button-docx-viewer-switch-pdf'),
+                tooltip: 'Switch to PDF View',
+                icon: const Icon(Icons.picture_as_pdf_outlined, color: Colors.white70, size: 20),
+                onPressed: widget.onSwitchToPdf,
+              ),
+              const SizedBox(width: 4),
             ],
 
             // Page Navigation: Prev, Page X of Y, Next
