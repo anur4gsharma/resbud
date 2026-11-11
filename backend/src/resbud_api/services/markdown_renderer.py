@@ -95,8 +95,27 @@ class ChartBlock:
 
 
 @dataclass
-class MathBlock:
+class EquationBlockNode:
     latex: str
+    display_type: Literal["display", "extracted_inline", "environment"] = "display"
+    equation_id: str | None = None
+    normalized_latex: str | None = None
+    rendering_status: Literal["ok", "warning", "error"] = "ok"
+    validation_error: str | None = None
+
+
+# Backward-compatible alias for existing callers
+MathBlock = EquationBlockNode
+
+# Canonical AST aliases
+ParagraphNode = ParagraphBlock
+HeadingNode = HeadingBlock
+ListNode = ListBlock
+TableNode = TableBlock
+FigureNode = FigureBlock
+ChartNode = ChartBlock
+CodeBlockNode = CodeBlock
+BlockquoteNode = BlockquoteBlock
 
 
 MarkdownBlock = (
@@ -108,7 +127,7 @@ MarkdownBlock = (
     | TableBlock
     | FigureBlock
     | ChartBlock
-    | MathBlock
+    | EquationBlockNode
 )
 
 # --- Inline Token Regex ---
@@ -118,7 +137,7 @@ INLINE_TOKEN_RE = re.compile(
     r"(?P<escaped_dollar>\\\$)|"
     r"(?P<math_display>\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\])|"
     r"(?P<math_paren>\\\([\s\S]*?\\\))|"
-    r"(?P<math_dollar>(?<!\\)\$(?!\s)(?!\d+(?:\s|[.,;:!?]|$))((?:[^$\n\\]|\\.)+?)(?<!\s)\$(?!\d))|"
+    r"(?P<math_dollar>(?<!\\)\$(?!\s)(?!\d+(?:[.,]\d+)?(?:\s|[.,;:!?]|$))((?:[^$\n\\]|\\.)+?)(?<!\s)\$(?!\d))|"
     r"(?P<bold_italic>\*\*\*[^*]+\*\*\*|___[^_]+___)|"
     r"(?P<bold>\*\*[^*]+\*\*|__[^_]+__)|"
     r"(?P<italic>\*[^*\n]+\*|(?<=\s)_[^_\n]+_(?=\s|[.,;:!?]|$))|"
@@ -128,6 +147,190 @@ INLINE_TOKEN_RE = re.compile(
 BLOCK_MATH_PATTERN = re.compile(
     r"^(?:\$\$([\s\S]*?)\$\$|\\\[([\s\S]*?)\\\]|\\begin\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?}([\s\S]*?)\\end\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?})$"
 )
+
+MATH_EXTRACT_RE = re.compile(
+    r"(?P<code>`[^`\n]+`)|"
+    r"(?P<escaped_dollar>\\\$)|"
+    r"(?P<math_env>\\begin\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?\}[\s\S]*?\\end\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?\})|"
+    r"(?P<math_display>\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\])|"
+    r"(?P<math_paren>\\\([\s\S]*?\\\))|"
+    r"(?P<math_dollar>(?<!\\)\$(?!\s)(?!\d+(?:[.,]\d+)?(?:\s|[.,;:!?]|$))((?:[^$\n\\]|\\.)+?)(?<!\s)\$(?!\d))"
+)
+
+
+def clean_math_source(raw: str) -> str:
+    """Strip outer delimiters while preserving inner LaTeX source."""
+    c = raw.strip()
+    if (c.startswith("$$") and c.endswith("$$") and len(c) >= 4) or (
+        c.startswith(r"\[") and c.endswith(r"\]") and len(c) >= 4
+    ):
+        return c[2:-2].strip()
+    if c.startswith(r"\(") and c.endswith(r"\)") and len(c) >= 4:
+        return c[2:-2].strip()
+    if c.startswith("$") and c.endswith("$") and len(c) >= 2:
+        return c[1:-1].strip()
+    return c
+
+
+def normalize_math_latex(latex_str: str) -> str:
+    """Normalize LaTeX expression for broad compatibility."""
+    normalized = latex_str.strip()
+    if "&" in normalized and ("aligned" in normalized or "align" in normalized):
+        normalized = re.sub(r"\\begin\{(?:align|aligned)\*?\}", r"\\begin{matrix}", normalized)
+        normalized = re.sub(r"\\end\{(?:align|aligned)\*?\}", r"\\end{matrix}", normalized)
+        normalized = re.sub(r"&=", "=", normalized)
+    return normalized
+
+
+def validate_math_latex(latex_str: str) -> tuple[Literal["ok", "warning", "error"], str | None]:
+    """Validate LaTeX mathematical syntax against standard math engines."""
+    clean = latex_str.strip()
+    if not clean:
+        return "error", "Empty mathematical expression"
+
+    brace_depth = 0
+    for char in clean:
+        if char == "{":
+            brace_depth += 1
+        elif char == "}":
+            brace_depth -= 1
+            if brace_depth < 0:
+                return "error", "Unbalanced closing brace '}' in expression"
+    if brace_depth != 0:
+        return "error", f"Unclosed opening brace '{{' (unbalanced by {brace_depth})"
+
+    if re.search(
+        r"\\begin\{(?:matrix|pmatrix|bmatrix|vmatrix|cases|align|aligned|gather)\*?\}", clean
+    ):
+        sanitized = clean
+        if "&" in sanitized and ("aligned" in sanitized or "align" in sanitized):
+            sanitized = re.sub(r"\\begin\{(?:align|aligned)\*?\}", r"\\begin{matrix}", sanitized)
+            sanitized = re.sub(r"\\end\{(?:align|aligned)\*?\}", r"\\end{matrix}", sanitized)
+            sanitized = re.sub(r"&=", "=", sanitized)
+        try:
+            latex2mathml.converter.convert(sanitized)
+            return "ok", None
+        except Exception as e:
+            return "warning", f"Unsupported environment syntax: {e}"
+
+    try:
+        from matplotlib.mathtext import MathTextParser
+
+        mathtext_clean = clean.replace(r"\text", r"\rm").replace(r"\parallel", r"\Vert")
+        parser = MathTextParser("path")
+        parser.parse(f"${mathtext_clean}$")
+        return "ok", None
+    except Exception as e:
+        return "warning", f"Unsupported mathematical syntax: {e}"
+
+
+def create_equation_block_node(
+    raw_latex: str,
+    display_type: Literal["display", "extracted_inline", "environment"] = "display",
+    equation_id: str | None = None,
+) -> EquationBlockNode:
+    """Factory creating an EquationBlockNode with validation and normalization."""
+    clean = clean_math_source(raw_latex)
+    norm = normalize_math_latex(clean)
+    status, err = validate_math_latex(clean)
+    return EquationBlockNode(
+        latex=clean,
+        display_type=display_type,
+        equation_id=equation_id,
+        normalized_latex=norm,
+        rendering_status=status,
+        validation_error=err,
+    )
+
+
+def clean_pre_equation_prose(text: str) -> str:
+    """Format and clean prose preceding an extracted standalone equation."""
+    cleaned = text.strip()
+    if not cleaned or cleaned in (".", ",", ";", ":", "!", "?"):
+        return ""
+    cleaned = re.sub(r"[,;]+$", "", cleaned).strip()
+    if re.search(
+        r"\b(?:calculated|defined|written|expressed|represented|formulated|given)\s+as$",
+        cleaned,
+        re.IGNORECASE,
+    ):
+        cleaned = re.sub(r"\s+as$", " as follows:", cleaned, flags=re.IGNORECASE)
+    elif re.search(r"\bas$", cleaned, re.IGNORECASE):
+        cleaned = re.sub(r"\bas$", "as follows:", cleaned, flags=re.IGNORECASE)
+    elif re.search(
+        r"\b(?:is|given by|satisfies|satisfying|becomes|yields|minimizes the loss)$",
+        cleaned,
+        re.IGNORECASE,
+    ):
+        if not cleaned.endswith(":"):
+            cleaned += ":"
+    elif not cleaned.endswith((".", ":", "!", "?")):
+        cleaned += ":"
+    return cleaned
+
+
+def clean_post_equation_prose(text: str) -> str:
+    """Format and clean prose following an extracted standalone equation."""
+    cleaned = text.strip()
+    if not cleaned or cleaned in (".", ",", ";", ":", "!", "?"):
+        return ""
+    cleaned = re.sub(r"^[,\s;]+", "", cleaned).strip()
+    if not cleaned or cleaned in (".", ",", ";", ":", "!", "?"):
+        return ""
+    if re.match(r"^where\b", cleaned, re.IGNORECASE):
+        cleaned = re.sub(r"^where\b\s*", "Here, ", cleaned, flags=re.IGNORECASE)
+    elif re.match(r"^in which\b", cleaned, re.IGNORECASE):
+        cleaned = re.sub(r"^in which\b\s*", "In which ", cleaned, flags=re.IGNORECASE)
+    elif re.match(r"^with\b", cleaned, re.IGNORECASE):
+        cleaned = re.sub(r"^with\b\s*", "With ", cleaned, flags=re.IGNORECASE)
+    elif cleaned and cleaned[0].islower():
+        cleaned = cleaned[0].upper() + cleaned[1:]
+    return cleaned
+
+
+def extract_equation_blocks_from_paragraph(text: str) -> list[MarkdownBlock]:
+    """Split paragraph text on all recognized mathematical expressions,
+
+    producing alternating ParagraphBlock (pure prose) and EquationBlockNode (display math).
+    Ensures zero inline math spans remain inside paragraphs.
+    """
+    matches = [
+        m for m in MATH_EXTRACT_RE.finditer(text) if m.lastgroup not in ("code", "escaped_dollar")
+    ]
+
+    if not matches:
+        return [ParagraphBlock(spans=parse_inline_spans(text.strip()))]
+
+    blocks: list[MarkdownBlock] = []
+    cursor = 0
+    for i, m in enumerate(matches):
+        pre_text = text[cursor : m.start()]
+        if i > 0:
+            cleaned_pre = clean_post_equation_prose(pre_text)
+            if cleaned_pre and not cleaned_pre.endswith((".", ":", "!", "?")):
+                cleaned_pre = clean_pre_equation_prose(cleaned_pre)
+        else:
+            cleaned_pre = clean_pre_equation_prose(pre_text)
+
+        if cleaned_pre:
+            blocks.append(ParagraphBlock(spans=parse_inline_spans(cleaned_pre)))
+
+        raw_math = m.group(0)
+        display_type: Literal["display", "extracted_inline", "environment"] = (
+            "environment"
+            if m.lastgroup == "math_env"
+            else ("display" if m.lastgroup == "math_display" else "extracted_inline")
+        )
+        eq_node = create_equation_block_node(raw_math, display_type=display_type)
+        blocks.append(eq_node)
+        cursor = m.end()
+
+    trailing_text = text[cursor:]
+    cleaned_post = clean_post_equation_prose(trailing_text)
+    if cleaned_post:
+        blocks.append(ParagraphBlock(spans=parse_inline_spans(cleaned_post)))
+
+    return blocks
 
 
 def parse_inline_spans(text: str) -> list[InlineSpan]:
@@ -235,12 +438,8 @@ def parse_markdown_blocks(content: str) -> list[MarkdownBlock]:
         if BLOCK_MATH_PATTERN.match(trimmed) or (
             trimmed.startswith("$$") and trimmed.endswith("$$") and len(trimmed) > 4
         ):
-            clean_math = trimmed
-            if trimmed.startswith("$$") and trimmed.endswith("$$"):
-                clean_math = trimmed[2:-2].strip()
-            elif trimmed.startswith(r"\[") and trimmed.endswith(r"\]"):
-                clean_math = trimmed[2:-2].strip()
-            blocks.append(MathBlock(latex=clean_math))
+            clean_math = clean_math_source(trimmed)
+            blocks.append(create_equation_block_node(clean_math, display_type="display"))
             i += 1
             continue
 
@@ -254,7 +453,8 @@ def parse_markdown_blocks(content: str) -> list[MarkdownBlock]:
                 i += 1
             if i < n:
                 i += 1
-            blocks.append(MathBlock(latex="\n".join(math_lines).strip()))
+            raw_math = "\n".join(math_lines).strip()
+            blocks.append(create_equation_block_node(raw_math, display_type="display"))
             continue
 
         # Multiline block environment \begin{env} ... \end{env}
@@ -272,7 +472,8 @@ def parse_markdown_blocks(content: str) -> list[MarkdownBlock]:
                     i += 1
             else:
                 i += 1
-            blocks.append(MathBlock(latex="\n".join(math_lines).strip()))
+            raw_math = "\n".join(math_lines).strip()
+            blocks.append(create_equation_block_node(raw_math, display_type="environment"))
             continue
 
         # 3. Figure (![caption](src))
@@ -364,7 +565,7 @@ def parse_markdown_blocks(content: str) -> list[MarkdownBlock]:
 
         if para_lines:
             para_text = " ".join(para_lines)
-            blocks.append(ParagraphBlock(spans=parse_inline_spans(para_text)))
+            blocks.extend(extract_equation_blocks_from_paragraph(para_text))
 
     return blocks
 
@@ -444,12 +645,18 @@ def render_blocks_to_docx(
             run.font.size = Pt(9.0)
             run.font.color.rgb = RGBColor(0x22, 0x22, 0x22)
 
-        elif isinstance(block, MathBlock):
+        elif isinstance(block, (MathBlock, EquationBlockNode)):
             p = document.add_paragraph()
             p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p.paragraph_format.space_before = Pt(8)
             p.paragraph_format.space_after = Pt(8)
-            _render_math_to_docx(p, block.latex, academic_font)
+            _render_math_to_docx(
+                p,
+                block.latex,
+                academic_font,
+                status=block.rendering_status,
+                error_msg=block.validation_error,
+            )
 
         elif isinstance(block, TableBlock):
             _render_table_to_docx(document, block.headers, block.rows, academic_font)
@@ -468,7 +675,13 @@ def render_blocks_to_docx(
                 _render_figure_bytes_to_docx(document, chart_bytes, caption, academic_font)
 
 
-def _render_math_to_docx(paragraph: Any, latex_str: str, font_name: str) -> None:
+def _render_math_to_docx(
+    paragraph: Any,
+    latex_str: str,
+    font_name: str,
+    status: Literal["ok", "warning", "error"] = "ok",
+    error_msg: str | None = None,
+) -> None:
     """Render LaTeX equation into Word paragraph using native OMML, with resilient fallback."""
     clean = latex_str.strip()
     if clean.startswith("$$") and clean.endswith("$$") and len(clean) > 4:
@@ -477,6 +690,8 @@ def _render_math_to_docx(paragraph: Any, latex_str: str, font_name: str) -> None
         clean = clean[2:-2].strip()
     elif clean.startswith(r"\(") and clean.endswith(r"\)") and len(clean) > 4:
         clean = clean[2:-2].strip()
+    elif clean.startswith("$") and clean.endswith("$") and len(clean) > 2:
+        clean = clean[1:-1].strip()
 
     # Pre-clean alignment tokens for latex2mathml compatibility
     sanitized = clean
@@ -485,27 +700,33 @@ def _render_math_to_docx(paragraph: Any, latex_str: str, font_name: str) -> None
         sanitized = re.sub(r"\\end\{(?:align|aligned)\*?\}", r"\\end{matrix}", sanitized)
         sanitized = re.sub(r"&=", "=", sanitized)
 
-    try:
-        mathml = latex2mathml.converter.convert(sanitized)
-        mathml = mathml.replace("<mi>&</mi>", "").replace("<mi>&amp;</mi>", "")
-        omml = mathml2omml.convert(mathml)
-        xml = f'<p xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">{omml}</p>'
-        paragraph._p.append(parse_xml(xml)[0])
-        return
-    except Exception:
-        pass
+    rendered_omml = False
+    if status == "ok":
+        try:
+            mathml = latex2mathml.converter.convert(sanitized)
+            mathml = mathml.replace("<mi>&</mi>", "").replace("<mi>&amp;</mi>", "")
+            omml = mathml2omml.convert(mathml)
+            xml = f'<p xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">{omml}</p>'
+            paragraph._p.append(parse_xml(xml)[0])
+            rendered_omml = True
+        except Exception:
+            try:
+                math2docx.add_math(paragraph, clean)
+                rendered_omml = True
+            except Exception:
+                pass
 
-    try:
-        math2docx.add_math(paragraph, clean)
-        return
-    except Exception:
-        pass
+    if not rendered_omml:
+        # Fallback with visible warning if status was warning/error or rendering failed
+        run = paragraph.add_run(clean)
+        run.font.name = font_name
+        run.font.italic = True
+        run.font.color.rgb = RGBColor(0, 0, 0)
 
-    # High fidelity styled fallback
-    run = paragraph.add_run(clean)
-    run.font.name = font_name
-    run.font.italic = True
-    run.font.color.rgb = RGBColor(0, 0, 0)
+        warn_run = paragraph.add_run(" [Warning: Unsupported mathematical syntax]")
+        warn_run.font.name = font_name
+        warn_run.font.bold = True
+        warn_run.font.color.rgb = RGBColor(0xCC, 0x00, 0x00)
 
 
 def _render_spans_to_docx_paragraph(
@@ -756,13 +977,29 @@ def _get_inline_math_img_tag(latex: str) -> str:
         return fallback
 
 
-def _render_math_to_pdf_flowable(latex: str, styles: dict[str, ParagraphStyle]) -> Any:
+def _render_math_to_pdf_flowable(
+    latex: str,
+    styles: dict[str, ParagraphStyle],
+    status: Literal["ok", "warning", "error"] = "ok",
+    error_msg: str | None = None,
+) -> Any:
     """Render a LaTeX display equation into a centered high-DPI image flowable or table."""
     clean = latex.strip()
     if clean.startswith("$$") and clean.endswith("$$") and len(clean) > 4:
         clean = clean[2:-2].strip()
     elif clean.startswith(r"\[") and clean.endswith(r"\]") and len(clean) > 4:
         clean = clean[2:-2].strip()
+    elif clean.startswith(r"\(") and clean.endswith(r"\)") and len(clean) > 4:
+        clean = clean[2:-2].strip()
+    elif clean.startswith("$") and clean.endswith("$") and len(clean) > 2:
+        clean = clean[1:-1].strip()
+
+    if status in ("warning", "error"):
+        warn_text = (
+            f'<font color="#CC0000"><b>[Warning: Unsupported mathematical syntax]</b></font> '
+            f"<i>{html.escape(clean)}</i>"
+        )
+        return Paragraph(warn_text, styles["MathBlock"])
 
     # If it's a matrix environment like \begin{pmatrix} ... \end{pmatrix}
     m = re.search(r"\\begin\{(pmatrix|matrix|bmatrix)\}([\s\S]*?)\\end\{\1\}", clean)
@@ -771,12 +1008,13 @@ def _render_math_to_pdf_flowable(latex: str, styles: dict[str, ParagraphStyle]) 
         raw_rows = [r.strip() for r in body.split(r"\\") if r.strip()]
         if raw_rows:
             table_data = []
+            matrix_cell_style = styles.get("TableCell", styles.get("Body"))
             for row in raw_rows:
                 row_cells = []
                 for cell in row.split("&"):
                     cell_text = cell.strip()
                     row_cells.append(
-                        Paragraph(f"<i>{html.escape(cell_text)}</i>", styles["Normal"])
+                        Paragraph(f"<i>{html.escape(cell_text)}</i>", matrix_cell_style)
                     )
                 table_data.append(row_cells)
             t = Table(table_data, hAlign="CENTER")
@@ -795,7 +1033,7 @@ def _render_math_to_pdf_flowable(latex: str, styles: dict[str, ParagraphStyle]) 
             return t
 
     # Mathtext preprocessing
-    mathtext_str = clean
+    mathtext_str = clean.replace(r"\text", r"\rm").replace(r"\parallel", r"\Vert")
     if mathtext_str.startswith(r"\begin{aligned}") and mathtext_str.endswith(r"\end{aligned}"):
         mathtext_str = mathtext_str.replace(r"\begin{aligned}", "").replace(r"\end{aligned}", "")
     mathtext_str = re.sub(r"&=", "=", mathtext_str)
@@ -828,7 +1066,11 @@ def _render_math_to_pdf_flowable(latex: str, styles: dict[str, ParagraphStyle]) 
         img.hAlign = "CENTER"
         return img
     except Exception:
-        return Paragraph(f"<i>{html.escape(clean)}</i>", styles["MathBlock"])
+        warn_text = (
+            f'<font color="#CC0000"><b>[Warning: Unsupported mathematical syntax]</b></font> '
+            f"<i>{html.escape(clean)}</i>"
+        )
+        return Paragraph(warn_text, styles["MathBlock"])
 
 
 def spans_to_reportlab_html(spans: list[InlineSpan]) -> str:
@@ -899,11 +1141,16 @@ def render_blocks_to_pdf(
         elif isinstance(block, CodeBlock):
             story.append(Preformatted(block.code, styles["CodeBlock"]))
 
-        elif isinstance(block, MathBlock):
-            flowable = _render_math_to_pdf_flowable(block.latex, styles)
-            story.append(Spacer(1, 4))
+        elif isinstance(block, (MathBlock, EquationBlockNode)):
+            flowable = _render_math_to_pdf_flowable(
+                block.latex,
+                styles,
+                status=block.rendering_status,
+                error_msg=block.validation_error,
+            )
+            story.append(Spacer(1, 6))
             story.append(flowable)
-            story.append(Spacer(1, 4))
+            story.append(Spacer(1, 6))
 
         elif isinstance(block, TableBlock):
             _render_table_to_pdf(story, block.headers, block.rows, styles)

@@ -1,7 +1,11 @@
 """Regression test suite for academic mathematical rendering, equation parsing, and document export.
 
-Validates the 12 representative mathematical fixtures across PaperDraft models,
-Markdown parsing, DOCX OMML compilation, and PDF flowable generation.
+Validates the mandatory block-level mathematical equation policy across:
+- All 12 representative mathematical fixtures.
+- Real manuscript prose from 'Training Foundation Models with a Single Algorithm.pdf'.
+- PaperDraft models, Markdown AST parsing (EquationBlockNode vs ParagraphBlock).
+- DOCX OMML compilation with centered equation paragraphs.
+- PDF flowables with centered scaling and visible warnings for unsupported commands.
 """
 
 from __future__ import annotations
@@ -15,95 +19,114 @@ from resbud_api.domain.models import PaperDraft, PaperSection
 from resbud_api.services.docx_export import export_paper_docx
 from resbud_api.services.markdown_renderer import (
     CodeBlock,
-    MathBlock,
-    parse_inline_spans,
+    EquationBlockNode,
+    ParagraphBlock,
     parse_markdown_blocks,
 )
 from resbud_api.services.pdf_export import export_paper_pdf
 
 
-def test_fixture_1_inline_expression_parsing() -> None:
-    text = r"The equivalence of mass and energy is given by \(E = mc^2\)."
-    spans = parse_inline_spans(text)
-    math_spans = [s for s in spans if s.kind == "math"]
-    assert len(math_spans) == 1
-    assert math_spans[0].content == "E = mc^2"
+def test_fixture_1_inline_fraction_extracted_to_block_equation() -> None:
+    text = r"The cosine similarity between two vectors is calculated as \(cos(q,d) = \frac{q \cdot d}{||q|| ||d||}\), where q represents the query vector."
+    blocks = parse_markdown_blocks(text)
+    assert len(blocks) == 3
+    assert isinstance(blocks[0], ParagraphBlock)
+    assert "The cosine similarity between two vectors is calculated as follows:" in "".join(
+        s.content for s in blocks[0].spans
+    )
+    assert all(s.kind != "math" for s in blocks[0].spans)
+
+    assert isinstance(blocks[1], EquationBlockNode)
+    assert r"\frac{q \cdot d}{||q|| ||d||}" in blocks[1].latex
+    assert blocks[1].display_type == "extracted_inline"
+    assert blocks[1].rendering_status == "ok"
+
+    assert isinstance(blocks[2], ParagraphBlock)
+    assert "Here, q represents the query vector." in "".join(s.content for s in blocks[2].spans)
+    assert all(s.kind != "math" for s in blocks[2].spans)
 
 
-def test_fixture_2_fraction_and_display_math() -> None:
-    text = r"$$\frac{a+b}{c}$$"
+def test_fixture_2_summation_embedded_between_prose_sentences() -> None:
+    text = (
+        r"We compute the arithmetic series as follows: "
+        r"$$\sum_{i=1}^{n} i = \frac{n(n+1)}{2}$$"
+        r", where n denotes the total number of terms."
+    )
+    blocks = parse_markdown_blocks(text)
+    eq_blocks = [b for b in blocks if isinstance(b, EquationBlockNode)]
+    prose_blocks = [b for b in blocks if isinstance(b, ParagraphBlock)]
+
+    assert len(eq_blocks) == 1
+    assert r"\sum_{i=1}^{n} i" in eq_blocks[0].latex
+    assert len(prose_blocks) == 2
+    for pb in prose_blocks:
+        assert all(s.kind != "math" for s in pb.spans)
+
+
+def test_fixture_3_display_integral() -> None:
+    text = r"\[ \int_0^\infty e^{-x} dx = 1 \]"
     blocks = parse_markdown_blocks(text)
     assert len(blocks) == 1
-    assert isinstance(blocks[0], MathBlock)
-    assert blocks[0].latex == r"\frac{a+b}{c}"
+    assert isinstance(blocks[0], EquationBlockNode)
+    assert r"\int_0^\infty e^{-x} dx = 1" in blocks[0].latex
+    assert blocks[0].display_type == "display"
 
 
-def test_fixture_3_summation_parsing() -> None:
-    text = r"\[ \sum_{i=1}^{n} i = \frac{n(n+1)}{2} \]"
+def test_fixture_4_multiple_equations_in_same_paragraph() -> None:
+    text = r"In asymptotic analysis, the algorithm runs in \(O(n \log n)\) time under condition $k \ge 1$."
     blocks = parse_markdown_blocks(text)
-    assert len(blocks) == 1
-    assert isinstance(blocks[0], MathBlock)
-    assert r"\sum_{i=1}^{n} i" in blocks[0].latex
+    eq_blocks = [b for b in blocks if isinstance(b, EquationBlockNode)]
+    prose_blocks = [b for b in blocks if isinstance(b, ParagraphBlock)]
+
+    assert len(eq_blocks) == 2
+    assert eq_blocks[0].latex == r"O(n \log n)"
+    assert eq_blocks[1].latex == r"k \ge 1"
+
+    assert len(prose_blocks) == 2
+    assert "In asymptotic analysis" in "".join(s.content for s in prose_blocks[0].spans)
+    for pb in prose_blocks:
+        assert all(s.kind != "math" for s in pb.spans)
 
 
-def test_fixture_4_integral_parsing() -> None:
-    text = r"We evaluate $\int_0^\infty e^{-x} dx = 1$ in closed form."
-    spans = parse_inline_spans(text)
-    math_spans = [s for s in spans if s.kind == "math"]
-    assert len(math_spans) == 1
-    assert math_spans[0].content == r"\int_0^\infty e^{-x} dx = 1"
+def test_fixture_5_greek_letters_and_subscripts() -> None:
+    text = r"The model regularization is governed by $\alpha_i + \beta_j \le \lambda$."
+    blocks = parse_markdown_blocks(text)
+    eq_blocks = [b for b in blocks if isinstance(b, EquationBlockNode)]
+    assert len(eq_blocks) == 1
+    assert eq_blocks[0].latex == r"\alpha_i + \beta_j \le \lambda"
 
 
-def test_fixture_5_greek_letters() -> None:
-    text = r"Hyperparameters include $\alpha, \beta, \lambda, \theta$ for regularization."
-    spans = parse_inline_spans(text)
-    math_spans = [s for s in spans if s.kind == "math"]
-    assert len(math_spans) == 1
-    assert math_spans[0].content == r"\alpha, \beta, \lambda, \theta"
-
-
-def test_fixture_6_subscripts_and_superscripts() -> None:
-    text = r"Let $x_i^2$ represent the quadratic feature term."
-    spans = parse_inline_spans(text)
-    math_spans = [s for s in spans if s.kind == "math"]
-    assert len(math_spans) == 1
-    assert math_spans[0].content == "x_i^2"
-
-
-def test_fixture_7_square_root() -> None:
-    text = r"Distance metric: $\sqrt{x^2+y^2}$."
-    spans = parse_inline_spans(text)
-    math_spans = [s for s in spans if s.kind == "math"]
-    assert len(math_spans) == 1
-    assert math_spans[0].content == r"\sqrt{x^2+y^2}"
-
-
-def test_fixture_8_matrix_environment_parsing() -> None:
+def test_fixture_6_matrix_environment_parsing() -> None:
     text = "\\begin{pmatrix}\na & b \\\\\nc & d\n\\end{pmatrix}"
     blocks = parse_markdown_blocks(text)
     assert len(blocks) == 1
-    assert isinstance(blocks[0], MathBlock)
+    assert isinstance(blocks[0], EquationBlockNode)
     assert r"\begin{pmatrix}" in blocks[0].latex
+    assert blocks[0].display_type == "environment"
 
 
-def test_fixture_9_aligned_equation_parsing() -> None:
+def test_fixture_7_aligned_multiline_expression() -> None:
     text = "\\begin{aligned}\na &= b + c \\\\\nd &= e - f\n\\end{aligned}"
     blocks = parse_markdown_blocks(text)
     assert len(blocks) == 1
-    assert isinstance(blocks[0], MathBlock)
+    assert isinstance(blocks[0], EquationBlockNode)
     assert r"\begin{aligned}" in blocks[0].latex
+    assert blocks[0].display_type == "environment"
 
 
-def test_fixture_10_ordinary_paragraph_with_embedded_math() -> None:
-    text = r"In asymptotic analysis, the algorithm runs in \(O(n \log n)\) time under condition $k \ge 1$."
-    spans = parse_inline_spans(text)
-    kinds = [s.kind for s in spans]
-    assert kinds.count("math") == 2
-    assert spans[0].kind == "text"
-    assert "In asymptotic analysis" in spans[0].content
+def test_fixture_8_long_equation_approaching_page_width() -> None:
+    long_eq = (
+        r"\[ \mathcal{L}_{\text{total}}(\theta; x, y) = "
+        r"-\sum_{i=1}^{N} \left[ y_i \log \hat{y}_i + (1 - y_i)\log(1 - \hat{y}_i) \right] "
+        r"+ \frac{\lambda}{2} \|\theta\|_2^2 + \gamma \sum_{j=1}^{M} |\theta_j| \]"
+    )
+    blocks = parse_markdown_blocks(long_eq)
+    assert len(blocks) == 1
+    assert isinstance(blocks[0], EquationBlockNode)
+    assert len(blocks[0].latex) > 100
 
 
-def test_fixture_11_code_block_preserves_raw_latex() -> None:
+def test_fixture_9_code_block_preserves_raw_latex() -> None:
     text = "```latex\n\\int_0^1 f(x)dx\n```"
     blocks = parse_markdown_blocks(text)
     assert len(blocks) == 1
@@ -111,37 +134,99 @@ def test_fixture_11_code_block_preserves_raw_latex() -> None:
     assert blocks[0].code == r"\int_0^1 f(x)dx"
 
     inline_text = r"Use `\frac{a}{b}` to create fractions in LaTeX."
-    inline_spans = parse_inline_spans(inline_text)
-    code_spans = [s for s in inline_spans if s.kind == "code"]
-    math_spans = [s for s in inline_spans if s.kind == "math"]
+    blocks_inline = parse_markdown_blocks(inline_text)
+    assert len(blocks_inline) == 1
+    assert isinstance(blocks_inline[0], ParagraphBlock)
+    code_spans = [s for s in blocks_inline[0].spans if s.kind == "code"]
+    math_spans = [s for s in blocks_inline[0].spans if s.kind == "math"]
     assert len(code_spans) == 1
     assert code_spans[0].content == r"\frac{a}{b}"
     assert len(math_spans) == 0
 
 
-def test_fixture_12_non_math_backslashes_and_currency() -> None:
-    # Technical backslash identifiers
-    text = r"File path: C:\Users\docs\paper.pdf is located on drive C:."
-    spans = parse_inline_spans(text)
-    assert all(s.kind == "text" for s in spans)
-    assert "".join(s.content for s in spans) == text
-
-    # Currency strings must not be parsed as math
+def test_fixture_10_dollar_signs_as_currency_preserved_as_prose() -> None:
     currency_text = "The conference registration fee was $50 and workshop was $100."
-    currency_spans = parse_inline_spans(currency_text)
-    math_spans = [s for s in currency_spans if s.kind == "math"]
-    assert len(math_spans) == 0
-    assert "$50" in "".join(s.content for s in currency_spans)
-    assert "$100" in "".join(s.content for s in currency_spans)
+    blocks = parse_markdown_blocks(currency_text)
+    assert len(blocks) == 1
+    assert isinstance(blocks[0], ParagraphBlock)
+    full_prose = "".join(s.content for s in blocks[0].spans)
+    assert "$50" in full_prose
+    assert "$100" in full_prose
+    assert all(s.kind != "math" for s in blocks[0].spans)
 
-    # Escaped dollar signs
+
+def test_fixture_11_technical_strings_with_backslashes_and_escaped_dollars() -> None:
+    text = r"File path: C:\Users\docs\paper.pdf is located on drive C:."
+    blocks = parse_markdown_blocks(text)
+    assert len(blocks) == 1
+    assert isinstance(blocks[0], ParagraphBlock)
+    assert r"C:\Users\docs\paper.pdf" in "".join(s.content for s in blocks[0].spans)
+
     escaped = r"Total cost is \$75 per participant."
-    escaped_spans = parse_inline_spans(escaped)
-    assert all(s.kind == "text" for s in escaped_spans)
-    assert "".join(s.content for s in escaped_spans) == "Total cost is $75 per participant."
+    blocks_esc = parse_markdown_blocks(escaped)
+    assert len(blocks_esc) == 1
+    assert isinstance(blocks_esc[0], ParagraphBlock)
+    assert "Total cost is $75 per participant." in "".join(s.content for s in blocks_esc[0].spans)
 
 
-def test_docx_export_produces_native_omml_equations() -> None:
+def test_fixture_12_unsupported_mathematical_command_yields_warning() -> None:
+    unsupported_text = r"We apply \(\unsupportedmacro{x}\) to the input sequence."
+    blocks = parse_markdown_blocks(unsupported_text)
+    eq_blocks = [b for b in blocks if isinstance(b, EquationBlockNode)]
+    assert len(eq_blocks) == 1
+    assert eq_blocks[0].rendering_status in ("warning", "error")
+    assert eq_blocks[0].validation_error is not None
+    assert "unsupported" in eq_blocks[0].validation_error.lower()
+
+
+def test_real_manuscript_prose_from_foundation_models_paper() -> None:
+    """Verifies parsing and separation of real research sentences from the uploaded manuscript:
+
+    format_specifier_papers/Training Foundation Models with a Single Algorithm.pdf
+    """
+    sentence_1 = (
+        r"Maximum likelihood estimation minimizes the loss "
+        r"\(L(\theta;\rho\circ\mu) := -\mathbb{E}_{x\sim\rho} \mathbb{E}_{y\sim\mu(\cdot|x)}[\log\pi_\theta(y|x)]\), "
+        r"where x is the prompt and y is completion."
+    )
+    blocks_1 = parse_markdown_blocks(sentence_1)
+    assert len(blocks_1) == 3
+    assert isinstance(blocks_1[0], ParagraphBlock)
+    assert "Maximum likelihood estimation minimizes the loss:" in "".join(
+        s.content for s in blocks_1[0].spans
+    )
+    assert all(s.kind != "math" for s in blocks_1[0].spans)
+
+    assert isinstance(blocks_1[1], EquationBlockNode)
+    assert r"L(\theta;\rho\circ\mu)" in blocks_1[1].latex
+    assert blocks_1[1].rendering_status == "ok"
+
+    assert isinstance(blocks_1[2], ParagraphBlock)
+    assert "Here, x is the prompt and y is completion." in "".join(
+        s.content for s in blocks_1[2].spans
+    )
+    assert all(s.kind != "math" for s in blocks_1[2].spans)
+
+    sentence_2 = (
+        r"For a fixed training data distribution, this loss differs from the expected forward KL divergence "
+        r"\(E_{x\sim\rho}[\mathrm{KL}(\mu(\cdot|x) \parallel \pi_\theta(\cdot|x))]\) "
+        r"only by a constant independent of \theta. Both objectives therefore have the same gradient: "
+        r"\[\nabla_\theta L(\theta;\rho\circ\mu) = -\mathbb{E}_{x\sim\rho} \mathbb{E}_{y\sim\mu(\cdot|x)}[\nabla_\theta \log\pi_\theta(y|x)]\]."
+    )
+    blocks_2 = parse_markdown_blocks(sentence_2)
+    eq_blocks_2 = [b for b in blocks_2 if isinstance(b, EquationBlockNode)]
+    prose_blocks_2 = [b for b in blocks_2 if isinstance(b, ParagraphBlock)]
+
+    assert len(eq_blocks_2) == 2
+    assert "KL" in eq_blocks_2[0].latex
+    assert r"\nabla_\theta" in eq_blocks_2[1].latex
+
+    assert len(prose_blocks_2) == 2
+    for pb in prose_blocks_2:
+        assert all(s.kind != "math" for s in pb.spans)
+
+
+def test_docx_export_produces_native_omml_equations_in_standalone_paragraphs() -> None:
     draft = PaperDraft(
         title="Mathematical Foundations in Modern Computing",
         abstract=r"We review \(E = mc^2\) and evaluate fractions \(\frac{a+b}{c}\).",
@@ -190,7 +275,7 @@ def test_pdf_export_renders_math_flowables_without_raw_latex_leakage() -> None:
                 heading="Formulas & Analysis",
                 state="draft",
                 content=(
-                    r"The relation \(E = mc^2\) is derived."
+                    r"The relation is calculated as \(E = mc^2\), where c is speed of light."
                     "\n\n"
                     r"$$\frac{a+b}{c}$$"
                     "\n\n"
@@ -212,3 +297,5 @@ def test_pdf_export_renders_math_flowables_without_raw_latex_leakage() -> None:
     # Verify that raw LaTeX commands like \frac{a+b}{c} are NOT displayed as literal text
     assert r"\frac{a+b}{c}" not in page_text
     assert r"$$\frac" not in page_text
+    # Verify split prose appears cleanly
+    assert "speed of light" in page_text

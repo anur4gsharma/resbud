@@ -1,144 +1,117 @@
-# Architectural Specification: Academic Mathematical Rendering & Equation Pipeline
+# Architectural Specification: Mandatory Block-Level Mathematical Rendering & Equation Pipeline
 
-## 1. Executive Summary
+## 1. Executive Summary & Mandatory Design Rule
 
-This document specifies the end-to-end mathematical rendering architecture for Resbud manuscripts across Markdown parsing, DOCX native equation compilation, PDF generation, and Flutter in-app reading/editing interfaces.
+This document specifies the end-to-end mathematical rendering architecture for Resbud manuscripts across Markdown AST parsing, DOCX native equation compilation, PDF generation, and Flutter in-app reading/editing interfaces.
 
-Prior to this overhaul, mathematical expressions suffered from severe pipeline failures:
-1. **ReportLab PDF Leaks:** Mathematical expressions were rendered as raw italicized LaTeX code (e.g. `<i>\frac{a+b}{c}</i>`), forcing users to read unprocessed TeX markup in compiled PDFs.
-2. **DOCX Equation Degradation:** Word exports relied on unhandled conversions that threw XML parsing errors on `aligned` environments, dropping math into plain body runs.
-3. **Delimiter Collisions & Currency Corruption:** Plain dollar amounts (e.g. `$50 and $100`) were mistakenly parsed as inline mathematics, while LaTeX syntax inside code blocks was tokenized as math.
-4. **Editor Disconnect:** The paper editor only showed raw input without any equation preview, and lacked baseline-aligned visual validation.
-
-The revised architecture establishes a unified mathematical contract ensuring that equations remain editable native Word OMML in DOCX, crisp high-DPI vector/raster flowables in PDF, and interactive rendered formulas in Flutter.
+**Mandatory Academic Formatting Rule:**
+> Every mathematical expression must be rendered as a standalone display equation, occupying its own separate paragraph and line. Inline mathematical rendering must not be used anywhere in the final manuscript.
+> 
+> Surrounding prose originally containing embedded equations is automatically split into preceding and subsequent paragraphs with preserved grammar, punctuation, and academic meaning.
 
 ---
 
-## 2. Canonical Mathematical Syntax & Tokenization Contract
+## 2. Document AST & Block-Level Math Representation
 
-Resbud enforces standard academic LaTeX and Pandoc delimiters:
+To eliminate text-equation overlaps and ensure consistent typographics across Word, PDF, and Flutter, mathematical content is isolated into explicit block-level AST nodes:
 
-| Notation Type | Supported Delimiters | Example | Rendering Behavior |
-| :--- | :--- | :--- | :--- |
-| **Inline Math** | `\( ... \)` or `$ ... $` | `\(E = mc^2\)` or `$x_i^2$` | Baseline-aligned inline formula |
-| **Display Math** | `\[ ... \]` or `$$ ... $$` | `\[ \sum_{i=1}^n i = \frac{n(n+1)}{2} \]` | Centered display block with Pt(8) margins |
-| **Block Environments** | `\begin{equation}...\end{equation}`, `\begin{align}...\end{align}`, `\begin{aligned}...\end{aligned}`, `\begin{pmatrix}...\end{pmatrix}`, `\begin{matrix}...\end{matrix}` | `\begin{pmatrix} a & b \\ c & d \end{pmatrix}` | Centered multi-line / matrix block |
-| **Inline Code** | `` `...` `` | `` `\frac{a}{b}` `` | Fixed-width monospace text, math parsing suppressed |
-| **Currency Values** | `$50`, `$100 USD`, `\$75` | `Registration is $50 and fee is $100.` | Retained as plain currency text |
-| **Technical Paths** | `C:\Users\docs\paper.pdf` | `File is at C:\path\to\data` | Retained as plain text |
+```python
+@dataclass
+class EquationBlockNode:
+    latex: str  # Original LaTeX source (without outer delimiters)
+    display_type: Literal["display", "extracted_inline", "environment"] = "display"
+    equation_id: str | None = None
+    normalized_latex: str | None = None
+    rendering_status: Literal["ok", "warning", "error"] = "ok"
+    validation_error: str | None = None
 
-### Regex Grammar & Token Precedence
 
-To eliminate false positives:
-1. **Inline Code Precedence:** Backtick expressions `` `[^`\n]+` `` are tokenized *first*. LaTeX commands inside code blocks are preserved as literal text.
-2. **Escaped Dollar Signs:** `\\\$` is explicitly captured and emitted as literal `$` text.
-3. **Display Math Precedence:** Multiline `\$\$[\s\S]*?\$\$` and `\\\[[\s\S]*?\\\]` are evaluated prior to single dollar delimiters.
-4. **Pandoc Dollar Rule:** Inline dollar math requires:
-   ```regex
-   (?<!\\)\$(?!\s)(?!\d+(?:\s|[.,;:!?]|$))((?:[^$\n\\]|\\.)+?)(?<!\s)\$(?!\d)
-   ```
-   - Opening `$` must not be followed by whitespace or standalone digits.
-   - Closing `$` must not be preceded by whitespace or followed by digits.
-   - Neither delimiter may be escaped.
-
----
-
-## 3. DOCX Native Word Equation Compilation (OMML)
-
-Word documents are one of Resbud's primary deliverable formats. Equations must remain editable native Word equations rather than low-resolution static raster screenshots.
-
-### Compilation Pipeline
-
-```
-LaTeX String
-    │
-    ▼
-Delimiter Stripping & Sanitization
-    │
-    ▼
-latex2mathml (LaTeX -> MathML)
-    │
-    ▼
-XML Ampersand & Token Cleanup (<mi>&</mi> -> stripped / matrix conversion)
-    │
-    ▼
-mathml2omml (MathML -> OMML)
-    │
-    ▼
-docx.oxml.parse_xml (<p xmlns:m="..."><m:oMath>...</m:oMath></p>)
-    │
-    ▼
-Insertion into Paragraph XML Tree (p._p.append(...))
+# Backward-compatible alias
+MathBlock = EquationBlockNode
 ```
 
-### Sanitization of Aligned Environments
-
-`latex2mathml` produces unescaped ampersands (`<mi>&</mi>`) when translating `\begin{aligned}` or `\begin{align}` environments, triggering XML syntax parse errors in downstream tools. The Resbud translation engine pre-sanitizes alignment anchors:
-- `\begin{aligned}` and `\begin{align}` are normalized to `\begin{matrix}`.
-- `&=` is normalized to `=`.
-- Stray alignment ampersands are stripped or converted to column breaks before MathML generation.
+### Critical AST Properties:
+1. **Paragraph Separation:** `ParagraphBlock` contains only pure prose spans (`text`, `bold`, `italic`, `code`, `link`). No `kind="math"` spans are embedded inside paragraphs.
+2. **Dedicated Blocks:** All equations—whether originally written in display delimiters (`$$`, `\[`), environments (`\begin{equation}`, `\begin{pmatrix}`), or embedded inline (`\(...\)`, `$x+y$`)—are lifted into standalone `EquationBlockNode` elements.
+3. **Immutability of Source:** Original LaTeX is strictly preserved in `latex`. Editing a section in Flutter preserves the exact source for future re-renders.
 
 ---
 
-## 4. ReportLab PDF High-DPI Flowable Architecture
+## 3. Paragraph Splitting & Prose Boundary Formatting
 
-In compiled PDF documents, raw LaTeX syntax must never leak into paragraph text.
+When a paragraph contains one or more mathematical expressions, `extract_equation_blocks_from_paragraph` parses and partitions the text into alternating prose and equation blocks:
 
-### Display Equation Flowables
+### Grammar Transformation Rules:
+1. **Preceding Prose Cleaning:**
+   - Trailing commas or semicolons are stripped.
+   - Introduction clauses ending with verbs/prepositions (e.g., `calculated as`, `defined as`, `expressed as`) are normalized to `calculated as follows:`.
+   - Intro phrases ending in `is`, `given by`, `satisfies`, or `minimizes the loss` are formatted with a trailing colon `:`.
+   - Sentences lacking terminal punctuation receive a colon `:` to introduce the block equation.
+2. **Standalone Equation Extraction:**
+   - Outer delimiters (`$$`, `\[`, `\(`, `$`) are stripped while preserving complete LaTeX commands, matrices, and symbols.
+   - Verified against `MathTextParser` and `latex2mathml` converters.
+3. **Subsequent Prose Cleaning:**
+   - Leading commas and semicolons are stripped.
+   - Transitional words such as `where` are normalized to `Here, ` (e.g., `where q is query` $\to$ `Here, q represents query`).
+   - `in which` and `with` clauses are capitalized as independent sentence starters.
+   - Leading lowercase letters are capitalized to ensure valid grammatical sentences.
 
-For `MathBlock`:
-1. Delimiters (`$$`, `\[`, etc.) are stripped.
-2. Matrix environments (`pmatrix`, `bmatrix`) are either converted to formatted ReportLab `Table` flowables or processed via mathtext.
-3. Transparent in-memory PNGs are rasterized at **300 DPI** using `matplotlib` mathtext.
-4. The resulting image is wrapped in a ReportLab `RLImage` flowable with exact physical dimensions in typographical points:
-   $$\text{width}_{\text{pt}} = \frac{\text{width}_{\text{px}}}{\text{DPI}} \times 72$$
-5. Centered display alignment (`hAlign="CENTER"`) and vertical margins (`Spacer(1, 4)`) ensure consistent academic typography.
+### Real Research Prose Example:
+**Input (from `format_specifier_papers/Training Foundation Models with a Single Algorithm.pdf`):**
+> "Maximum likelihood estimation minimizes the loss \(L(\theta;\rho\circ\mu) := -\mathbb{E}_{x\sim\rho} \mathbb{E}_{y\sim\mu(\cdot|x)}[\log\pi_\theta(y|x)]\), where x is the prompt and y is completion."
 
-### Inline Equation Images
-
-For `InlineSpan(kind="math")`:
-1. Expressions are converted to cached 300 DPI PNGs in a managed temporary directory.
-2. The HTML stream incorporates baseline-adjusted image tags:
-   ```html
-   <img src="/tmp/.../math_123.png" width="45.0" height="12.5" valign="-2"/>
-   ```
-3. If an expression cannot be rasterized due to syntax errors, the engine falls back to styled italic text with escaped HTML entities, preventing compilation crashes.
-
----
-
-## 5. Flutter Reading Canvas & Editor Mathematics Preview
-
-### Reading Canvas (`DocxDocumentCanvas`)
-
-`DocxDocumentCanvas` provides a high-fidelity publication view of the paper.
-- Inline math is matched via `inlineTokenRegex` and rendered via `flutter_math_fork` using `Math.tex(..., mathStyle: MathStyle.text)`.
-- Display equations and block environments (`\begin{equation}`, `\begin{pmatrix}`, etc.) are rendered centered with `MathStyle.display`.
-- Fallbacks display the raw formula in an italicized serif run if a syntax error occurs.
-
-### Interactive Equation Preview in Editor (`PaperEditorPage`)
-
-To ensure researchers can verify equations while editing:
-1. Each section card contains an action button: **"Preview Equations"** (`button-preview-math-${section.id}`).
-2. Toggling preview mounts a live `DocxDocumentCanvas` rendering of the current section text immediately below the raw editor field.
-3. Editing text in `TextFormField` preserves raw LaTeX markup with zero corruption on save, reload, and export.
+**Transformed Document Blocks:**
+1. **ParagraphBlock:** "Maximum likelihood estimation minimizes the loss:"
+2. **EquationBlockNode:** `L(\theta;\rho\circ\mu) := -\mathbb{E}_{x\sim\rho} \mathbb{E}_{y\sim\mu(\cdot|x)}[\log\pi_\theta(y|x)]`
+3. **ParagraphBlock:** "Here, x is the prompt and y is completion."
 
 ---
 
-## 6. Verification Against the 12 Test Fixtures
+## 4. DOCX Export Requirements (Native Word OMML)
 
-All 12 representative academic mathematical test fixtures are validated via automated tests in `backend/tests/test_mathematical_rendering_regression.py` and `mobile/test/pdf_viewer_toolbar_test.dart`:
+1. **Dedicated Word Paragraphs:** Every equation occupies its own paragraph, horizontally centered (`WD_ALIGN_PARAGRAPH.CENTER`) with `Pt(8)` vertical margins before and after.
+2. **Native OMML:** Converted via `latex2mathml` and `mathml2omml` into native `<m:oMath>` OpenXML structures.
+3. **Warning Semantics:** If an expression contains invalid syntax or unsupported macros (e.g. `\unsupportedmacro{x}`), the original LaTeX is displayed centered with an explicit red warning run: `[Warning: Unsupported mathematical syntax]`.
 
-| Fixture # | Description | Syntax | DOCX Output | PDF Output |
+---
+
+## 5. PDF Export Requirements (ReportLab Flowables)
+
+1. **Standalone Centered Flowables:** Every equation is rasterized at **300 DPI** via `matplotlib` mathtext and placed in a centered `RLImage` flowable bounded by `Spacer(1, 6)` top and bottom.
+2. **Proportional Scaling:** Long equations approaching the physical page width (460 pt printable width) are scaled proportionally to prevent margin clipping.
+3. **Matrix Support:** Matrix environments (`pmatrix`, `bmatrix`, `matrix`) are rendered as centered, bordered ReportLab `Table` flowables.
+4. **Warning Semantics:** Erroneous or unsupported formulas produce a visible warning paragraph (`styles["MathBlock"]`) preserving source and highlighting syntax issues.
+
+---
+
+## 6. Flutter Reading Canvas & Editor Experience
+
+1. **`DocxDocumentCanvas`:**
+   - Employs `_splitAndRenderParagraphWithEquations` to expand paragraphs into separate prose widgets (`_buildProseParagraph`) and centered equation widgets (`_buildMathEquationBlock`).
+   - Every equation is rendered with `MathStyle.display` on its own line with `Padding(vertical: 12.0 * zoom)`.
+   - No inline `WidgetSpan(Math.tex)` exists inside body text runs.
+2. **`PaperEditorPage`:**
+   - Preserves raw editable LaTeX source during typing and saving.
+   - Full manuscript preview tab immediately renders equations using the block-level canvas.
+
+---
+
+## 7. Verification Against the 12 Test Fixtures & Uploaded Paper
+
+All fixtures are covered in `backend/tests/test_mathematical_rendering_regression.py` and `mobile/test/pdf_viewer_toolbar_test.dart`:
+
+| Fixture # | Description | Syntax | AST Node Representation | DOCX & PDF Output |
 | :---: | :--- | :--- | :--- | :--- |
-| **1** | Inline expression | `\(E = mc^2\)` | Native `<m:oMath>` | High-DPI inline image |
-| **2** | Fraction | `\(\frac{a+b}{c}\)` | Native `<m:oMath>` fraction | High-DPI flowable |
-| **3** | Summation | `\sum_{i=1}^{n} i` | Native `<m:oMath>` n-ary | High-DPI flowable |
-| **4** | Integral | `\int_0^\infty e^{-x} dx` | Native `<m:oMath>` integral | High-DPI flowable |
-| **5** | Greek letters | `\alpha, \beta, \lambda, \theta` | Native Greek math characters | High-DPI characters |
-| **6** | Subscripts & superscripts | `x_i^2` | Native `<m:sSubSup>` | High-DPI flowable |
-| **7** | Square root | `\sqrt{x^2+y^2}` | Native `<m:rad>` radical | High-DPI flowable |
-| **8** | Matrix notation | `\begin{pmatrix} a & b \\ c & d \end{pmatrix}` | Native `<m:m>` matrix | Structured matrix flowable |
-| **9** | Multi-line aligned | `\begin{aligned} a &= b + c \\ d &= e - f \end{aligned}` | Sanitized native OMML | Multi-line aligned flowable |
-| **10** | Embedded math in prose | `Runs in \(O(n \log n)\) time` | Inlined `<m:oMath>` in run | Inline image in paragraph |
-| **11** | LaTeX in code block | `` `\frac{a}{b}` `` | Plain Consolas run | Plain `<code>` block |
-| **12** | Non-math backslashes & currency | `C:\Users\docs` & `$50` | Plain Times run | Plain text run |
+| **1** | Inline fraction in sentence | `calculated as \(cos(q,d) = \frac{q \cdot d}{||q|| ||d||}\)` | Pre-Paragraph, `EquationBlockNode`, Post-Paragraph | Centered standalone OMML & 300 DPI image |
+| **2** | Summation between prose | `$$\sum_{i=1}^{n} i = \frac{n(n+1)}{2}$$` | `EquationBlockNode(display_type="display")` | Centered standalone OMML & flowable |
+| **3** | Display integral | `\[ \int_0^\infty e^{-x} dx = 1 \]` | `EquationBlockNode(display_type="display")` | Centered standalone OMML & flowable |
+| **4** | Multiple equations in paragraph | `\(O(n \log n)\)` and `$k \ge 1$` | Split into alternating prose & EquationBlockNodes | Two separate centered equation paragraphs |
+| **5** | Greek letters & subscripts | `$\alpha_i + \beta_j \le \lambda$` | `EquationBlockNode` | Centered native Greek symbols |
+| **6** | Matrix environment | `\begin{pmatrix} a & b \\ c & d \end{pmatrix}` | `EquationBlockNode(display_type="environment")` | Centered native OMML matrix & PDF Table |
+| **7** | Aligned multi-line | `\begin{aligned} a &= b + c \\ d &= e - f \end{aligned}` | `EquationBlockNode(display_type="environment")` | Normalized centered OMML & flowable |
+| **8** | Long equation | Loss function exceeding 100 chars | `EquationBlockNode` | Centered equation scaled to margins |
+| **9** | Literal LaTeX in code block | `` `\frac{a}{b}` `` | `CodeBlock` / `InlineSpan(kind="code")` | Monospace code text, no equation block |
+| **10** | Currency signs | `$50 and $100` | `ParagraphBlock` (kind="text") | Plain currency text preserved |
+| **11** | Technical backslashes & escaped dollars | `C:\Users\docs` & `\$75` | `ParagraphBlock` (kind="text") | Plain text preserved |
+| **12** | Unsupported LaTeX command | `\(\unsupportedmacro{x}\)` | `EquationBlockNode(rendering_status="warning")` | Visible warning run + LaTeX source |
+| **Real Paper** | Real prose from foundation paper | Likelihood loss & KL divergence | `EquationBlockNode` + split prose paragraphs | Centered equations with clean prose boundaries |

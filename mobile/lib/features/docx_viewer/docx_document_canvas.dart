@@ -311,57 +311,168 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
     final paragraphs = content.split('\n\n');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: paragraphs.map((p) {
+      children: paragraphs.expand((p) {
         final trimmed = p.trim();
-        if (trimmed.isEmpty) return const SizedBox.shrink();
+        if (trimmed.isEmpty) return <Widget>[];
 
         // Check for Markdown table
         if (trimmed.contains('|') &&
             (trimmed.contains('---') ||
                 trimmed.split('\n').where((l) => l.trim().startsWith('|')).length >= 2)) {
-          return _buildMarkdownTable(trimmed, zoom);
+          return [_buildMarkdownTable(trimmed, zoom)];
         }
 
         // Check for figure / illustration markdown
         if (trimmed.startsWith('![') && trimmed.contains('](') && trimmed.endsWith(')')) {
-          return _buildFigureBlock(trimmed, zoom);
+          return [_buildFigureBlock(trimmed, zoom)];
         }
 
         // Check for chart specification
         if (trimmed.startsWith('```chart') && trimmed.endsWith('```')) {
-          return _buildChartBlock(trimmed, zoom);
+          return [_buildChartBlock(trimmed, zoom)];
         }
 
         // Check for bullet or numbered list
         if (trimmed.startsWith('- ') ||
             trimmed.startsWith('* ') ||
             trimmed.startsWith(RegExp(r'^\d+\.'))) {
-          return _buildListBlock(trimmed, zoom);
+          return [_buildListBlock(trimmed, zoom)];
         }
 
         // Check for block math equation
         if ((trimmed.startsWith(r'$$') && trimmed.endsWith(r'$$') && trimmed.length > 4) ||
             (trimmed.startsWith(r'\[') && trimmed.endsWith(r'\]') && trimmed.length > 4) ||
             RegExp(r'^\\begin\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?\}[\s\S]*?\\end\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?\}$').hasMatch(trimmed)) {
-          return _buildMathEquationBlock(trimmed, zoom);
+          return [_buildMathEquationBlock(trimmed, zoom)];
         }
 
-        // Standard body paragraph with potential inline math
-        return _buildParagraphWithInlineMath(trimmed, zoom);
+        // Enforce block-level math: split paragraph on embedded equations into standalone display blocks and pure prose paragraphs
+        return _splitAndRenderParagraphWithEquations(trimmed, zoom);
       }).toList(),
     );
   }
 
-  Widget _buildMathEquationBlock(String equationText, double zoom) {
-    String cleanLatex = equationText.trim();
-    if (cleanLatex.startsWith(r'$$') && cleanLatex.endsWith(r'$$')) {
-      cleanLatex = cleanLatex.substring(2, cleanLatex.length - 2).trim();
-    } else if (cleanLatex.startsWith(r'\[') && cleanLatex.endsWith(r'\]')) {
-      cleanLatex = cleanLatex.substring(2, cleanLatex.length - 2).trim();
+  static final RegExp _mathExtractRegex = RegExp(
+    r'(`[^`\n]+`)|'
+    r'(\\\$)|'
+    r'(\\begin\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?\}[\s\S]*?\\end\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?\})|'
+    r'(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\])|'
+    r'(\\\([\s\S]*?\\\))|'
+    r'((?<!\\)\$(?!\s)(?!\d+(?:[.,]\d+)?(?:\s|[.,;:!?]|$))(?:[^$\n\\]|\\.)+?(?<!\s)\$(?!\d))',
+  );
+
+  static final RegExp _inlineProseTokenRegex = RegExp(
+    r'(`[^`\n]+`)|'
+    r'(\\\$)|'
+    r'(\*\*\*[^*]+\*\*\*|___[^_]+___)|'
+    r'(\*\*[^*]+\*\*|__[^_]+__)|'
+    r'(\*[^*\n]+\*|(?<=\s)_[^_\n]+_(?=\s|[.,;:!?]|$))',
+  );
+
+  static String _cleanPreEquationProse(String text) {
+    var cleaned = text.trim();
+    if (cleaned.isEmpty || RegExp(r'^[.,;:!?]+$').hasMatch(cleaned)) {
+      return '';
+    }
+    cleaned = cleaned.replaceAll(RegExp(r'[,;]+$'), '').trim();
+    if (RegExp(r'\b(?:calculated|defined|written|expressed|represented|formulated|given)\s+as$', caseSensitive: false).hasMatch(cleaned)) {
+      cleaned = cleaned.replaceAll(RegExp(r'\s+as$', caseSensitive: false), ' as follows:');
+    } else if (RegExp(r'\bas$', caseSensitive: false).hasMatch(cleaned)) {
+      cleaned = cleaned.replaceAll(RegExp(r'\bas$', caseSensitive: false), 'as follows:');
+    } else if (RegExp(r'\b(?:is|given by|satisfies|satisfying|becomes|yields|minimizes the loss)$', caseSensitive: false).hasMatch(cleaned)) {
+      if (!cleaned.endsWith(':')) {
+        cleaned += ':';
+      }
+    } else if (!RegExp(r'[.:!?]$').hasMatch(cleaned)) {
+      cleaned += ':';
+    }
+    return cleaned;
+  }
+
+  static String _cleanPostEquationProse(String text) {
+    var cleaned = text.trim();
+    if (cleaned.isEmpty || RegExp(r'^[.,;:!?]+$').hasMatch(cleaned)) {
+      return '';
+    }
+    cleaned = cleaned.replaceAll(RegExp(r'^[,\s;]+'), '').trim();
+    if (cleaned.isEmpty || RegExp(r'^[.,;:!?]+$').hasMatch(cleaned)) {
+      return '';
+    }
+    if (RegExp(r'^where\b', caseSensitive: false).hasMatch(cleaned)) {
+      cleaned = cleaned.replaceFirst(RegExp(r'^where\b\s*', caseSensitive: false), 'Here, ');
+    } else if (RegExp(r'^in which\b', caseSensitive: false).hasMatch(cleaned)) {
+      cleaned = cleaned.replaceFirst(RegExp(r'^in which\b\s*', caseSensitive: false), 'In which ');
+    } else if (RegExp(r'^with\b', caseSensitive: false).hasMatch(cleaned)) {
+      cleaned = cleaned.replaceFirst(RegExp(r'^with\b\s*', caseSensitive: false), 'With ');
+    } else if (cleaned.isNotEmpty && cleaned[0] == cleaned[0].toLowerCase()) {
+      cleaned = cleaned[0].toUpperCase() + cleaned.substring(1);
+    }
+    return cleaned;
+  }
+
+  static String _cleanMathSource(String raw) {
+    var c = raw.trim();
+    if ((c.startsWith(r'$$') && c.endsWith(r'$$')) || (c.startsWith(r'\[') && c.endsWith(r'\]'))) {
+      return c.substring(2, c.length - 2).trim();
+    }
+    if (c.startsWith(r'\(') && c.endsWith(r'\)')) {
+      return c.substring(2, c.length - 2).trim();
+    }
+    if (c.startsWith(r'$') && c.endsWith(r'$')) {
+      return c.substring(1, c.length - 1).trim();
+    }
+    return c;
+  }
+
+  List<Widget> _splitAndRenderParagraphWithEquations(String text, double zoom) {
+    final matches = _mathExtractRegex
+        .allMatches(text)
+        .where((m) => m.group(1) == null && m.group(2) == null)
+        .toList();
+
+    if (matches.isEmpty) {
+      return [_buildProseParagraph(text, zoom)];
     }
 
+    final widgets = <Widget>[];
+    var cursor = 0;
+
+    for (var i = 0; i < matches.length; i++) {
+      final m = matches[i];
+      final preText = text.substring(cursor, m.start);
+      String cleanedPre;
+      if (i > 0) {
+        cleanedPre = _cleanPostEquationProse(preText);
+        if (cleanedPre.isNotEmpty && !RegExp(r'[.:!?]$').hasMatch(cleanedPre)) {
+          cleanedPre = _cleanPreEquationProse(cleanedPre);
+        }
+      } else {
+        cleanedPre = _cleanPreEquationProse(preText);
+      }
+
+      if (cleanedPre.isNotEmpty) {
+        widgets.add(_buildProseParagraph(cleanedPre, zoom));
+      }
+
+      final mathSource = _cleanMathSource(m.group(0)!);
+      widgets.add(_buildMathEquationBlock(mathSource, zoom));
+      cursor = m.end;
+    }
+
+    final postText = text.substring(cursor);
+    final cleanedPost = _cleanPostEquationProse(postText);
+    if (cleanedPost.isNotEmpty) {
+      widgets.add(_buildProseParagraph(cleanedPost, zoom));
+    }
+
+    return widgets;
+  }
+
+  Widget _buildMathEquationBlock(String equationText, double zoom) {
+    final cleanLatex = _cleanMathSource(equationText);
+
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 10.0 * zoom),
+      padding: EdgeInsets.symmetric(vertical: 12.0 * zoom),
       child: Center(
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -373,12 +484,12 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
               color: Colors.black,
             ),
             onErrorFallback: (_) => Text(
-              equationText,
+              '[Warning: Unsupported mathematical syntax] $cleanLatex',
               style: TextStyle(
                 fontFamily: 'serif',
                 fontStyle: FontStyle.italic,
                 fontSize: 10.5 * zoom,
-                color: Colors.black87,
+                color: const Color(0xFFCC0000),
               ),
             ),
           ),
@@ -387,7 +498,7 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
     );
   }
 
-  Widget _buildParagraphWithInlineMath(String text, double zoom) {
+  Widget _buildProseParagraph(String text, double zoom) {
     final bodyStyle = TextStyle(
       fontFamily: 'serif',
       fontSize: 10.5 * zoom,
@@ -395,7 +506,7 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
       color: const Color(0xFF111111),
     );
 
-    if (!text.contains(r'$') && !text.contains(r'\(') && !text.contains(r'\[') && !text.contains('`')) {
+    if (!text.contains(r'$') && !text.contains('`') && !text.contains('*') && !text.contains('_')) {
       return Padding(
         padding: EdgeInsets.only(bottom: 8.0 * zoom),
         child: Text(
@@ -406,14 +517,7 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
       );
     }
 
-    final inlineTokenRegex = RegExp(
-      r'(`[^`\n]+`)|'
-      r'(\\\$)|'
-      r'(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\])|'
-      r'(\\\([\s\S]*?\\\))|'
-      r'((?<!\\)\$(?!\s)(?!\d+(?:\s|[.,;:!?]|$))(?:[^$\n\\]|\\.)+?(?<!\s)\$(?!\d))',
-    );
-    final matches = inlineTokenRegex.allMatches(text);
+    final matches = _inlineProseTokenRegex.allMatches(text);
     if (matches.isEmpty) {
       return Padding(
         padding: EdgeInsets.only(bottom: 8.0 * zoom),
@@ -452,36 +556,26 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
       else if (match.group(2) != null) {
         spans.add(TextSpan(text: r'$', style: bodyStyle));
       }
-      // 3. Math tokens (display, paren, dollar)
-      else {
-        String cleanLatex = rawToken;
-        if (rawToken.startsWith(r'$$') && rawToken.endsWith(r'$$')) {
-          cleanLatex = rawToken.substring(2, rawToken.length - 2).trim();
-        } else if (rawToken.startsWith(r'\[') && rawToken.endsWith(r'\]')) {
-          cleanLatex = rawToken.substring(2, rawToken.length - 2).trim();
-        } else if (rawToken.startsWith(r'$') && rawToken.endsWith(r'$')) {
-          cleanLatex = rawToken.substring(1, rawToken.length - 1).trim();
-        } else if (rawToken.startsWith(r'\(') && rawToken.endsWith(r'\)')) {
-          cleanLatex = rawToken.substring(2, rawToken.length - 2).trim();
-        }
-
-        spans.add(
-          WidgetSpan(
-            alignment: PlaceholderAlignment.middle,
-            child: Math.tex(
-              cleanLatex,
-              mathStyle: MathStyle.text,
-              textStyle: TextStyle(
-                fontSize: 10.5 * zoom,
-                color: Colors.black,
-              ),
-              onErrorFallback: (_) => Text(
-                rawToken,
-                style: bodyStyle.copyWith(fontStyle: FontStyle.italic),
-              ),
-            ),
-          ),
-        );
+      // 3. Bold italic
+      else if (match.group(3) != null) {
+        spans.add(TextSpan(
+          text: rawToken.substring(3, rawToken.length - 3),
+          style: bodyStyle.copyWith(fontWeight: FontWeight.bold, fontStyle: FontStyle.italic),
+        ));
+      }
+      // 4. Bold
+      else if (match.group(4) != null) {
+        spans.add(TextSpan(
+          text: rawToken.substring(2, rawToken.length - 2),
+          style: bodyStyle.copyWith(fontWeight: FontWeight.bold),
+        ));
+      }
+      // 5. Italic
+      else if (match.group(5) != null) {
+        spans.add(TextSpan(
+          text: rawToken.substring(1, rawToken.length - 1),
+          style: bodyStyle.copyWith(fontStyle: FontStyle.italic),
+        ));
       }
 
       lastIndex = match.end;
