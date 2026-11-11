@@ -1,19 +1,14 @@
 """Comprehensive tests for the long-form manuscript generation engine."""
 
-import asyncio
 import json
 from pathlib import Path
-from typing import Any
-from unittest.mock import AsyncMock, patch
 
-from jsonschema import Draft202012Validator
 import pytest
+from jsonschema import Draft202012Validator
 
-from resbud_api.domain.manuscript_plan import ManuscriptPlan, PlannedSection
+from resbud_api.domain.manuscript_plan import ManuscriptPlan
 from resbud_api.domain.models import (
-    GenerationRequest,
     GenerationResponse,
-    PaperDraft,
     PaperPreferences,
     ProjectContext,
     ReferenceInput,
@@ -26,12 +21,11 @@ from resbud_api.providers.base import (
 )
 from resbud_api.providers.fake import FakeProvider
 from resbud_api.services.long_form_engine import (
-    _create_fallback_section,
     _extract_section_summary,
     generate_long_form_manuscript,
 )
 from resbud_api.services.manuscript_planner import create_manuscript_plan
-from resbud_api.services.section_generator import build_section_prompt, execute_section_generation
+from resbud_api.services.section_generator import build_section_prompt
 
 ROOT = Path(__file__).resolve().parents[1]
 PAPER_SCHEMA = json.loads((ROOT / "../contracts/paper-draft.schema.json").resolve().read_text())
@@ -67,8 +61,13 @@ def sample_brief() -> ResearchBrief:
             "Citation presence was 85.0% (102/120) but citation support was 74.2% (89/120)."
         ),
         references=(
-            ReferenceInput(id="ref_1", text="Lewis, P. et al. (2020). Retrieval-Augmented Generation. NeurIPS 33."),
-            ReferenceInput(id="ref_2", text="Karpukhin, V. et al. (2020). Dense Passage Retrieval. EMNLP."),
+            ReferenceInput(
+                id="ref_1",
+                text="Lewis, P. et al. (2020). Retrieval-Augmented Generation. NeurIPS 33.",
+            ),
+            ReferenceInput(
+                id="ref_2", text="Karpukhin, V. et al. (2020). Dense Passage Retrieval. EMNLP."
+            ),
         ),
         preferences=PaperPreferences(
             target_word_count=5000,
@@ -156,7 +155,9 @@ async def test_long_form_engine_hits_target_word_count(sample_brief: ResearchBri
     # Verify each section has multiple substantive paragraphs
     for sec in paper.sections:
         paragraphs = [p for p in sec.content.split("\n\n") if p.strip()]
-        assert len(paragraphs) >= 2, f"Section {sec.heading} has too few paragraphs: {len(paragraphs)}"
+        assert len(paragraphs) >= 2, (
+            f"Section {sec.heading} has too few paragraphs: {len(paragraphs)}"
+        )
 
     # Validate against JSON schema contract
     paper_dict = paper.model_dump(mode="json")
@@ -164,7 +165,9 @@ async def test_long_form_engine_hits_target_word_count(sample_brief: ResearchBri
 
 
 @pytest.mark.anyio
-async def test_long_form_engine_failure_recovery_preserves_manuscript(sample_brief: ResearchBrief) -> None:
+async def test_long_form_engine_failure_recovery_preserves_manuscript(
+    sample_brief: ResearchBrief,
+) -> None:
     """Verify Stage 5: A single section failure does NOT abort generation; fallback is created and flagged."""
     provider = FakeProvider()
 
@@ -178,7 +181,9 @@ async def test_long_form_engine_failure_recovery_preserves_manuscript(sample_bri
 
     provider.generate_section = flaky_generate_section  # type: ignore[assignment]
 
-    response = await generate_long_form_manuscript(sample_brief, provider, max_retries_per_section=1)
+    response = await generate_long_form_manuscript(
+        sample_brief, provider, max_retries_per_section=1
+    )
 
     assert isinstance(response, GenerationResponse)
     paper = response.paper

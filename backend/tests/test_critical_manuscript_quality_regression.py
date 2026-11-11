@@ -14,15 +14,11 @@ Specifically tests:
 from __future__ import annotations
 
 import io
-from pathlib import Path
-from typing import Any
 
-from docx import Document
 import pypdf
-import pytest
+from docx import Document
 
 from resbud_api.domain.models import (
-    CitationStyle,
     PaperDraft,
     PaperPreferences,
     PaperSection,
@@ -32,12 +28,10 @@ from resbud_api.domain.models import (
 from resbud_api.providers.base import ResearchBrief
 from resbud_api.services.analysis import extract_bibliographic_references
 from resbud_api.services.docx_export import export_paper_docx
-from resbud_api.services.integrity import run_integrity_checks
 from resbud_api.services.manuscript_planner import create_manuscript_plan
 from resbud_api.services.markdown_renderer import (
     clean_heading_text,
     format_hierarchical_heading,
-    parse_markdown_blocks,
 )
 from resbud_api.services.pdf_export import export_paper_pdf
 
@@ -72,7 +66,9 @@ def _create_test_paper(
     sections = [
         PaperSection(
             id="introduction",
-            heading="### 1.1 Context & Motivation" if headings_with_markdown else "Context & Motivation",
+            heading="### 1.1 Context & Motivation"
+            if headings_with_markdown
+            else "Context & Motivation",
             content=(
                 "Modern retrieval systems combine sparse and dense signals.\n\n"
                 "### Theoretical Rationale\n\n"
@@ -177,11 +173,17 @@ def test_cormack_multiline_reference_extraction_retains_exact_title() -> None:
     assert len(extracted) == 2
 
     cormack_ref = next(r for r in extracted if "Cormack" in r.text)
-    assert "Reciprocal rank fusion outperforms condorcet and individual rank learning methods" in cormack_ref.text
+    assert (
+        "Reciprocal rank fusion outperforms condorcet and individual rank learning methods"
+        in cormack_ref.text
+    )
     assert "rank introducing variables" not in cormack_ref.text
 
     if cormack_ref.title:
-        assert "Reciprocal rank fusion outperforms condorcet and individual rank learning methods" in cormack_ref.title
+        assert (
+            "Reciprocal rank fusion outperforms condorcet and individual rank learning methods"
+            in cormack_ref.title
+        )
     assert cormack_ref.doi == "10.1145/1571941.1572114"
 
 
@@ -200,7 +202,8 @@ def test_hierarchical_section_numbering_is_consistent_and_non_duplicative() -> N
     numbered_headings = [
         p.text
         for p in doc.paragraphs
-        if p.style.name.startswith("Heading") and p.text not in ("Abstract", "Keywords", "References")
+        if p.style.name.startswith("Heading")
+        and p.text not in ("Abstract", "Keywords", "References")
     ]
 
     # Check consecutive numbers

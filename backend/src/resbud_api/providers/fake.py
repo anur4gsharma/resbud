@@ -14,6 +14,7 @@ from resbud_api.domain.models import (
 )
 from resbud_api.providers.base import (
     GenerationInput,
+    GenerationPrompt,
     ProviderRateLimited,
     ProviderResult,
     ProviderTimeout,
@@ -291,11 +292,18 @@ def _generate_academic_section_content(
         )
         paragraphs.extend([p1, p2, p3, p4])
 
-    elif "related" in norm_id or "lit" in norm_id or "related" in norm_heading or "literature" in norm_heading:
+    elif (
+        "related" in norm_id
+        or "lit" in norm_id
+        or "related" in norm_heading
+        or "literature" in norm_heading
+    ):
         ref_markers = re.findall(r"\[(ref_[a-zA-Z0-9_\-]+)\]", str(relevant_refs)) or ["ref_1"]
         mid = max(1, len(ref_markers) // 2)
         ref_cite1 = ", ".join(f"[{r}]" for r in ref_markers[:mid])
-        ref_cite2 = ", ".join(f"[{r}]" for r in ref_markers[mid:]) if len(ref_markers) > 1 else ref_cite1
+        ref_cite2 = (
+            ", ".join(f"[{r}]" for r in ref_markers[mid:]) if len(ref_markers) > 1 else ref_cite1
+        )
         p1 = (
             "### Thematic Survey of Contemporary Paradigms\n\n"
             f"Prior literature addressing {title.lower()} is broadly partitioned into two distinct methodological paradigms: "
@@ -314,7 +322,12 @@ def _generate_academic_section_content(
         )
         paragraphs.extend([p1, p2])
 
-    elif "method" in norm_id or "approach" in norm_id or "system" in norm_id or "method" in norm_heading:
+    elif (
+        "method" in norm_id
+        or "approach" in norm_id
+        or "system" in norm_id
+        or "method" in norm_heading
+    ):
         p1 = (
             "### Formal Problem Formulation and Pipeline Architecture\n\n"
             "We formalize the experimental protocol over a verified evaluation corpus $\\mathcal{D} = \\{(q_i, c_i, a_i)\\}_{i=1}^N$ "
@@ -339,12 +352,20 @@ def _generate_academic_section_content(
         )
         paragraphs.extend([p1, p2, p3])
 
-    elif "result" in norm_id or "eval" in norm_id or "result" in norm_heading or "finding" in norm_heading:
+    elif (
+        "result" in norm_id
+        or "eval" in norm_id
+        or "result" in norm_heading
+        or "finding" in norm_heading
+    ):
         is_unconducted = (
             requires_input_notice
             or "not conducted" in source_notes.lower()
             or "not_collected" in prompt_str.lower()
-            or ("not_available" in prompt_str.lower() and not bool(re.search(r"\b\d+%\b", prompt_str)))
+            or (
+                "not_available" in prompt_str.lower()
+                and not bool(re.search(r"\b\d+%\b", prompt_str))
+            )
         )
         if is_unconducted:
             state = "needs_input"
@@ -728,9 +749,9 @@ def _generate_realistic_paper(brief: ResearchBrief) -> dict[str, object]:
             "sensor_architecture",
         ]:
             fig_text = ""
-            figures = getattr(brief, "figures", ()) or ()
-            if figures:
-                fig = figures[0]
+            attached_figs = list(getattr(brief, "figures", ()) or ())
+            if attached_figs:
+                fig = attached_figs[0]
                 fig_text = (
                     f"\n\n![{fig.caption}]({fig.id})\n\n"
                     f"As illustrated in Figure 1, the pipeline decouples intermediate feature transformations "
@@ -758,9 +779,9 @@ def _generate_realistic_paper(brief: ResearchBrief) -> dict[str, object]:
             "training_methodology",
         ]:
             fig_text = ""
-            figures = getattr(brief, "figures", ()) or ()
-            if len(figures) > 1:
-                fig2 = figures[1]
+            attached_figs_res = list(getattr(brief, "figures", ()) or ())
+            if len(attached_figs_res) > 1:
+                fig2 = attached_figs_res[1]
                 fig_text = (
                     f"\n\n![{fig2.caption}]({fig2.id})\n\n"
                     f"Figure 2 illustrates the empirical trajectory across successive evaluation epochs, "

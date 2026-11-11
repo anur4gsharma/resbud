@@ -1,7 +1,6 @@
 """Synchronous paper-generation use case with strict provider-output validation."""
 
 import json
-from typing import Any
 from uuid import uuid4
 
 from pydantic import ValidationError
@@ -55,7 +54,9 @@ async def generate_paper(
         getattr(provider, "provider_name", None) == "fake"
         and brief.project.title == "Example Study"
     )
-    is_mock_provider = not hasattr(provider, "generate_section") and not hasattr(provider, "_request")
+    is_mock_provider = not hasattr(provider, "generate_section") and not hasattr(
+        provider, "_request"
+    )
 
     if not is_synthetic_baseline and not is_mock_provider:
         return await generate_long_form_manuscript(brief, provider)

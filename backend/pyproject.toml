@@ -47,9 +47,25 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"
 mypy_path = "src"
 strict = true
 packages = ["resbud_api"]
+
+[[tool.mypy.overrides]]
+module = [
+    "reportlab.*",
+    "matplotlib.*",
+    "docx.*",
+    "pypdf.*",
+    "math2docx.*",
+    "latex2mathml.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["resbud_api.services.pdf_export", "resbud_api.services.markdown_renderer"]
+disallow_subclassing_any = false

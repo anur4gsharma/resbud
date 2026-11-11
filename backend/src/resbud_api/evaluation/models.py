@@ -88,7 +88,9 @@ class EvaluationBenchmarkResult:
             "duration_ms": self.duration_ms,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
-            "estimated_cost_usd": round(self.estimated_cost_usd, 6) if self.estimated_cost_usd else 0.0,
+            "estimated_cost_usd": round(self.estimated_cost_usd, 6)
+            if self.estimated_cost_usd
+            else 0.0,
             "overall_score": round(self.overall_score, 2),
             "passed": self.passed,
             "dimension_scores": {

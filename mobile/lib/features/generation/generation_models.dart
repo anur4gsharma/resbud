@@ -20,12 +20,25 @@ class GenerationRequest {
     required Map<String, Object?> project,
     required String sourceDraft,
   }) {
-    final context = Map<String, Object?>.from(project)
-      ..remove('references')
-      ..remove('preferences')
-      ..remove('description')
-      ..remove('creation_mode')
-      ..remove('figures');
+    const allowedProjectKeys = {
+      'title',
+      'research_field',
+      'research_question',
+      'objectives',
+      'claimed_contribution',
+      'methodology_status',
+      'dataset_or_materials_status',
+      'results_status',
+      'limitations_status',
+      'methodology',
+      'dataset_or_materials',
+      'results',
+      'limitations',
+    };
+    final context = <String, Object?>{
+      for (final entry in project.entries)
+        if (allowedProjectKeys.contains(entry.key)) entry.key: entry.value,
+    };
     final projectPayload = ProjectContextPayload.fromJson(context);
     final references = _list(project['references'], 'project.references')
         .map((value) => ReferencePayload.fromJson(_map(value, 'reference')))

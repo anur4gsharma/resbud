@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-import re
+
 import pytest
 
 from resbud_api.domain.models import (
-    GenerationRequest,
     PaperDraft,
     PaperPreferences,
     PaperSection,
@@ -70,7 +69,10 @@ def test_academic_directives_generation() -> None:
     meth_dir = get_section_academic_directives("methodology", "Methodology")
     assert meth_dir["section_type"] == "methodology"
     assert any("statistical significance" in el.lower() for el in meth_dir["mandatory_elements"])
-    assert any("formal" in rule.lower() or "mathematical" in rule.lower() for rule in meth_dir["style_invariants"])
+    assert any(
+        "formal" in rule.lower() or "mathematical" in rule.lower()
+        for rule in meth_dir["style_invariants"]
+    )
 
     # 4. Results (with and without results)
     res_provided = get_section_academic_directives("results", "Results", has_results=True)
@@ -80,7 +82,10 @@ def test_academic_directives_generation() -> None:
     res_uncollected = get_section_academic_directives("results", "Results", has_results=False)
     assert res_uncollected["section_type"] == "results"
     assert any("needs_input" in rule for rule in res_uncollected["style_invariants"])
-    assert any("not conducted" in el.lower() or "not provided" in el.lower() for el in res_uncollected["mandatory_elements"])
+    assert any(
+        "not conducted" in el.lower() or "not provided" in el.lower()
+        for el in res_uncollected["mandatory_elements"]
+    )
 
     # 5. Discussion
     disc_dir = get_section_academic_directives("discussion", "Discussion")
@@ -91,7 +96,9 @@ def test_academic_directives_generation() -> None:
     conc_dir = get_section_academic_directives("conclusion", "Conclusion")
     assert conc_dir["section_type"] == "conclusion"
     assert any("future research" in el.lower() for el in conc_dir["mandatory_elements"])
-    assert any("do not introduce new experimental" in rule.lower() for rule in conc_dir["style_invariants"])
+    assert any(
+        "do not introduce new experimental" in rule.lower() for rule in conc_dir["style_invariants"]
+    )
 
 
 def test_section_generator_embeds_directives_into_prompt() -> None:
@@ -111,7 +118,9 @@ def test_section_generator_embeds_directives_into_prompt() -> None:
     assert "section_academic_directives" in prompt.user_message
     payload = json.loads(prompt.user_message.split("\n", 1)[1])
     assert payload["section_academic_directives"]["section_type"] == "introduction"
-    assert "roadmap" in " ".join(payload["section_academic_directives"]["mandatory_elements"]).lower()
+    assert (
+        "roadmap" in " ".join(payload["section_academic_directives"]["mandatory_elements"]).lower()
+    )
 
 
 @pytest.mark.anyio
@@ -152,10 +161,16 @@ async def test_academic_writing_quality_on_v2_evaluation_cases() -> None:
         invariants = exp["required_invariants"]
         intro_sec = next((s for s in paper.sections if "intro" in s.id.lower()), None)
         if invariants.get("has_introduction_roadmap") and intro_sec:
-            assert "remainder of this paper" in intro_sec.content.lower() or "structured as follows" in intro_sec.content.lower()
+            assert (
+                "remainder of this paper" in intro_sec.content.lower()
+                or "structured as follows" in intro_sec.content.lower()
+            )
 
         if invariants.get("has_explicit_rqs") and intro_sec:
-            assert "rq1" in intro_sec.content.lower() or "research question" in intro_sec.content.lower()
+            assert (
+                "rq1" in intro_sec.content.lower()
+                or "research question" in intro_sec.content.lower()
+            )
 
         if invariants.get("results_state_needs_input"):
             res_sec = next((s for s in paper.sections if "result" in s.id.lower()), None)
@@ -164,7 +179,9 @@ async def test_academic_writing_quality_on_v2_evaluation_cases() -> None:
             assert "[Note:" in res_sec.content
 
         if invariants.get("bullet_line_ratio_under") is not None:
-            assert evaluation.structure.details["bullet_ratio"] < invariants["bullet_line_ratio_under"]
+            assert (
+                evaluation.structure.details["bullet_ratio"] < invariants["bullet_line_ratio_under"]
+            )
 
         if invariants.get("zero_unsupplied_citations"):
             assert evaluation.integrity.details["citation_score"] == 30.0
@@ -239,7 +256,10 @@ def test_academic_quality_not_evaluated_by_word_count_alone() -> None:
     assert any("invented" in d.lower() for d in integrity_res.deficiencies)
 
     # 3. Deficient Structure: 5,000 words written exclusively as bullet list (outline style)
-    bullet_lines = [f"- Bullet point item number {i}: discussing various operational features." for i in range(1, 200)]
+    bullet_lines = [
+        f"- Bullet point item number {i}: discussing various operational features."
+        for i in range(1, 200)
+    ]
     bullet_paper = PaperDraft(
         schema_version=1,
         title="Bullet Paper",

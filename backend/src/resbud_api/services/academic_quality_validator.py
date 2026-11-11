@@ -9,11 +9,11 @@ This module evaluates academic writing rigor beyond superficial word counts:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import re
+from dataclasses import dataclass, field
 from typing import Any
 
-from resbud_api.domain.models import PaperDraft, PaperSection
+from resbud_api.domain.models import PaperDraft
 from resbud_api.providers.base import ResearchBrief
 
 _NUMBER = re.compile(r"\b\d+(?:[.,]\d+)*%?\b")
@@ -140,14 +140,18 @@ def evaluate_depth(paper: PaperDraft, brief: ResearchBrief) -> QualityDimensionS
     dev_ratio = well_developed_sections / max(1, total_major_sections)
     paragraph_pts = dev_ratio * 40.0
     if dev_ratio >= 0.8:
-        strengths.append(f"Strong paragraph progression across {well_developed_sections}/{total_major_sections} sections.")
+        strengths.append(
+            f"Strong paragraph progression across {well_developed_sections}/{total_major_sections} sections."
+        )
     details["paragraph_score"] = round(paragraph_pts, 2)
     details["well_developed_sections"] = f"{well_developed_sections}/{total_major_sections}"
 
     # 2. Technical Density and Reasoning (30 pts)
     combined_text = " ".join(s.content for s in paper.sections).lower()
     found_tech_terms = [t for t in _TECHNICAL_VOCABULARY if t in combined_text]
-    has_math = bool(re.search(r"(\$|\\chi\^2|\\mathcal|\\sim|\\in|\\le|\\ge|p\s*=\s*0\.)", combined_text))
+    has_math = bool(
+        re.search(r"(\$|\\chi\^2|\\mathcal|\\sim|\\in|\\le|\\ge|p\s*=\s*0\.)", combined_text)
+    )
 
     tech_score = min(20.0, len(found_tech_terms) * 2.0)
     if has_math:
@@ -157,9 +161,13 @@ def evaluate_depth(paper: PaperDraft, brief: ResearchBrief) -> QualityDimensionS
         tech_score = min(30.0, tech_score * 1.5)
 
     if len(found_tech_terms) >= 8:
-        strengths.append(f"High technical vocabulary density ({len(found_tech_terms)} domain concepts).")
+        strengths.append(
+            f"High technical vocabulary density ({len(found_tech_terms)} domain concepts)."
+        )
     else:
-        deficiencies.append(f"Low technical vocabulary density ({len(found_tech_terms)} domain concepts identified).")
+        deficiencies.append(
+            f"Low technical vocabulary density ({len(found_tech_terms)} domain concepts identified)."
+        )
     details["technical_score"] = round(tech_score, 2)
     details["technical_terms_count"] = len(found_tech_terms)
 
@@ -173,14 +181,18 @@ def evaluate_depth(paper: PaperDraft, brief: ResearchBrief) -> QualityDimensionS
     tone_score = 30.0
     if ttr < ttr_threshold:
         tone_score -= 15.0
-        deficiencies.append(f"Low lexical diversity (Type-Token Ratio {ttr:.2f} < {ttr_threshold:.2f} indicates repetitive phrasing).")
+        deficiencies.append(
+            f"Low lexical diversity (Type-Token Ratio {ttr:.2f} < {ttr_threshold:.2f} indicates repetitive phrasing)."
+        )
     else:
         strengths.append(f"High lexical diversity (Type-Token Ratio {ttr:.2f}).")
 
     if platitudes_found:
         penalty = min(20.0, len(platitudes_found) * 10.0)
         tone_score -= penalty
-        deficiencies.append(f"Contains conversational platitudes or filler: {', '.join(platitudes_found)}")
+        deficiencies.append(
+            f"Contains conversational platitudes or filler: {', '.join(platitudes_found)}"
+        )
 
     tone_score = max(0.0, tone_score)
     details["tone_score"] = round(tone_score, 2)
@@ -253,23 +265,34 @@ def evaluate_integrity(paper: PaperDraft, brief: ResearchBrief) -> QualityDimens
     invented_refs = found_ref_markers - supplied_ref_ids
     if invented_refs:
         citation_score = 0.0
-        deficiencies.append(f"Draft references invented or unsupplied citation IDs: {', '.join(invented_refs)}")
+        deficiencies.append(
+            f"Draft references invented or unsupplied citation IDs: {', '.join(invented_refs)}"
+        )
     elif found_ref_markers:
-        strengths.append(f"All citations ({len(found_ref_markers)}) strictly match supplied reference keys.")
+        strengths.append(
+            f"All citations ({len(found_ref_markers)}) strictly match supplied reference keys."
+        )
     details["citation_score"] = round(citation_score, 2)
 
     # 3. Unconducted / Missing Experiment Safeguard (30 pts)
     unconducted_score = 30.0
-    is_results_uncollected = brief.project.results_status in {"not_collected", "not_available", "unknown"} and not (
-        brief.project.results and brief.project.results.strip()
-    )
+    is_results_uncollected = brief.project.results_status in {
+        "not_collected",
+        "not_available",
+        "unknown",
+    } and not (brief.project.results and brief.project.results.strip())
 
     results_section = next((s for s in paper.sections if "result" in s.id.lower()), None)
     if is_results_uncollected and results_section:
         # Must declare unconducted and state must be needs_input
-        has_disclosure = "[Note:" in results_section.content or "not conducted" in results_section.content.lower()
+        has_disclosure = (
+            "[Note:" in results_section.content
+            or "not conducted" in results_section.content.lower()
+        )
         if results_section.state == "needs_input" and has_disclosure:
-            strengths.append("Explicitly declared unconducted experimental status without fabricating results.")
+            strengths.append(
+                "Explicitly declared unconducted experimental status without fabricating results."
+            )
         else:
             unconducted_score = 0.0
             deficiencies.append(
@@ -306,7 +329,12 @@ def evaluate_structure(paper: PaperDraft, brief: ResearchBrief) -> QualityDimens
     for section in paper.sections:
         for line in section.content.splitlines():
             stripped = line.strip()
-            if not stripped or stripped.startswith("#") or stripped.startswith("|") or stripped.startswith("---"):
+            if (
+                not stripped
+                or stripped.startswith("#")
+                or stripped.startswith("|")
+                or stripped.startswith("---")
+            ):
                 continue
             all_lines.append(stripped)
             if re.match(r"^([*+-]|\d+\.)\s+", stripped):
@@ -327,7 +355,9 @@ def evaluate_structure(paper: PaperDraft, brief: ResearchBrief) -> QualityDimens
             f"Excessive bullet points: {bullet_ratio:.1%} of prose lines are bullets (limit is < 15%)."
         )
     else:
-        strengths.append(f"Continuous academic prose maintained ({bullet_ratio:.1%} bullet lines, well below 15% ceiling).")
+        strengths.append(
+            f"Continuous academic prose maintained ({bullet_ratio:.1%} bullet lines, well below 15% ceiling)."
+        )
     details["prose_score"] = round(prose_score, 2)
 
     # 2. Introduction Structure & Roadmap (35 pts)
@@ -336,7 +366,11 @@ def evaluate_structure(paper: PaperDraft, brief: ResearchBrief) -> QualityDimens
     if intro_section:
         intro_content = intro_section.content.lower()
         has_rq = bool(re.search(r"\b(rq\d+|research question|research questions)\b", intro_content))
-        has_contributions = bool(re.search(r"\b(contribution|contributions|we propose|this paper contributes)\b", intro_content))
+        has_contributions = bool(
+            re.search(
+                r"\b(contribution|contributions|we propose|this paper contributes)\b", intro_content
+            )
+        )
         has_roadmap = bool(
             re.search(
                 r"\b(remainder of this paper|paper is (organized|structured) as follows|the rest of this paper)\b",
@@ -348,7 +382,9 @@ def evaluate_structure(paper: PaperDraft, brief: ResearchBrief) -> QualityDimens
             intro_score -= 10.0
             deficiencies.append("Introduction lacks explicit Research Questions (e.g. RQ1, RQ2).")
         else:
-            strengths.append("Explicitly articulates structured Research Questions in the Introduction.")
+            strengths.append(
+                "Explicitly articulates structured Research Questions in the Introduction."
+            )
 
         if not has_contributions:
             intro_score -= 10.0
@@ -358,9 +394,13 @@ def evaluate_structure(paper: PaperDraft, brief: ResearchBrief) -> QualityDimens
 
         if not has_roadmap:
             intro_score -= 15.0
-            deficiencies.append("Introduction lacks a formal paper roadmap paragraph ('The remainder of this paper...').")
+            deficiencies.append(
+                "Introduction lacks a formal paper roadmap paragraph ('The remainder of this paper...')."
+            )
         else:
-            strengths.append("Contains a formal academic roadmap paragraph structuring subsequent sections.")
+            strengths.append(
+                "Contains a formal academic roadmap paragraph structuring subsequent sections."
+            )
     else:
         intro_score = 0.0
     details["intro_score"] = round(intro_score, 2)
@@ -371,66 +411,101 @@ def evaluate_structure(paper: PaperDraft, brief: ResearchBrief) -> QualityDimens
     rigor_deductions = 0.0
 
     # Related work: thematic grouping
-    rel_section = next((s for s in paper.sections if "related" in s.id.lower() or "lit" in s.id.lower()), None)
+    rel_section = next(
+        (s for s in paper.sections if "related" in s.id.lower() or "lit" in s.id.lower()), None
+    )
     if rel_section:
         rel_content = rel_section.content.lower()
         has_subsections = "###" in rel_section.content or "##" in rel_section.content
         has_comparative_terms = bool(
-            re.search(r"\b(contrast|conversely|in contrast|whereas|paradigms?|limitations?)\b", rel_content)
+            re.search(
+                r"\b(contrast|conversely|in contrast|whereas|paradigms?|limitations?)\b",
+                rel_content,
+            )
         )
         if not (has_subsections or has_comparative_terms):
             rigor_deductions += 7.0
-            deficiencies.append("Related Work lacks thematic categorization or comparative synthesis.")
+            deficiencies.append(
+                "Related Work lacks thematic categorization or comparative synthesis."
+            )
         else:
             strengths.append("Related Work organized into comparative thematic categories.")
 
     # Methodology: formal metrics / math / statistical tests
-    method_section = next((s for s in paper.sections if "method" in s.id.lower() or "system" in s.id.lower()), None)
+    method_section = next(
+        (s for s in paper.sections if "method" in s.id.lower() or "system" in s.id.lower()), None
+    )
     if method_section:
         method_content = method_section.content.lower()
         has_formal_eval = bool(
-            re.search(r"(\$|mcnemar|t-test|p-value|metric|precision|recall|accuracy|f1|chi\^2|p\s*<)", method_content)
+            re.search(
+                r"(\$|mcnemar|t-test|p-value|metric|precision|recall|accuracy|f1|chi\^2|p\s*<)",
+                method_content,
+            )
         )
         if not has_formal_eval:
             rigor_deductions += 7.0
-            deficiencies.append("Methodology lacks formal evaluation metric definitions or statistical test specifications.")
+            deficiencies.append(
+                "Methodology lacks formal evaluation metric definitions or statistical test specifications."
+            )
         else:
-            strengths.append("Methodology includes formal metric definitions and statistical significance specifications.")
+            strengths.append(
+                "Methodology includes formal metric definitions and statistical significance specifications."
+            )
 
     # Results: structured comparison / tables
     results_section = next((s for s in paper.sections if "result" in s.id.lower()), None)
     if results_section and results_section.state == "draft":
         has_table = "|" in results_section.content
-        has_quantitative_comparison = bool(re.search(r"\b\d+([.,]\d+)?%\b", results_section.content))
+        has_quantitative_comparison = bool(
+            re.search(r"\b\d+([.,]\d+)?%\b", results_section.content)
+        )
         if not (has_table or has_quantitative_comparison):
             rigor_deductions += 7.0
-            deficiencies.append("Results section lacks quantitative comparative tables or structured metrics.")
+            deficiencies.append(
+                "Results section lacks quantitative comparative tables or structured metrics."
+            )
         else:
-            strengths.append("Results section presents findings in a structured comparative format.")
+            strengths.append(
+                "Results section presents findings in a structured comparative format."
+            )
 
     # Discussion: threats to validity
     disc_section = next((s for s in paper.sections if "discuss" in s.id.lower()), None)
     if disc_section:
         disc_content = disc_section.content.lower()
         has_validity = bool(
-            re.search(r"\b(threats? to validity|internal validity|external validity|construct validity|limitations?)\b", disc_content)
+            re.search(
+                r"\b(threats? to validity|internal validity|external validity|construct validity|limitations?)\b",
+                disc_content,
+            )
         )
         if not has_validity:
             rigor_deductions += 7.0
-            deficiencies.append("Discussion section lacks an analysis of threats to validity (internal/external/construct).")
+            deficiencies.append(
+                "Discussion section lacks an analysis of threats to validity (internal/external/construct)."
+            )
         else:
-            strengths.append("Discussion systematically addresses threats to validity and technical trade-offs.")
+            strengths.append(
+                "Discussion systematically addresses threats to validity and technical trade-offs."
+            )
 
     # Conclusion: synthesis and future directions
     conc_section = next((s for s in paper.sections if "conclus" in s.id.lower()), None)
     if conc_section:
         conc_content = conc_section.content.lower()
-        has_future_work = bool(re.search(r"\b(future (work|directions|trajectories|research)|extensions)\b", conc_content))
+        has_future_work = bool(
+            re.search(
+                r"\b(future (work|directions|trajectories|research)|extensions)\b", conc_content
+            )
+        )
         if not has_future_work:
             rigor_deductions += 7.0
             deficiencies.append("Conclusion lacks concrete actionable future research directions.")
         else:
-            strengths.append("Conclusion articulates concrete, actionable future research trajectories.")
+            strengths.append(
+                "Conclusion articulates concrete, actionable future research trajectories."
+            )
 
     section_rigor_score = max(0.0, section_rigor_score - rigor_deductions)
     details["section_rigor_score"] = round(section_rigor_score, 2)
@@ -455,9 +530,13 @@ def evaluate_academic_quality(paper: PaperDraft, brief: ResearchBrief) -> Academ
     structure_res = evaluate_structure(paper, brief)
 
     overall_score = round((depth_res.score + integrity_res.score + structure_res.score) / 3.0, 2)
-    passed = overall_score >= 70.0 and depth_res.passed and integrity_res.passed and structure_res.passed
+    passed = (
+        overall_score >= 70.0 and depth_res.passed and integrity_res.passed and structure_res.passed
+    )
 
-    all_deficiencies = depth_res.deficiencies + integrity_res.deficiencies + structure_res.deficiencies
+    all_deficiencies = (
+        depth_res.deficiencies + integrity_res.deficiencies + structure_res.deficiencies
+    )
     all_strengths = depth_res.strengths + integrity_res.strengths + structure_res.strengths
 
     return AcademicQualityEvaluation(

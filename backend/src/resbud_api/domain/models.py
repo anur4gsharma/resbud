@@ -1,9 +1,16 @@
 """Typed domain representations matching the versioned Resbud contracts."""
 
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StringConstraints, model_serializer, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictInt,
+    StringConstraints,
+    model_validator,
+)
 
 SectionId = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{1,39}$")]
 ReferenceId = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{1,40}$")]
@@ -32,6 +39,9 @@ WarningCode = Literal[
     "GENERAL_REVIEW",
 ]
 WarningSeverity = Literal["info", "warning", "critical"]
+CompletionStatus = Literal[
+    "completed", "partially_complete", "evidence_constrained", "under_generated"
+]
 
 
 class ContractModel(BaseModel):
@@ -170,10 +180,7 @@ class GenerationMeta(ContractModel):
     requested_words: int | None = Field(default=None, ge=0)
     generated_words: int | None = Field(default=None, ge=0)
     words_per_section: dict[str, int] | None = None
-    completion_status: (
-        Literal["completed", "partially_complete", "evidence_constrained", "under_generated"]
-        | None
-    ) = None
+    completion_status: CompletionStatus | None = None
     missing_sections: list[str] | None = None
     evidence_restrictions: list[str] | None = None
 

@@ -166,7 +166,12 @@ class GeminiProvider:
     ) -> None:
         self._model = settings.provider_model or "gemini-3.5-flash"
         self._candidate_models: list[str] = []
-        for m in [self._model, "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.5-flash-lite"]:
+        for m in [
+            self._model,
+            "gemini-3.5-flash",
+            "gemini-3.1-flash-lite",
+            "gemini-3.5-flash-lite",
+        ]:
             if m and m not in self._candidate_models:
                 self._candidate_models.append(m)
         self._active_model_index: int = 0
@@ -306,7 +311,9 @@ class GeminiProvider:
         for model_attempt in range(total_models):
             model_idx = (self._active_model_index + model_attempt) % total_models
             current_model = self._candidate_models[model_idx]
-            model_name = current_model if current_model.startswith("models/") else f"models/{current_model}"
+            model_name = (
+                current_model if current_model.startswith("models/") else f"models/{current_model}"
+            )
             url = f"{self._base_url}/v1beta/{model_name}:generateContent"
 
             for key_attempt in range(total_keys):
@@ -362,7 +369,9 @@ class GeminiProvider:
                         },
                     }
                     try:
-                        response = await self._client.post(url, headers=headers, json=fallback_payload)
+                        response = await self._client.post(
+                            url, headers=headers, json=fallback_payload
+                        )
                     except httpx.TimeoutException as exc:
                         if key_attempt < total_keys - 1 or model_attempt < total_models - 1:
                             continue

@@ -57,9 +57,11 @@ def detect_paper_type(brief: ResearchBrief) -> str:
 
     if any(k in title_lower for k in ("survey", "review", "systematic review", "meta-analysis")):
         return "survey"
-    if project.results_status in ("not_applicable",) or "conceptual" in source_lower:
-        return "theoretical"
-    if project.methodology_status == "not_applicable" and project.results_status == "not_applicable":
+    if (
+        project.methodology_status == "not_applicable"
+        or project.results_status == "not_applicable"
+        or "conceptual" in source_lower
+    ):
         return "theoretical"
     return "empirical"
 
@@ -113,7 +115,10 @@ def compute_adaptive_section_budgets(
 
     # 4. Adapt for Research Discipline
     discipline = brief.project.research_field.lower()
-    if any(k in discipline for k in ("computer science", "artificial intelligence", "machine learning", "engineering")):
+    if any(
+        k in discipline
+        for k in ("computer science", "artificial intelligence", "machine learning", "engineering")
+    ):
         if "methodology" in base_weights:
             base_weights["methodology"] += 0.03
         if "introduction" in base_weights:
@@ -178,9 +183,18 @@ def compute_adaptive_section_budgets(
             "heading": "Introduction and Problem Statement",
             "purpose": "Establish scientific motivation, operational context, specific research questions, and contributions.",
             "subsections": [
-                ("Context & Motivation", "Broader scientific landscape and core engineering challenges."),
-                ("Problem Formulation", "Formal technical definition of the operational bottleneck."),
-                ("Research Questions & Contributions", "Explicit enumeration of questions (RQ1, RQ2) and specific contributions."),
+                (
+                    "Context & Motivation",
+                    "Broader scientific landscape and core engineering challenges.",
+                ),
+                (
+                    "Problem Formulation",
+                    "Formal technical definition of the operational bottleneck.",
+                ),
+                (
+                    "Research Questions & Contributions",
+                    "Explicit enumeration of questions (RQ1, RQ2) and specific contributions.",
+                ),
             ],
         },
         "related_work": {
@@ -188,8 +202,14 @@ def compute_adaptive_section_budgets(
             "purpose": "Situate work within existing academic literature, contrasting prior methodologies with the current approach.",
             "subsections": [
                 ("Baseline Approaches", "Historical algorithms and their scaling bounds."),
-                ("Recent Advances in the Domain", "Modern paradigms, algorithmic variants, and benchmark limits."),
-                ("Differentiation from Prior Art", "Specific limitations in existing literature addressed by this paper."),
+                (
+                    "Recent Advances in the Domain",
+                    "Modern paradigms, algorithmic variants, and benchmark limits.",
+                ),
+                (
+                    "Differentiation from Prior Art",
+                    "Specific limitations in existing literature addressed by this paper.",
+                ),
             ],
         },
         "literature_review": {
@@ -197,7 +217,10 @@ def compute_adaptive_section_budgets(
             "purpose": "Comprehensive review of theoretical background and comparative literature.",
             "subsections": [
                 ("Foundational Concepts", "Core conceptual underpinnings."),
-                ("Comparative Analysis of Prior Studies", "Strengths and weaknesses of prior work."),
+                (
+                    "Comparative Analysis of Prior Studies",
+                    "Strengths and weaknesses of prior work.",
+                ),
                 ("Synthesis & Research Gap", "Identification of open problems addressed herein."),
             ],
         },
@@ -205,35 +228,68 @@ def compute_adaptive_section_budgets(
             "heading": "System Architecture and Methodology",
             "purpose": "Detail step-by-step technical architecture, parameters, data sampling protocols, and evaluation metrics.",
             "subsections": [
-                ("System Architecture & Pipeline", "End-to-end component flow, module interfaces, and representations."),
-                ("Dataset Construction & Sampling", "Data curation, filtering criteria, and benchmark splits."),
-                ("Evaluation Metrics & Experimental Protocol", "Formal metrics, inter-annotator agreement, and scoring criteria."),
+                (
+                    "System Architecture & Pipeline",
+                    "End-to-end component flow, module interfaces, and representations.",
+                ),
+                (
+                    "Dataset Construction & Sampling",
+                    "Data curation, filtering criteria, and benchmark splits.",
+                ),
+                (
+                    "Evaluation Metrics & Experimental Protocol",
+                    "Formal metrics, inter-annotator agreement, and scoring criteria.",
+                ),
             ],
         },
         "results": {
             "heading": "Empirical Results and Quantitative Evaluation",
             "purpose": "Present empirical measurements, paired comparison tables, statistical significance tests, and ablation insights.",
             "subsections": [
-                ("Primary Benchmark Findings", "Comparative performance tables against baseline conditions."),
-                ("Statistical Significance & Error Breakdown", "Hypothesis testing, p-values, discordant pair analysis."),
-                ("Ablation & Sensitivity Analysis", "Impact of architectural components, parameter sweeps, and failure modes."),
+                (
+                    "Primary Benchmark Findings",
+                    "Comparative performance tables against baseline conditions.",
+                ),
+                (
+                    "Statistical Significance & Error Breakdown",
+                    "Hypothesis testing, p-values, discordant pair analysis.",
+                ),
+                (
+                    "Ablation & Sensitivity Analysis",
+                    "Impact of architectural components, parameter sweeps, and failure modes.",
+                ),
             ],
         },
         "discussion": {
             "heading": "Discussion and Critical Limitations",
             "purpose": "Interpret findings, evaluate practical trade-offs, state explicit assumptions, and disclose limitations.",
             "subsections": [
-                ("Analytical Interpretation", "Theoretical implications of observed performance differentials."),
-                ("Deployment Trade-offs", "Latency, computational cost, and engineering practicalities."),
-                ("Disclosed Limitations", "Corpus scope, synthetic artifacts, and unverified assumptions."),
+                (
+                    "Analytical Interpretation",
+                    "Theoretical implications of observed performance differentials.",
+                ),
+                (
+                    "Deployment Trade-offs",
+                    "Latency, computational cost, and engineering practicalities.",
+                ),
+                (
+                    "Disclosed Limitations",
+                    "Corpus scope, synthetic artifacts, and unverified assumptions.",
+                ),
             ],
         },
         "conclusion": {
             "heading": "Conclusion and Future Directions",
             "purpose": "Synthesize core conclusions, summarize validated takeaways, and outline prioritized future research avenues.",
             "subsections": [
-                ("Summary of Contributions", "Concise restatement of validated empirical takeaways."),
-                ("Future Trajectories", "Prioritized avenues for scaling, generalization, and open questions."),
+                (
+                    "Summary of Contributions",
+                    "Concise restatement of validated empirical takeaways.",
+                ),
+                (
+                    "Future Trajectories",
+                    "Prioritized avenues for scaling, generalization, and open questions.",
+                ),
             ],
         },
     }

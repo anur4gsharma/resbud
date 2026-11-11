@@ -8,26 +8,24 @@ Unicode font embedding, and zero Markdown token leakage.
 from __future__ import annotations
 
 import base64
-from dataclasses import dataclass, field
 import html
 import io
-from pathlib import Path
 import re
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
 
-from docx import Document
-from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
-from docx.oxml.ns import qn
-from docx.shared import Inches, Pt, RGBColor
 import math2docx
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.shared import Inches, Pt, RGBColor
 from PIL import Image as PILImage
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.pdfmetrics import registerFontFamily
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import Paragraph, Preformatted, Spacer, Table, TableStyle
 from reportlab.platypus import Image as RLImage
+from reportlab.platypus import Paragraph, Preformatted, Spacer, Table, TableStyle
 
 from resbud_api.services.chart_generator import render_academic_chart_from_spec
 
@@ -203,7 +201,6 @@ def parse_markdown_blocks(content: str) -> list[MarkdownBlock]:
 
         # 1. Fenced Code Block (```lang ... ```)
         if trimmed.startswith("```"):
-            fence = trimmed[:3]
             lang = trimmed[3:].strip()
             code_lines: list[str] = []
             i += 1
@@ -304,9 +301,10 @@ def parse_markdown_blocks(content: str) -> list[MarkdownBlock]:
             continue
 
         # 8. Ordered List (1. item, 2. item)
-        if re.match(r"^\d+\.\s+", trimmed):
+        m_list = re.match(r"^(\d+)\.\s+", trimmed)
+        if m_list:
             list_items = []
-            start_num = int(re.match(r"^(\d+)\.", trimmed).group(1))
+            start_num = int(m_list.group(1))
             while i < n and re.match(r"^\d+\.\s+", lines[i].strip()):
                 item_text = re.sub(r"^\d+\.\s+", "", lines[i].strip())
                 list_items.append(parse_inline_spans(item_text))
@@ -326,7 +324,7 @@ def parse_markdown_blocks(content: str) -> list[MarkdownBlock]:
             and not re.match(r"^[*+-]\s+", lines[i].strip())
             and not re.match(r"^\d+\.\s+", lines[i].strip())
             and not BLOCK_MATH_PATTERN.match(lines[i].strip())
-            and not lines[i].strip() in ("$$", r"\[")
+            and lines[i].strip() not in ("$$", r"\[")
         ):
             para_lines.append(lines[i].strip())
             i += 1
@@ -388,7 +386,7 @@ def render_blocks_to_docx(
 
         elif isinstance(block, ListBlock):
             style_name = "List Number" if block.ordered else "List Bullet"
-            for item_idx, item_spans in enumerate(block.items, start=block.start_num):
+            for _item_idx, item_spans in enumerate(block.items, start=block.start_num):
                 p = document.add_paragraph(style=style_name)
                 p.paragraph_format.space_after = Pt(2)
                 p.paragraph_format.space_before = Pt(1)
@@ -780,17 +778,18 @@ def _render_figure_bytes_to_pdf(
     styles: dict[str, ParagraphStyle],
 ) -> None:
     try:
-        target_w, target_h = 360, 200
+        target_w: float = 360.0
+        target_h: float = 200.0
         try:
             with PILImage.open(io.BytesIO(img_bytes)) as pil_img:
                 w, h = pil_img.size
                 if w > 0:
                     aspect = h / w
-                    target_w = min(420, max(200, w * 0.5))
-                    target_h = target_w * aspect
-                    if target_h > 280:
-                        target_h = 280
-                        target_w = target_h / aspect
+                    target_w = float(min(420.0, max(200.0, w * 0.5)))
+                    target_h = float(target_w * aspect)
+                    if target_h > 280.0:
+                        target_h = 280.0
+                        target_w = float(target_h / aspect)
         except Exception:
             pass
 

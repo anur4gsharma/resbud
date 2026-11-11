@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import json
 import re
+from dataclasses import dataclass, field
 from typing import Any
 
 from resbud_api.domain.manuscript_plan import PlannedSection
 from resbud_api.domain.models import PaperSection
-from resbud_api.providers.base import GenerationPrompt, ProviderResult, ResearchBrief
-from resbud_api.services.section_generator import SECTION_SYSTEM_INSTRUCTIONS, execute_section_generation
+from resbud_api.providers.base import GenerationPrompt, ResearchBrief
+from resbud_api.services.section_generator import (
+    SECTION_SYSTEM_INSTRUCTIONS,
+    execute_section_generation,
+)
 
 
 @dataclass
@@ -64,7 +67,9 @@ def detect_repetition_and_filler(content: str) -> tuple[float, list[str]]:
     unique_words = set(words)
     ttr = len(unique_words) / len(words)
     if ttr < 0.32 and len(words) > 150:
-        issues.append(f"Low lexical diversity detected (TTR = {ttr:.2f}). Possible repetitive phrasing.")
+        issues.append(
+            f"Low lexical diversity detected (TTR = {ttr:.2f}). Possible repetitive phrasing."
+        )
 
     # 2. Duplicate or near-duplicate sentences
     sentences = [s.strip() for s in re.split(r"[.!?]\s+", content) if len(s.strip().split()) >= 6]
@@ -153,7 +158,9 @@ def validate_section_depth(
         )
     elif "result" in section_plan.id and brief.project.results_status != "provided":
         is_constrained = True
-        restriction_note = "Experimental outcomes were not collected; cannot expand quantitative tables."
+        restriction_note = (
+            "Experimental outcomes were not collected; cannot expand quantitative tables."
+        )
 
     is_complete = not is_under and not has_rep and (cov_ratio >= 0.50 or not missing)
 
@@ -188,10 +195,12 @@ async def perform_bounded_expansion(
         return section, val_result
 
     # 1. If evidence does not exist in source notes, do NOT fabricate words; explain the limitation
-    source_lower = brief.source_draft.lower()
     has_source_evidence = len(brief.source_draft.strip()) >= 300 and (
         val_result.section_id in ("introduction", "related_work")
-        or (val_result.section_id == "methodology" and brief.project.methodology_status == "provided")
+        or (
+            val_result.section_id == "methodology"
+            and brief.project.methodology_status == "provided"
+        )
         or (val_result.section_id == "results" and brief.project.results_status == "provided")
         or (val_result.section_id in ("discussion", "conclusion"))
     )

@@ -47,7 +47,9 @@ def test_fake_provider_generates_contract_valid_deterministic_paper() -> None:
     expected = json.loads((FIXTURES / "generation-response.fake.json").read_text())
     assert result == expected
     assert result["meta"]["provider_name"] == "fake"
-    assert [{"id": r["id"], "text": r["text"]} for r in result["paper"]["references"]] == REQUEST["references"]
+    assert [{"id": r["id"], "text": r["text"]} for r in result["paper"]["references"]] == REQUEST[
+        "references"
+    ]
     assert provider.call_count == 1
 
 

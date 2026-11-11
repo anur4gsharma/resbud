@@ -6,13 +6,11 @@ import asyncio
 from time import perf_counter
 from uuid import uuid4
 
-from pydantic import ValidationError
-
 from resbud_api.core.errors import ResbudError
 from resbud_api.domain.manuscript_plan import ManuscriptPlan, PlannedSection
 from resbud_api.domain.models import (
+    CompletionStatus,
     GenerationMeta,
-    GenerationRequest,
     GenerationResponse,
     PaperDraft,
     PaperSection,
@@ -41,7 +39,9 @@ from resbud_api.services.section_validator import (
 
 def _extract_section_summary(section: PaperSection) -> str:
     """Extract a concise 1-2 sentence takeaway of a completed section for continuity."""
-    paragraphs = [p.strip() for p in section.content.split("\n\n") if p.strip() and not p.startswith("|")]
+    paragraphs = [
+        p.strip() for p in section.content.split("\n\n") if p.strip() and not p.startswith("|")
+    ]
     if not paragraphs:
         return f"Section '{section.heading}' established relevant domain parameters."
     last_paragraph = paragraphs[-1]
@@ -86,8 +86,6 @@ async def generate_long_form_manuscript(
     assembled_sections: list[PaperSection] = []
     failure_warnings: list[ReviewWarning] = []
     previous_summary: str | None = None
-    total_input_tokens: int | None = 0
-    total_output_tokens: int | None = 0
 
     # Stage 2: Controlled Section-by-Section Expansion
     for section_plan in plan.sections:
@@ -110,12 +108,17 @@ async def generate_long_form_manuscript(
                     provider=provider,
                 )
                 break
-            except (ProviderRateLimited, asyncio.TimeoutError) as exc:
+            except (TimeoutError, ProviderRateLimited) as exc:
                 last_error = type(exc).__name__
                 if attempt <= max_retries_per_section:
                     await asyncio.sleep(1.5 * attempt)
                     continue
-            except (ProviderTimeout, ProviderUnavailable, ProviderInvalidResponse, Exception) as exc:
+            except (
+                ProviderTimeout,
+                ProviderUnavailable,
+                ProviderInvalidResponse,
+                Exception,
+            ) as exc:
                 last_error = type(exc).__name__
                 if attempt <= max_retries_per_section:
                     await asyncio.sleep(1.0 * attempt)
@@ -158,6 +161,7 @@ async def generate_long_form_manuscript(
     evidence_restrictions = list(plan.identified_limitations)
 
     # Determine completion status based on acceptance tolerance and evidence constraints
+    completion_status: CompletionStatus
     if failure_warnings:
         completion_status = "partially_complete"
     elif generated_words >= int(requested_words * 0.75):
@@ -191,7 +195,9 @@ async def generate_long_form_manuscript(
     completion_warning = ReviewWarning(
         code="GENERAL_REVIEW",
         message=completion_msg,
-        severity="info" if completion_status in ("completed", "evidence_constrained") else "warning",
+        severity="info"
+        if completion_status in ("completed", "evidence_constrained")
+        else "warning",
         section_id=None,
     )
 

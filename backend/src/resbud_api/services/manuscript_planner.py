@@ -68,11 +68,23 @@ def _extract_terminology_glossary(brief: ResearchBrief) -> dict[str, str]:
     source = brief.source_draft
     # Extract numerical sample sizes / metrics / model names / statistical tests
     patterns = [
-        (r"\b(\d+[\s-]*(?:benchmark|policy|sample|evaluation|test)[\s-]*(?:questions?|instances?|items?|cases?))\b", "Evaluation Sample Size"),
+        (
+            r"\b(\d+[\s-]*(?:benchmark|policy|sample|evaluation|test)[\s-]*(?:questions?|instances?|items?|cases?))\b",
+            "Evaluation Sample Size",
+        ),
         (r"\b(Cohen['’]s kappa(?:\s*=\s*|\s*of\s*)[0-9.]+)\b", "Inter-Annotator Agreement"),
-        (r"\b(Embed-Sim-v1|Sim-7B-Instruct|GPT-4o|Claude-3\.5|Llama-3|[A-Za-z0-9_-]+-7B)\b", "Evaluated Model Architecture"),
-        (r"\b([0-9.]+\s*%\s*(?:accuracy|correctness|improvement|support))\b", "Primary Measured Metric"),
-        (r"\b(McNemar(?:'s)?\s*test(?:\s*p-value\s*=?\s*[0-9.e-]+)?)\b", "Statistical Significance Test"),
+        (
+            r"\b(Embed-Sim-v1|Sim-7B-Instruct|GPT-4o|Claude-3\.5|Llama-3|[A-Za-z0-9_-]+-7B)\b",
+            "Evaluated Model Architecture",
+        ),
+        (
+            r"\b([0-9.]+\s*%\s*(?:accuracy|correctness|improvement|support))\b",
+            "Primary Measured Metric",
+        ),
+        (
+            r"\b(McNemar(?:'s)?\s*test(?:\s*p-value\s*=?\s*[0-9.e-]+)?)\b",
+            "Statistical Significance Test",
+        ),
         (r"\b(Retrieval-Augmented Generation|RAG)\b", "Core Architecture"),
     ]
     for pattern, label in patterns:
@@ -114,14 +126,17 @@ def _synthesize_abstract(brief: ResearchBrief, target_words: int) -> str:
         "a controlled comparative evaluation and reproducible benchmark architecture",
     )
     method = brief.project.methodology or "a rigorous empirical comparison"
-    limitations = brief.project.limitations or "specific boundary constraints and domain assumptions"
-
-    has_results = (
-        brief.project.results_status == "provided"
-        and bool(brief.project.results and brief.project.results.strip())
+    limitations = (
+        brief.project.limitations or "specific boundary constraints and domain assumptions"
     )
-    if has_results:
-        findings_clause = f"Empirical findings demonstrate that {brief.project.results.strip().lower()}."
+
+    has_results = brief.project.results_status == "provided" and bool(
+        brief.project.results and brief.project.results.strip()
+    )
+    if has_results and brief.project.results:
+        findings_clause = (
+            f"Empirical findings demonstrate that {brief.project.results.strip().lower()}."
+        )
     else:
         findings_clause = (
             "Although empirical benchmarking experiments remain proposed without collected evaluation data, "
@@ -194,7 +209,9 @@ def create_manuscript_plan(
                 evidence.append(f"Methodology: {brief.project.methodology}")
             else:
                 requires_notice = True
-                missing_info.append("Specific experimental setup and sampling protocols not fully specified.")
+                missing_info.append(
+                    "Specific experimental setup and sampling protocols not fully specified."
+                )
             if brief.project.dataset_or_materials:
                 evidence.append(f"Dataset/Materials: {brief.project.dataset_or_materials}")
         elif "result" in sec_id:
@@ -202,13 +219,17 @@ def create_manuscript_plan(
                 evidence.append(f"Results: {brief.project.results}")
             else:
                 requires_notice = True
-                missing_info.append("Specific empirical tables and measured numbers not provided in source.")
+                missing_info.append(
+                    "Specific empirical tables and measured numbers not provided in source."
+                )
         elif "disc" in sec_id or "limit" in sec_id:
             if limitations_status == "provided" and brief.project.limitations:
                 evidence.append(f"Limitations: {brief.project.limitations}")
             else:
                 requires_notice = True
-                missing_info.append("Explicit boundary limitations and failure cases not detailed in source.")
+                missing_info.append(
+                    "Explicit boundary limitations and failure cases not detailed in source."
+                )
 
         planned_sections.append(
             PlannedSection(
@@ -238,7 +259,9 @@ def create_manuscript_plan(
     if brief.project.limitations:
         limitations.append(brief.project.limitations)
     if limitations_status != "provided" and "limitations" not in limitations:
-        limitations.append("Source material lacked explicit disclosures of technical boundary limitations.")
+        limitations.append(
+            "Source material lacked explicit disclosures of technical boundary limitations."
+        )
 
     return ManuscriptPlan(
         paper_type="Empirical Benchmark & Evaluation Study",

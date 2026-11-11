@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
+from typing import Any, cast
 
 from resbud_api.domain.manuscript_plan import ManuscriptPlan, PlannedSection
-from resbud_api.domain.models import PaperDraft, PaperSection
+from resbud_api.domain.models import PaperSection, SectionState
 from resbud_api.providers.base import (
     GenerationPrompt,
     ProviderResult,
@@ -87,7 +87,12 @@ def get_section_academic_directives(
                 "Avoid empty introductory cliches (e.g., 'In today's fast-paced world').",
             ],
         }
-    elif "related" in norm_id or "lit" in norm_id or "related" in norm_heading or "literature" in norm_heading:
+    elif (
+        "related" in norm_id
+        or "lit" in norm_id
+        or "related" in norm_heading
+        or "literature" in norm_heading
+    ):
         return {
             "section_type": "related_work",
             "academic_purpose": "Thematically categorize prior literature, contrast methodologies and limitations based strictly on provided material.",
@@ -103,7 +108,12 @@ def get_section_academic_directives(
                 "Maintain continuous academic comparative prose.",
             ],
         }
-    elif "method" in norm_id or "approach" in norm_id or "system" in norm_id or "method" in norm_heading:
+    elif (
+        "method" in norm_id
+        or "approach" in norm_id
+        or "system" in norm_id
+        or "method" in norm_heading
+    ):
         return {
             "section_type": "methodology",
             "academic_purpose": "Provide a rigorous, reproducible account of research design, data curation, algorithms, formal metrics, and statistical methods.",
@@ -121,7 +131,12 @@ def get_section_academic_directives(
                 "Detail reproducibility factors without hand-waving.",
             ],
         }
-    elif "result" in norm_id or "eval" in norm_id or "result" in norm_heading or "finding" in norm_heading:
+    elif (
+        "result" in norm_id
+        or "eval" in norm_id
+        or "result" in norm_heading
+        or "finding" in norm_heading
+    ):
         if has_results:
             return {
                 "section_type": "results",
@@ -342,7 +357,9 @@ async def execute_section_generation(
     if not content:
         raise ValueError(f"Provider returned empty content for section {section.id}")
 
-    raw_state = str(data.get("state") or ("needs_input" if section.requires_input_notice else "draft")).lower()
+    raw_state = str(
+        data.get("state") or ("needs_input" if section.requires_input_notice else "draft")
+    ).lower()
     valid_state = raw_state if raw_state in {"draft", "needs_input", "not_applicable"} else "draft"
     if section.requires_input_notice and "[Note:" not in content:
         content = (
@@ -355,5 +372,5 @@ async def execute_section_generation(
         id=section.id,
         heading=section.heading,
         content=content,
-        state=valid_state,
+        state=cast(SectionState, valid_state),
     )

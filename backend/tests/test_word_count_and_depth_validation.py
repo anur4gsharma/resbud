@@ -1,32 +1,23 @@
 """Comprehensive automated tests for word-count control, section depth validation, and completion reporting (Prompt 3)."""
 
-import asyncio
-from unittest.mock import AsyncMock
-
 import pytest
 
 from resbud_api.domain.manuscript_plan import PlannedSection, PlannedSubsection
 from resbud_api.domain.models import (
-    GenerationRequest,
     GenerationResponse,
-    PaperDraft,
     PaperPreferences,
     PaperSection,
     ProjectContext,
     ReferenceInput,
 )
-from resbud_api.providers.base import GenerationPrompt, ProviderResult, ResearchBrief
+from resbud_api.providers.base import ResearchBrief
 from resbud_api.providers.fake import FakeProvider
 from resbud_api.services.long_form_engine import generate_long_form_manuscript
 from resbud_api.services.section_allocation import (
-    STANDARD_EMPIRICAL_WEIGHTS,
-    SectionBudgetPlan,
     compute_adaptive_section_budgets,
-    detect_paper_type,
 )
 from resbud_api.services.section_validator import (
     SectionValidationResult,
-    check_topic_and_evidence_coverage,
     count_words,
     detect_repetition_and_filler,
     perform_bounded_expansion,
@@ -105,7 +96,9 @@ def test_detect_repetition_and_filler() -> None:
 
 def test_adaptive_section_budgets_empirical_baseline(empirical_brief: ResearchBrief) -> None:
     """Verify standard empirical allocation distributes words matching the Prompt 3 baseline."""
-    abstract_words, budget_plans, restrictions = compute_adaptive_section_budgets(empirical_brief, 5000)
+    abstract_words, budget_plans, restrictions = compute_adaptive_section_budgets(
+        empirical_brief, 5000
+    )
 
     assert abstract_words == 250  # 5% of 5000
     plan_map = {p.section_id: p for p in budget_plans}
@@ -147,10 +140,14 @@ def test_adaptive_section_budgets_reallocates_when_results_not_collected() -> No
         ),
         source_draft="Governance framework description without experimental outcomes.",
         references=(),
-        preferences=PaperPreferences(target_word_count=3000, desired_sections=[], citation_style="apa_7"),
+        preferences=PaperPreferences(
+            target_word_count=3000, desired_sections=[], citation_style="apa_7"
+        ),
     )
 
-    abstract_words, budget_plans, restrictions = compute_adaptive_section_budgets(no_results_brief, 3000)
+    abstract_words, budget_plans, restrictions = compute_adaptive_section_budgets(
+        no_results_brief, 3000
+    )
     plan_map = {p.section_id: p for p in budget_plans}
 
     # Results section should be omitted or budget reallocated
@@ -171,7 +168,9 @@ def test_validate_section_depth_under_generation_detection(empirical_brief: Rese
         allocated_words=1000,
         subsections=[
             PlannedSubsection(title="Data Curation", purpose="Data splits.", target_words=500),
-            PlannedSubsection(title="Architecture Pipeline", purpose="Model details.", target_words=500),
+            PlannedSubsection(
+                title="Architecture Pipeline", purpose="Model details.", target_words=500
+            ),
         ],
         available_evidence=["TCGA cohort."],
         key_arguments=["Cross-validation protocol."],
@@ -198,7 +197,9 @@ def test_validate_section_depth_under_generation_detection(empirical_brief: Rese
 
 
 @pytest.mark.anyio
-async def test_bounded_expansion_handles_insufficient_evidence_safely(empirical_brief: ResearchBrief) -> None:
+async def test_bounded_expansion_handles_insufficient_evidence_safely(
+    empirical_brief: ResearchBrief,
+) -> None:
     """Verify safe handling of insufficient evidence: appends limitation disclosure rather than fabricating filler."""
     section_plan = PlannedSection(
         id="results",
@@ -230,12 +231,17 @@ async def test_bounded_expansion_handles_insufficient_evidence_safely(empirical_
 
     # Must append methodological disclosure note
     assert "Methodological Scope Note" in expanded_section.content
-    assert "rigorously grounded in verified evidence without speculative extrapolation" in expanded_section.content
+    assert (
+        "rigorously grounded in verified evidence without speculative extrapolation"
+        in expanded_section.content
+    )
     assert updated_val.was_expanded is True
 
 
 @pytest.mark.anyio
-async def test_long_form_engine_reports_full_completion_statistics(empirical_brief: ResearchBrief) -> None:
+async def test_long_form_engine_reports_full_completion_statistics(
+    empirical_brief: ResearchBrief,
+) -> None:
     """Verify long-form generation generates complete statistics and attaches completion metadata."""
     provider = FakeProvider()
     response: GenerationResponse = await generate_long_form_manuscript(empirical_brief, provider)
@@ -254,4 +260,7 @@ async def test_long_form_engine_reports_full_completion_statistics(empirical_bri
         None,
     )
     assert completion_warning is not None
-    assert "Manuscript Completion: [COMPLETED]" in completion_warning.message or "EVIDENCE_CONSTRAINED" in completion_warning.message
+    assert (
+        "Manuscript Completion: [COMPLETED]" in completion_warning.message
+        or "EVIDENCE_CONSTRAINED" in completion_warning.message
+    )

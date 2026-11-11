@@ -4,14 +4,24 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+
 import pytest
 
-from resbud_api.evaluation.evaluator import ManuscriptQualityEvaluator
 from resbud_api.evaluation.models import EvaluationDimension
 from resbud_api.evaluation.runner import run_case_evaluation, run_evaluation_suite
 from resbud_api.providers.fake import FakeProvider
 
-DATASET_PATH = Path(__file__).resolve().parents[1] / "src" / "resbud_api" / ".." / ".." / "tests" / "evaluation" / "dataset" / "manifest.json"
+DATASET_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "src"
+    / "resbud_api"
+    / ".."
+    / ".."
+    / "tests"
+    / "evaluation"
+    / "dataset"
+    / "manifest.json"
+)
 MANIFEST = json.loads(DATASET_PATH.resolve().read_text())
 
 
@@ -55,7 +65,9 @@ async def test_twelve_evaluation_dimensions_evaluated() -> None:
         assert 0.0 <= score_obj.score <= 100.0
 
     # Verify mandatory scientific disclaimer
-    assert "never be represented as objective scientific verification" in result.scientific_disclaimer
+    assert (
+        "never be represented as objective scientific verification" in result.scientific_disclaimer
+    )
 
 
 @pytest.mark.anyio
@@ -71,19 +83,27 @@ async def test_regression_benchmark_all_dataset_cases_pass() -> None:
     # Verify critical integrity dimensions across all cases
     for res in report.results:
         num_score = res.dimension_scores[EvaluationDimension.NUMERICAL_ACCURACY]
-        assert num_score.passed is True, f"Case '{res.case_id}' failed numerical accuracy: {num_score.deficiencies}"
+        assert num_score.passed is True, (
+            f"Case '{res.case_id}' failed numerical accuracy: {num_score.deficiencies}"
+        )
 
         claim_score = res.dimension_scores[EvaluationDimension.UNSUPPORTED_CLAIMS]
-        assert claim_score.passed is True, f"Case '{res.case_id}' failed unsupported claims: {claim_score.deficiencies}"
+        assert claim_score.passed is True, (
+            f"Case '{res.case_id}' failed unsupported claims: {claim_score.deficiencies}"
+        )
 
         cite_score = res.dimension_scores[EvaluationDimension.CITATION_PRESERVATION]
-        assert cite_score.passed is True, f"Case '{res.case_id}' failed citation preservation: {cite_score.deficiencies}"
+        assert cite_score.passed is True, (
+            f"Case '{res.case_id}' failed citation preservation: {cite_score.deficiencies}"
+        )
 
 
 @pytest.mark.anyio
 async def test_section_level_engine_outperforms_legacy_single_pass() -> None:
     """Verify section-level long-form engine substantially outperforms legacy single-pass generation."""
-    report = await run_evaluation_suite(active_provider=FakeProvider(), compare_with_legacy_single_pass=True)
+    report = await run_evaluation_suite(
+        active_provider=FakeProvider(), compare_with_legacy_single_pass=True
+    )
 
     summary = report.summary_metrics
     active = summary["active_engine"]

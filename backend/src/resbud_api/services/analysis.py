@@ -138,11 +138,7 @@ def extract_bibliographic_references(text: str) -> list[ReferenceInput]:
         doi = doi_m.group(1).rstrip(".,;") if doi_m else None
 
         url_m = re.search(r"(https?://[^\s]+)", clean)
-        url = (
-            url_m.group(1).rstrip(".,;")
-            if url_m
-            else (f"https://doi.org/{doi}" if doi else None)
-        )
+        url = url_m.group(1).rstrip(".,;") if url_m else (f"https://doi.org/{doi}" if doi else None)
 
         year_m = re.search(r"\b(19\d{2}|20\d{2})\b", clean)
         year = int(year_m.group(1)) if year_m else None
@@ -156,9 +152,7 @@ def extract_bibliographic_references(text: str) -> list[ReferenceInput]:
             author_str = clean[: title_m.start()].strip().rstrip(",").strip()
             if author_str:
                 authors = [
-                    a.strip()
-                    for a in re.split(r"\s*(?:,|&|\band\b)\s*", author_str)
-                    if a.strip()
+                    a.strip() for a in re.split(r"\s*(?:,|&|\band\b)\s*", author_str) if a.strip()
                 ]
             venue_str = clean[title_m.end() :].strip().lstrip(",").strip()
             venue_str = re.sub(r"(?:DOI:?\s*|https?://)\S+", "", venue_str).strip().rstrip(",. ")

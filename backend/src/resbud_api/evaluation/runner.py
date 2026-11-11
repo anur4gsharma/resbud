@@ -7,14 +7,14 @@ providers, and configurations, and generating reproducible regression reports.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
 import json
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from resbud_api.domain.models import (
     GenerationMeta,
-    GenerationRequest,
     GenerationResponse,
     PaperDraft,
     PaperPreferences,
@@ -28,7 +28,6 @@ from resbud_api.evaluation.models import (
 )
 from resbud_api.providers.base import ResearchBrief
 from resbud_api.providers.fake import FakeProvider
-from resbud_api.services.generation import generate_paper
 from resbud_api.services.long_form_engine import generate_long_form_manuscript
 
 DEFAULT_DATASET_PATH = (
@@ -55,6 +54,7 @@ async def run_case_evaluation(
     else:
         # Legacy single-pass engine: bypasses section-level expansion
         from uuid import uuid4
+
         from resbud_api.services.integrity import run_integrity_checks
         from resbud_api.services.prompt_builder import build_generation_input
 
@@ -106,7 +106,6 @@ async def run_evaluation_suite(
     active_results: list[EvaluationBenchmarkResult] = []
     comparator_results: list[EvaluationBenchmarkResult] = []
 
-    active_provider_name = getattr(active_provider, "provider_name", "unknown")
     active_model_name = getattr(active_provider, "model_name", "unknown")
 
     for case in cases:
@@ -128,7 +127,7 @@ async def run_evaluation_suite(
             comparator_results.append(res_comp)
 
     # Compute comparative summary metrics
-    def _avg(vals: list[float]) -> float:
+    def _avg(vals: Sequence[float | int]) -> float:
         return round(sum(vals) / max(1, len(vals)), 2)
 
     active_words = [r.generated_words for r in active_results]
@@ -143,7 +142,7 @@ async def run_evaluation_suite(
     comp_latencies = [r.duration_ms for r in comparator_results]
     comp_costs = [r.estimated_cost_usd or 0.0 for r in comparator_results]
 
-    summary = {
+    summary: dict[str, Any] = {
         "total_cases_evaluated": len(cases),
         "active_engine": {
             "name": "section-level-long-form",
@@ -160,7 +159,9 @@ async def run_evaluation_suite(
             "name": "single-pass-legacy" if compare_with_legacy_single_pass else "none",
             "model": active_model_name,
             "passed_cases": sum(1 for r in comparator_results if r.passed),
-            "pass_rate": round(sum(1 for r in comparator_results if r.passed) / max(1, len(cases)), 3),
+            "pass_rate": round(
+                sum(1 for r in comparator_results if r.passed) / max(1, len(cases)), 3
+            ),
             "avg_generated_words": _avg(comp_words),
             "avg_target_adherence_ratio": _avg(comp_ratios),
             "avg_overall_score": _avg(comp_scores),
@@ -168,15 +169,22 @@ async def run_evaluation_suite(
             "total_estimated_cost_usd": round(sum(comp_costs), 6),
         },
         "comparative_deltas": {
-            "word_count_multiplier": round(_avg(active_words) / max(1, _avg(comp_words)), 2) if comp_words else 1.0,
-            "score_delta": round(_avg(active_scores) - _avg(comp_scores), 2) if comp_scores else 0.0,
-            "adherence_ratio_delta": round(_avg(active_ratios) - _avg(comp_ratios), 3) if comp_ratios else 0.0,
+            "word_count_multiplier": round(_avg(active_words) / max(1, _avg(comp_words)), 2)
+            if comp_words
+            else 1.0,
+            "score_delta": round(_avg(active_scores) - _avg(comp_scores), 2)
+            if comp_scores
+            else 0.0,
+            "adherence_ratio_delta": round(_avg(active_ratios) - _avg(comp_ratios), 3)
+            if comp_ratios
+            else 0.0,
         },
     }
 
     # Regression check: active must have >= 80% pass rate, and no integrity regressions
     critical_failures = sum(
-        1 for r in active_results
+        1
+        for r in active_results
         if not r.dimension_scores["numerical_accuracy"].passed
         or not r.dimension_scores["unsupported_claims"].passed
         or not r.dimension_scores["citation_preservation"].passed
@@ -184,12 +192,13 @@ async def run_evaluation_suite(
     regression_passed = (
         summary["active_engine"]["pass_rate"] >= 0.75
         and critical_failures == 0
-        and summary["active_engine"]["avg_generated_words"] > summary["comparator_engine"]["avg_generated_words"]
+        and summary["active_engine"]["avg_generated_words"]
+        > summary["comparator_engine"]["avg_generated_words"]
     )
 
     report = EvaluationReport(
-        run_id=f"eval-run-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}",
-        date=datetime.now(timezone.utc).isoformat(),
+        run_id=f"eval-run-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}",
+        date=datetime.now(UTC).isoformat(),
         active_engine="section-level-long-form",
         active_model=active_model_name,
         comparator_engine="single-pass-legacy" if compare_with_legacy_single_pass else None,

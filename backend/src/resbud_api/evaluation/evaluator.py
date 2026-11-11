@@ -21,17 +21,15 @@ They must NEVER be represented as objective scientific verification or proof of 
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-import json
 import re
-from typing import Any
+from datetime import UTC, datetime
 
-from resbud_api.domain.models import GenerationMeta, PaperDraft, PaperSection
+from resbud_api.domain.models import GenerationMeta, PaperDraft
 from resbud_api.evaluation.models import (
+    PROVIDER_PRICING,
     DimensionScore,
     EvaluationBenchmarkResult,
     EvaluationDimension,
-    PROVIDER_PRICING,
 )
 from resbud_api.providers.base import ResearchBrief
 
@@ -105,10 +103,54 @@ _TECHNICAL_LEXICON = {
 }
 
 _STOP_WORDS = {
-    "a", "an", "the", "and", "or", "in", "on", "at", "to", "for", "with", "by", "from",
-    "is", "are", "was", "were", "be", "been", "being", "have", "has", "had", "do", "does",
-    "did", "of", "that", "this", "these", "those", "it", "its", "we", "our", "us", "they",
-    "their", "them", "which", "who", "whom", "what", "where", "when", "why", "how", "as",
+    "a",
+    "an",
+    "the",
+    "and",
+    "or",
+    "in",
+    "on",
+    "at",
+    "to",
+    "for",
+    "with",
+    "by",
+    "from",
+    "is",
+    "are",
+    "was",
+    "were",
+    "be",
+    "been",
+    "being",
+    "have",
+    "has",
+    "had",
+    "do",
+    "does",
+    "did",
+    "of",
+    "that",
+    "this",
+    "these",
+    "those",
+    "it",
+    "its",
+    "we",
+    "our",
+    "us",
+    "they",
+    "their",
+    "them",
+    "which",
+    "who",
+    "whom",
+    "what",
+    "where",
+    "when",
+    "why",
+    "how",
+    "as",
 }
 
 
@@ -157,7 +199,9 @@ def _compute_readability(text: str) -> tuple[float, float, float]:
     return round(fkgl, 2), round(fre, 2), round(asl, 2)
 
 
-def _estimate_cost_usd(model_name: str, input_tokens: int | None, output_tokens: int | None) -> float:
+def _estimate_cost_usd(
+    model_name: str, input_tokens: int | None, output_tokens: int | None
+) -> float:
     """Calculate estimated dollar cost from model token usage."""
     if not input_tokens and not output_tokens:
         return 0.0
@@ -186,16 +230,24 @@ class ManuscriptQualityEvaluator:
         scores[EvaluationDimension.FACT_PRESERVATION] = cls._eval_fact_preservation(paper, brief)
 
         # 2. Citation preservation
-        scores[EvaluationDimension.CITATION_PRESERVATION] = cls._eval_citation_preservation(paper, brief)
+        scores[EvaluationDimension.CITATION_PRESERVATION] = cls._eval_citation_preservation(
+            paper, brief
+        )
 
         # 3. Section completeness
-        scores[EvaluationDimension.SECTION_COMPLETENESS] = cls._eval_section_completeness(paper, brief)
+        scores[EvaluationDimension.SECTION_COMPLETENESS] = cls._eval_section_completeness(
+            paper, brief
+        )
 
         # 4. Word-count adherence
-        scores[EvaluationDimension.WORD_COUNT_ADHERENCE] = cls._eval_word_count_adherence(paper, brief, meta)
+        scores[EvaluationDimension.WORD_COUNT_ADHERENCE] = cls._eval_word_count_adherence(
+            paper, brief, meta
+        )
 
         # 5. Methodological detail
-        scores[EvaluationDimension.METHODOLOGICAL_DETAIL] = cls._eval_methodological_detail(paper, brief)
+        scores[EvaluationDimension.METHODOLOGICAL_DETAIL] = cls._eval_methodological_detail(
+            paper, brief
+        )
 
         # 6. Technical explanation depth
         scores[EvaluationDimension.TECHNICAL_DEPTH] = cls._eval_technical_depth(paper, brief)
@@ -204,10 +256,14 @@ class ManuscriptQualityEvaluator:
         scores[EvaluationDimension.ARGUMENT_COHERENCE] = cls._eval_argument_coherence(paper, brief)
 
         # 8. Section consistency
-        scores[EvaluationDimension.SECTION_CONSISTENCY] = cls._eval_section_consistency(paper, brief)
+        scores[EvaluationDimension.SECTION_CONSISTENCY] = cls._eval_section_consistency(
+            paper, brief
+        )
 
         # 9. Repetition and filler
-        scores[EvaluationDimension.REPETITION_AND_FILLER] = cls._eval_repetition_and_filler(paper, brief)
+        scores[EvaluationDimension.REPETITION_AND_FILLER] = cls._eval_repetition_and_filler(
+            paper, brief
+        )
 
         # 10. Unsupported claims
         scores[EvaluationDimension.UNSUPPORTED_CLAIMS] = cls._eval_unsupported_claims(paper, brief)
@@ -229,7 +285,11 @@ class ManuscriptQualityEvaluator:
             and scores[EvaluationDimension.UNSUPPORTED_CLAIMS].passed
             and scores[EvaluationDimension.CITATION_PRESERVATION].passed
         )
-        passed = overall_score >= 75.0 and critical_passed and all(s.score >= 50.0 for s in scores.values())
+        passed = (
+            overall_score >= 75.0
+            and critical_passed
+            and all(s.score >= 50.0 for s in scores.values())
+        )
 
         actual_words = sum(len(s.content.split()) for s in paper.sections)
         target_words = (
@@ -246,7 +306,7 @@ class ManuscriptQualityEvaluator:
         output_tokens = meta.output_tokens if meta else None
         cost_usd = _estimate_cost_usd(model_name, input_tokens, output_tokens)
 
-        warnings_list = [w.code for w in paper.review_warnings]
+        warnings_list: list[str] = [str(w.code) for w in paper.review_warnings]
 
         return EvaluationBenchmarkResult(
             case_id=case_id,
@@ -254,7 +314,7 @@ class ManuscriptQualityEvaluator:
             engine_type=engine_type,
             provider_name=provider_name,
             model_name=model_name,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
             requested_words=target_words,
             generated_words=actual_words,
             word_count_ratio=ratio,
@@ -282,9 +342,21 @@ class ManuscriptQualityEvaluator:
         # Extract key factual concepts from project objectives and contributions
         target_concepts = []
         for obj in brief.project.objectives:
-            target_concepts.extend([w.lower().strip(".,;:()") for w in obj.split() if len(w) > 4 and w.lower() not in _STOP_WORDS])
+            target_concepts.extend(
+                [
+                    w.lower().strip(".,;:()")
+                    for w in obj.split()
+                    if len(w) > 4 and w.lower() not in _STOP_WORDS
+                ]
+            )
         if brief.project.claimed_contribution:
-            target_concepts.extend([w.lower().strip(".,;:()") for w in brief.project.claimed_contribution.split() if len(w) > 4 and w.lower() not in _STOP_WORDS])
+            target_concepts.extend(
+                [
+                    w.lower().strip(".,;:()")
+                    for w in brief.project.claimed_contribution.split()
+                    if len(w) > 4 and w.lower() not in _STOP_WORDS
+                ]
+            )
 
         unique_concepts = list(set(target_concepts))
         if not unique_concepts:
@@ -302,16 +374,24 @@ class ManuscriptQualityEvaluator:
         score = min(100.0, max(0.0, recall_ratio * 100.0))
 
         if recall_ratio >= 0.70:
-            strengths.append(f"High fact preservation: {len(recalled)}/{len(unique_concepts)} key concepts retained.")
+            strengths.append(
+                f"High fact preservation: {len(recalled)}/{len(unique_concepts)} key concepts retained."
+            )
         else:
-            deficiencies.append(f"Low fact preservation: only {len(recalled)}/{len(unique_concepts)} key concepts recalled.")
+            deficiencies.append(
+                f"Low fact preservation: only {len(recalled)}/{len(unique_concepts)} key concepts recalled."
+            )
 
         return DimensionScore(
             dimension=EvaluationDimension.FACT_PRESERVATION,
             score=round(score, 2),
             passed=score >= 70.0,
             weight=1.2,
-            details={"recalled_count": len(recalled), "total_concepts": len(unique_concepts), "ratio": round(recall_ratio, 3)},
+            details={
+                "recalled_count": len(recalled),
+                "total_concepts": len(unique_concepts),
+                "ratio": round(recall_ratio, 3),
+            },
             deficiencies=deficiencies,
             strengths=strengths,
         )
@@ -341,7 +421,9 @@ class ManuscriptQualityEvaluator:
 
         if invented_markers:
             score -= min(60.0, len(invented_markers) * 30.0)
-            deficiencies.append(f"Fabricated or unsupplied citation markers found in text: {', '.join(invented_markers)}")
+            deficiencies.append(
+                f"Fabricated or unsupplied citation markers found in text: {', '.join(invented_markers)}"
+            )
         elif supplied_ids:
             strengths.append("Zero fabricated or unsupplied citations introduced.")
 
@@ -354,7 +436,11 @@ class ManuscriptQualityEvaluator:
             score=round(max(0.0, score), 2),
             passed=passed,
             weight=1.2,
-            details={"supplied": len(supplied_ids), "preserved": len(preserved_refs), "invented": len(invented_markers)},
+            details={
+                "supplied": len(supplied_ids),
+                "preserved": len(preserved_refs),
+                "invented": len(invented_markers),
+            },
             deficiencies=deficiencies,
             strengths=strengths,
         )
@@ -370,7 +456,8 @@ class ManuscriptQualityEvaluator:
         missing = [sid for sid in desired if sid not in paper_sections_map]
         empty = [sid for sid, sec in paper_sections_map.items() if not sec.content.strip()]
         shallow = [
-            sid for sid, sec in paper_sections_map.items()
+            sid
+            for sid, sec in paper_sections_map.items()
             if len(sec.content.split()) < 80 and sid not in {"references", "abstract"}
         ]
 
@@ -386,7 +473,9 @@ class ManuscriptQualityEvaluator:
             deficiencies.append(f"Sections under-developed (< 80 words): {', '.join(shallow)}")
 
         if not missing and not empty and not shallow:
-            strengths.append(f"All {len(paper.sections)} sections fully present with substantive multi-paragraph content.")
+            strengths.append(
+                f"All {len(paper.sections)} sections fully present with substantive multi-paragraph content."
+            )
 
         return DimensionScore(
             dimension=EvaluationDimension.SECTION_COMPLETENESS,
@@ -413,27 +502,39 @@ class ManuscriptQualityEvaluator:
         )
 
         ratio = actual_words / max(1, target_words)
-        is_constrained = meta and meta.completion_status == "evidence_constrained"
+        is_constrained = bool(meta and meta.completion_status == "evidence_constrained")
 
         if 0.80 <= ratio <= 1.25:
             score = 100.0
-            strengths.append(f"Optimal word-count adherence: {actual_words} words ({ratio:.1%} of {target_words} target).")
+            strengths.append(
+                f"Optimal word-count adherence: {actual_words} words ({ratio:.1%} of {target_words} target)."
+            )
         elif 0.65 <= ratio < 0.80 or 1.25 < ratio <= 1.40:
             score = 80.0
-            strengths.append(f"Acceptable length variance: {actual_words} words ({ratio:.1%} of {target_words} target).")
+            strengths.append(
+                f"Acceptable length variance: {actual_words} words ({ratio:.1%} of {target_words} target)."
+            )
         elif 0.50 <= ratio < 0.65:
             score = 65.0 if is_constrained else 50.0
-            deficiencies.append(f"Under-generated manuscript: {actual_words} words ({ratio:.1%} of {target_words} target).")
+            deficiencies.append(
+                f"Under-generated manuscript: {actual_words} words ({ratio:.1%} of {target_words} target)."
+            )
         else:
             score = min(50.0, max(20.0, ratio * 70.0))
-            deficiencies.append(f"Significant length shortfall: {actual_words} words ({ratio:.1%} of {target_words} target).")
+            deficiencies.append(
+                f"Significant length shortfall: {actual_words} words ({ratio:.1%} of {target_words} target)."
+            )
 
         return DimensionScore(
             dimension=EvaluationDimension.WORD_COUNT_ADHERENCE,
             score=round(score, 2),
             passed=score >= 60.0 or is_constrained,
             weight=1.0,
-            details={"actual_words": actual_words, "target_words": target_words, "ratio": round(ratio, 3)},
+            details={
+                "actual_words": actual_words,
+                "target_words": target_words,
+                "ratio": round(ratio, 3),
+            },
             deficiencies=deficiencies,
             strengths=strengths,
         )
@@ -443,7 +544,10 @@ class ManuscriptQualityEvaluator:
         """Dimension 5: Evaluate reproducible procedural, algorithmic, and statistical specifications."""
         deficiencies = []
         strengths = []
-        meth_sec = next((s for s in paper.sections if "method" in s.id.lower() or "system" in s.id.lower()), None)
+        meth_sec = next(
+            (s for s in paper.sections if "method" in s.id.lower() or "system" in s.id.lower()),
+            None,
+        )
 
         if not meth_sec:
             # If methodology was not requested or non-experimental
@@ -465,25 +569,65 @@ class ManuscriptQualityEvaluator:
             )
 
         content = meth_sec.content.lower()
-        has_design = any(w in content for w in ["architecture", "pipeline", "framework", "formulation", "design"])
-        has_dataset = any(w in content for w in ["dataset", "sample", "corpus", "partition", "cohort", "data", "benchmark"])
-        has_metrics = any(w in content for w in ["metric", "accuracy", "precision", "recall", "f1", "loss", "mcnemar", "t-test", "$", "\\chi^2"])
-        has_stats = any(w in content for w in ["statistical", "significance", "p-value", "confidence", "interval", "controls", "reproducibility", "\\alpha"])
+        has_design = any(
+            w in content for w in ["architecture", "pipeline", "framework", "formulation", "design"]
+        )
+        has_dataset = any(
+            w in content
+            for w in ["dataset", "sample", "corpus", "partition", "cohort", "data", "benchmark"]
+        )
+        has_metrics = any(
+            w in content
+            for w in [
+                "metric",
+                "accuracy",
+                "precision",
+                "recall",
+                "f1",
+                "loss",
+                "mcnemar",
+                "t-test",
+                "$",
+                "\\chi^2",
+            ]
+        )
+        has_stats = any(
+            w in content
+            for w in [
+                "statistical",
+                "significance",
+                "p-value",
+                "confidence",
+                "interval",
+                "controls",
+                "reproducibility",
+                "\\alpha",
+            ]
+        )
 
         elements_found = sum([has_design, has_dataset, has_metrics, has_stats])
         score = (elements_found / 4.0) * 100.0
 
         if elements_found >= 3:
-            strengths.append(f"Rigorous methodological specification ({elements_found}/4 core components verified).")
+            strengths.append(
+                f"Rigorous methodological specification ({elements_found}/4 core components verified)."
+            )
         else:
-            deficiencies.append(f"Methodological detail lacking ({elements_found}/4 components found).")
+            deficiencies.append(
+                f"Methodological detail lacking ({elements_found}/4 components found)."
+            )
 
         return DimensionScore(
             dimension=EvaluationDimension.METHODOLOGICAL_DETAIL,
             score=round(score, 2),
             passed=score >= 70.0,
             weight=1.0,
-            details={"has_design": has_design, "has_dataset": has_dataset, "has_metrics": has_metrics, "has_stats": has_stats},
+            details={
+                "has_design": has_design,
+                "has_dataset": has_dataset,
+                "has_metrics": has_metrics,
+                "has_stats": has_stats,
+            },
             deficiencies=deficiencies,
             strengths=strengths,
         )
@@ -496,7 +640,9 @@ class ManuscriptQualityEvaluator:
         combined_text = " ".join(s.content for s in paper.sections).lower()
 
         found_lexicon = [t for t in _TECHNICAL_LEXICON if t in combined_text]
-        has_math = bool(re.search(r"(\$|\\chi\^2|\\mathcal|\\sim|\\in|\\le|\\ge|\\mathbb|p\s*=)", combined_text))
+        has_math = bool(
+            re.search(r"(\$|\\chi\^2|\\mathcal|\\sim|\\in|\\le|\\ge|\\mathbb|p\s*=)", combined_text)
+        )
         has_tables = "|" in combined_text
 
         # Scoring
@@ -506,9 +652,13 @@ class ManuscriptQualityEvaluator:
 
         total_score = min(100.0, vocab_score + math_score + table_score)
         if len(found_lexicon) >= 12:
-            strengths.append(f"Dense academic domain terminology ({len(found_lexicon)} concepts verified).")
+            strengths.append(
+                f"Dense academic domain terminology ({len(found_lexicon)} concepts verified)."
+            )
         else:
-            deficiencies.append(f"Sparse technical domain vocabulary ({len(found_lexicon)} concepts identified).")
+            deficiencies.append(
+                f"Sparse technical domain vocabulary ({len(found_lexicon)} concepts identified)."
+            )
 
         if has_math:
             strengths.append("Incorporates formal mathematical formulations and notation.")
@@ -518,7 +668,11 @@ class ManuscriptQualityEvaluator:
             score=round(total_score, 2),
             passed=total_score >= 65.0,
             weight=1.0,
-            details={"vocab_count": len(found_lexicon), "has_math": has_math, "has_tables": has_tables},
+            details={
+                "vocab_count": len(found_lexicon),
+                "has_math": has_math,
+                "has_tables": has_tables,
+            },
             deficiencies=deficiencies,
             strengths=strengths,
         )
@@ -532,13 +686,21 @@ class ManuscriptQualityEvaluator:
 
         intro_sec = next((s for s in paper.sections if "intro" in s.id.lower()), None)
         disc_sec = next((s for s in paper.sections if "discuss" in s.id.lower()), None)
-        conc_sec = next((s for s in paper.sections if "conclus" in s.id.lower()), None)
 
         if intro_sec:
             content = intro_sec.content.lower()
             has_rq = bool(re.search(r"\b(rq\d+|research question|research questions)\b", content))
-            has_contributions = bool(re.search(r"\b(contribution|contributions|we propose|this work contributes)\b", content))
-            has_roadmap = bool(re.search(r"\b(remainder of this paper|paper is (organized|structured) as follows)\b", content))
+            has_contributions = bool(
+                re.search(
+                    r"\b(contribution|contributions|we propose|this work contributes)\b", content
+                )
+            )
+            has_roadmap = bool(
+                re.search(
+                    r"\b(remainder of this paper|paper is (organized|structured) as follows)\b",
+                    content,
+                )
+            )
             if has_rq:
                 coherence_pts += 25.0
                 strengths.append("Introduction establishes explicit Research Questions.")
@@ -554,8 +716,18 @@ class ManuscriptQualityEvaluator:
 
         if disc_sec:
             content = disc_sec.content.lower()
-            interprets_rq = bool(re.search(r"\b(rq\d+|research question|findings|results demonstrate|hypotheses)\b", content))
-            has_validity = bool(re.search(r"\b(threats? to validity|internal validity|external validity|limitations?)\b", content))
+            interprets_rq = bool(
+                re.search(
+                    r"\b(rq\d+|research question|findings|results demonstrate|hypotheses)\b",
+                    content,
+                )
+            )
+            has_validity = bool(
+                re.search(
+                    r"\b(threats? to validity|internal validity|external validity|limitations?)\b",
+                    content,
+                )
+            )
             if interprets_rq:
                 coherence_pts += 15.0
             if has_validity:
@@ -591,7 +763,9 @@ class ManuscriptQualityEvaluator:
                 if discrepant:
                     # Minor check: discussion should not introduce new benchmark percentages
                     score -= min(25.0, len(discrepant) * 10.0)
-                    deficiencies.append(f"Discussion introduces metric percentages absent from Results: {', '.join(discrepant)}")
+                    deficiencies.append(
+                        f"Discussion introduces metric percentages absent from Results: {', '.join(discrepant)}"
+                    )
 
         if score >= 90.0:
             strengths.append("Consistent terminology and cross-section metric harmony maintained.")
@@ -614,7 +788,9 @@ class ManuscriptQualityEvaluator:
         combined_text = " ".join(s.content for s in paper.sections).lower()
 
         # Type-Token Ratio
-        tokens = [w.strip(".,;:()[]\"'!?`") for w in combined_text.split() if w.strip(".,;:()[]\"'!?`")]
+        tokens = [
+            w.strip(".,;:()[]\"'!?`") for w in combined_text.split() if w.strip(".,;:()[]\"'!?`")
+        ]
         total_tokens = len(tokens)
         ttr = len(set(tokens)) / max(1, total_tokens)
 
@@ -624,7 +800,9 @@ class ManuscriptQualityEvaluator:
         score = 100.0
         if ttr < threshold:
             score -= 30.0
-            deficiencies.append(f"Low lexical diversity (TTR {ttr:.2f} < {threshold:.2f} indicates boilerplate repetition).")
+            deficiencies.append(
+                f"Low lexical diversity (TTR {ttr:.2f} < {threshold:.2f} indicates boilerplate repetition)."
+            )
         else:
             strengths.append(f"High lexical diversity (TTR {ttr:.2f}).")
 
@@ -641,7 +819,11 @@ class ManuscriptQualityEvaluator:
             score=round(max(0.0, score), 2),
             passed=score >= 70.0,
             weight=1.0,
-            details={"ttr": round(ttr, 3), "platitudes_count": len(platitudes), "total_tokens": total_tokens},
+            details={
+                "ttr": round(ttr, 3),
+                "platitudes_count": len(platitudes),
+                "total_tokens": total_tokens,
+            },
             deficiencies=deficiencies,
             strengths=strengths,
         )
@@ -653,15 +835,21 @@ class ManuscriptQualityEvaluator:
         strengths = []
         score = 100.0
 
-        is_results_uncollected = brief.project.results_status in {"not_collected", "not_available", "unknown"} and not (
-            brief.project.results and brief.project.results.strip()
-        )
+        is_results_uncollected = brief.project.results_status in {
+            "not_collected",
+            "not_available",
+            "unknown",
+        } and not (brief.project.results and brief.project.results.strip())
         results_sec = next((s for s in paper.sections if "result" in s.id.lower()), None)
 
         if is_results_uncollected and results_sec:
-            has_disclosure = "[Note:" in results_sec.content or "not conducted" in results_sec.content.lower()
+            has_disclosure = (
+                "[Note:" in results_sec.content or "not conducted" in results_sec.content.lower()
+            )
             if results_sec.state == "needs_input" and has_disclosure:
-                strengths.append("Properly declared unconducted empirical status with explicit researcher input notice.")
+                strengths.append(
+                    "Properly declared unconducted empirical status with explicit researcher input notice."
+                )
             else:
                 score = 0.0
                 deficiencies.append(
@@ -705,18 +893,26 @@ class ManuscriptQualityEvaluator:
         paper_numbers = set(_NUMBER_PATTERN.findall(" ".join(s.content for s in paper.sections)))
 
         # Exclude structural numbering
-        unsupported = {n for n in paper_numbers if n not in supplied_numbers and n not in _STRUCTURAL_NUMBERS}
+        unsupported = {
+            n for n in paper_numbers if n not in supplied_numbers and n not in _STRUCTURAL_NUMBERS
+        }
         metric_hallucinations = [n for n in unsupported if "%" in n or "." in n]
 
         score = 100.0
         if metric_hallucinations:
             score = max(0.0, 100.0 - (len(metric_hallucinations) * 35.0))
-            deficiencies.append(f"Fabricated metric/statistical values not present in source context: {', '.join(sorted(metric_hallucinations)[:5])}")
+            deficiencies.append(
+                f"Fabricated metric/statistical values not present in source context: {', '.join(sorted(metric_hallucinations)[:5])}"
+            )
         elif unsupported:
             score = max(50.0, 100.0 - (len(unsupported) * 10.0))
-            deficiencies.append(f"Unverified integer counts in draft: {', '.join(sorted(unsupported)[:5])}")
+            deficiencies.append(
+                f"Unverified integer counts in draft: {', '.join(sorted(unsupported)[:5])}"
+            )
         else:
-            strengths.append("Strict numerical fidelity: 100% of reported statistics grounded in supplied evidence.")
+            strengths.append(
+                "Strict numerical fidelity: 100% of reported statistics grounded in supplied evidence."
+            )
 
         passed = score >= 75.0 and len(metric_hallucinations) == 0
         return DimensionScore(
@@ -724,7 +920,10 @@ class ManuscriptQualityEvaluator:
             score=round(score, 2),
             passed=passed,
             weight=1.3,
-            details={"supplied_count": len(supplied_numbers), "unsupported_metrics_count": len(metric_hallucinations)},
+            details={
+                "supplied_count": len(supplied_numbers),
+                "unsupported_metrics_count": len(metric_hallucinations),
+            },
             deficiencies=deficiencies,
             strengths=strengths,
         )
@@ -757,9 +956,13 @@ class ManuscriptQualityEvaluator:
         if bullet_ratio > 0.15:
             excess = bullet_ratio - 0.15
             score -= min(50.0, (excess / 0.15) * 50.0)
-            deficiencies.append(f"Excessive bullet points: {bullet_ratio:.1%} of lines are bullets (must be < 15%).")
+            deficiencies.append(
+                f"Excessive bullet points: {bullet_ratio:.1%} of lines are bullets (must be < 15%)."
+            )
         else:
-            strengths.append(f"Continuous academic prose maintained ({bullet_ratio:.1%} bullet lines, well under 15% threshold).")
+            strengths.append(
+                f"Continuous academic prose maintained ({bullet_ratio:.1%} bullet lines, well under 15% threshold)."
+            )
 
         # Academic register: FKGL between 10.0 and 18.0 is optimal
         if fkgl < 9.0:
@@ -769,7 +972,9 @@ class ManuscriptQualityEvaluator:
             score -= 10.0
             deficiencies.append(f"Prose register overly convoluted (FKGL {fkgl} > 20.0).")
         else:
-            strengths.append(f"Authoritative academic readability (FKGL {fkgl}, Avg sentence length {asl} words).")
+            strengths.append(
+                f"Authoritative academic readability (FKGL {fkgl}, Avg sentence length {asl} words)."
+            )
 
         return DimensionScore(
             dimension=EvaluationDimension.OVERALL_READABILITY,
