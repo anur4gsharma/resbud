@@ -1,6 +1,6 @@
 {
-  "run_id": "eval-run-20261102-183236",
-  "date": "2026-11-02T18:32:36.652676+00:00",
+  "run_id": "eval-run-20261111-114846",
+  "date": "2026-11-11T11:48:46.106378+00:00",
   "active_engine": "section-level-long-form",
   "active_model": "deterministic-demo",
   "comparator_engine": "single-pass-legacy",
@@ -12,7 +12,7 @@
       "engine_type": "section-level-long-form",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-02T18:32:36.564609+00:00",
+      "timestamp": "2026-11-11T11:48:46.002865+00:00",
       "requested_words": 5000,
       "generated_words": 4823,
       "word_count_ratio": 0.965,
@@ -207,7 +207,7 @@
       "engine_type": "section-level-long-form",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-02T18:32:36.574394+00:00",
+      "timestamp": "2026-11-11T11:48:46.014503+00:00",
       "requested_words": 3000,
       "generated_words": 2957,
       "word_count_ratio": 0.986,
@@ -402,13 +402,13 @@
       "engine_type": "section-level-long-form",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-02T18:32:36.583781+00:00",
+      "timestamp": "2026-11-11T11:48:46.025644+00:00",
       "requested_words": 3000,
-      "generated_words": 2976,
-      "word_count_ratio": 0.992,
+      "generated_words": 2952,
+      "word_count_ratio": 0.984,
       "duration_ms": 3,
       "input_tokens": null,
-      "output_tokens": 4195,
+      "output_tokens": 4178,
       "estimated_cost_usd": 0.0,
       "overall_score": 96.53,
       "passed": true,
@@ -461,13 +461,13 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "actual_words": 2976,
+            "actual_words": 2952,
             "target_words": 3000,
-            "ratio": 0.992
+            "ratio": 0.984
           },
           "deficiencies": [],
           "strengths": [
-            "Optimal word-count adherence: 2976 words (99.2% of 3000 target)."
+            "Optimal word-count adherence: 2952 words (98.4% of 3000 target)."
           ]
         },
         "methodological_detail": {
@@ -531,9 +531,9 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "ttr": 0.246,
+            "ttr": 0.25,
             "platitudes_count": 0,
-            "total_tokens": 2976
+            "total_tokens": 2952
           },
           "deficiencies": [],
           "strengths": [
@@ -571,16 +571,16 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "bullet_ratio": 0.07,
+            "bullet_ratio": 0.071,
             "fkgl": 22.5,
-            "fre": -35.18,
-            "asl": 17.44
+            "fre": -35.09,
+            "asl": 17.5
           },
           "deficiencies": [
             "Prose register overly convoluted (FKGL 22.5 > 20.0)."
           ],
           "strengths": [
-            "Continuous academic prose maintained (7.0% bullet lines, well under 15% threshold)."
+            "Continuous academic prose maintained (7.1% bullet lines, well under 15% threshold)."
           ]
         }
       },
@@ -598,7 +598,7 @@
       "engine_type": "section-level-long-form",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-02T18:32:36.596915+00:00",
+      "timestamp": "2026-11-11T11:48:46.040083+00:00",
       "requested_words": 5000,
       "generated_words": 4803,
       "word_count_ratio": 0.961,
@@ -793,13 +793,13 @@
       "engine_type": "section-level-long-form",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-02T18:32:36.609875+00:00",
+      "timestamp": "2026-11-11T11:48:46.054565+00:00",
       "requested_words": 5000,
-      "generated_words": 4811,
-      "word_count_ratio": 0.962,
+      "generated_words": 4822,
+      "word_count_ratio": 0.964,
       "duration_ms": 4,
       "input_tokens": null,
-      "output_tokens": 6687,
+      "output_tokens": 6717,
       "estimated_cost_usd": 0.0,
       "overall_score": 97.14,
       "passed": true,
@@ -852,13 +852,13 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "actual_words": 4811,
+            "actual_words": 4822,
             "target_words": 5000,
-            "ratio": 0.962
+            "ratio": 0.964
           },
           "deficiencies": [],
           "strengths": [
-            "Optimal word-count adherence: 4811 words (96.2% of 5000 target)."
+            "Optimal word-count adherence: 4822 words (96.4% of 5000 target)."
           ]
         },
         "methodological_detail": {
@@ -922,9 +922,9 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "ttr": 0.148,
+            "ttr": 0.149,
             "platitudes_count": 0,
-            "total_tokens": 4811
+            "total_tokens": 4822
           },
           "deficiencies": [],
           "strengths": [
@@ -961,12 +961,12 @@
           "weight": 1.0,
           "details": {
             "bullet_ratio": 0.041,
-            "fkgl": 22.65,
-            "fre": -37.53,
-            "asl": 16.74
+            "fkgl": 22.67,
+            "fre": -37.61,
+            "asl": 16.78
           },
           "deficiencies": [
-            "Prose register overly convoluted (FKGL 22.65 > 20.0)."
+            "Prose register overly convoluted (FKGL 22.67 > 20.0)."
           ],
           "strengths": [
             "Continuous academic prose maintained (4.1% bullet lines, well under 15% threshold)."
@@ -986,7 +986,7 @@
       "engine_type": "section-level-long-form",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-02T18:32:36.618872+00:00",
+      "timestamp": "2026-11-11T11:48:46.064554+00:00",
       "requested_words": 3000,
       "generated_words": 2916,
       "word_count_ratio": 0.972,
@@ -1182,7 +1182,7 @@
       "engine_type": "section-level-long-form",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-02T18:32:36.635316+00:00",
+      "timestamp": "2026-11-11T11:48:46.082341+00:00",
       "requested_words": 7000,
       "generated_words": 6792,
       "word_count_ratio": 0.97,
@@ -1378,13 +1378,13 @@
       "engine_type": "section-level-long-form",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-02T18:32:36.641699+00:00",
+      "timestamp": "2026-11-11T11:48:46.091466+00:00",
       "requested_words": 1500,
-      "generated_words": 1428,
-      "word_count_ratio": 0.952,
-      "duration_ms": 1,
+      "generated_words": 1439,
+      "word_count_ratio": 0.959,
+      "duration_ms": 2,
       "input_tokens": null,
-      "output_tokens": 2101,
+      "output_tokens": 2131,
       "estimated_cost_usd": 0.0,
       "overall_score": 92.93,
       "passed": true,
@@ -1437,13 +1437,13 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "actual_words": 1428,
+            "actual_words": 1439,
             "target_words": 1500,
-            "ratio": 0.952
+            "ratio": 0.959
           },
           "deficiencies": [],
           "strengths": [
-            "Optimal word-count adherence: 1428 words (95.2% of 1500 target)."
+            "Optimal word-count adherence: 1439 words (95.9% of 1500 target)."
           ]
         },
         "methodological_detail": {
@@ -1506,9 +1506,9 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "ttr": 0.442,
+            "ttr": 0.441,
             "platitudes_count": 0,
-            "total_tokens": 1428
+            "total_tokens": 1439
           },
           "deficiencies": [],
           "strengths": [
@@ -1547,12 +1547,12 @@
           "weight": 1.0,
           "details": {
             "bullet_ratio": 0.077,
-            "fkgl": 22.57,
-            "fre": -34.16,
-            "asl": 18.3
+            "fkgl": 22.65,
+            "fre": -34.49,
+            "asl": 18.45
           },
           "deficiencies": [
-            "Prose register overly convoluted (FKGL 22.57 > 20.0)."
+            "Prose register overly convoluted (FKGL 22.65 > 20.0)."
           ],
           "strengths": [
             "Continuous academic prose maintained (7.7% bullet lines, well under 15% threshold)."
@@ -1573,7 +1573,7 @@
       "engine_type": "section-level-long-form",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-02T18:32:36.650409+00:00",
+      "timestamp": "2026-11-11T11:48:46.102268+00:00",
       "requested_words": 3000,
       "generated_words": 2956,
       "word_count_ratio": 0.985,
@@ -1770,7 +1770,7 @@
       "engine_type": "single-pass-legacy",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-02T18:32:36.567238+00:00",
+      "timestamp": "2026-11-11T11:48:46.006815+00:00",
       "requested_words": 5000,
       "generated_words": 999,
       "word_count_ratio": 0.2,
@@ -1966,7 +1966,7 @@
       "engine_type": "single-pass-legacy",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-02T18:32:36.576778+00:00",
+      "timestamp": "2026-11-11T11:48:46.018030+00:00",
       "requested_words": 3000,
       "generated_words": 892,
       "word_count_ratio": 0.297,
@@ -2163,7 +2163,7 @@
       "engine_type": "single-pass-legacy",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-02T18:32:36.586013+00:00",
+      "timestamp": "2026-11-11T11:48:46.029098+00:00",
       "requested_words": 3000,
       "generated_words": 846,
       "word_count_ratio": 0.282,
@@ -2361,7 +2361,7 @@
       "engine_type": "single-pass-legacy",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-02T18:32:36.599393+00:00",
+      "timestamp": "2026-11-11T11:48:46.043644+00:00",
       "requested_words": 5000,
       "generated_words": 908,
       "word_count_ratio": 0.182,
@@ -2558,7 +2558,7 @@
       "engine_type": "single-pass-legacy",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-02T18:32:36.612086+00:00",
+      "timestamp": "2026-11-11T11:48:46.057757+00:00",
       "requested_words": 5000,
       "generated_words": 690,
       "word_count_ratio": 0.138,
@@ -2753,7 +2753,7 @@
       "engine_type": "single-pass-legacy",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-02T18:32:36.620965+00:00",
+      "timestamp": "2026-11-11T11:48:46.067653+00:00",
       "requested_words": 3000,
       "generated_words": 765,
       "word_count_ratio": 0.255,
@@ -2949,7 +2949,7 @@
       "engine_type": "single-pass-legacy",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-02T18:32:36.637885+00:00",
+      "timestamp": "2026-11-11T11:48:46.087372+00:00",
       "requested_words": 7000,
       "generated_words": 977,
       "word_count_ratio": 0.14,
@@ -3145,7 +3145,7 @@
       "engine_type": "single-pass-legacy",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-02T18:32:36.643592+00:00",
+      "timestamp": "2026-11-11T11:48:46.094330+00:00",
       "requested_words": 1500,
       "generated_words": 610,
       "word_count_ratio": 0.407,
@@ -3340,7 +3340,7 @@
       "engine_type": "single-pass-legacy",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-02T18:32:36.652611+00:00",
+      "timestamp": "2026-11-11T11:48:46.106317+00:00",
       "requested_words": 3000,
       "generated_words": 798,
       "word_count_ratio": 0.266,
@@ -3537,10 +3537,10 @@
       "model": "deterministic-demo",
       "passed_cases": 9,
       "pass_rate": 1.0,
-      "avg_generated_words": 3829.11,
+      "avg_generated_words": 3828.89,
       "avg_target_adherence_ratio": 0.97,
       "avg_overall_score": 96.42,
-      "avg_latency_ms": 3.67,
+      "avg_latency_ms": 3.78,
       "total_estimated_cost_usd": 0.0
     },
     "comparator_engine": {

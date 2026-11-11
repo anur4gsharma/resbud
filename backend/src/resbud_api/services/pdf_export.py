@@ -30,6 +30,12 @@ from reportlab.platypus import (
 from resbud_api.core.errors import ResbudError
 from resbud_api.domain.models import PaperDraft
 from resbud_api.services.chart_generator import render_academic_chart_from_spec
+from resbud_api.services.markdown_renderer import (
+    clean_heading_text,
+    parse_markdown_blocks,
+    render_blocks_to_pdf,
+    setup_reportlab_academic_fonts,
+)
 
 MAX_EXPORT_BYTES = 8 * 1024 * 1024
 PDF_MEDIA_TYPE = "application/pdf"
@@ -106,12 +112,18 @@ def export_paper_pdf(paper: PaperDraft) -> bytes:
 
 def _create_academic_styles() -> dict[str, ParagraphStyle]:
     sample = getSampleStyleSheet()
+    font_name = setup_reportlab_academic_fonts()
+    bold_font = f"{font_name}-Bold" if font_name == "AcademicSerif" else "Times-Bold"
+    italic_font = f"{font_name}-Italic" if font_name == "AcademicSerif" else "Times-Italic"
+    bold_italic_font = (
+        f"{font_name}-BoldItalic" if font_name == "AcademicSerif" else "Times-BoldItalic"
+    )
 
     styles = {
         "Title": ParagraphStyle(
             "AcademicTitle",
             parent=sample["Normal"],
-            fontName="Times-Bold",
+            fontName=bold_font,
             fontSize=18,
             leading=22,
             alignment=1,  # Center
@@ -121,7 +133,7 @@ def _create_academic_styles() -> dict[str, ParagraphStyle]:
         "AbstractHeading": ParagraphStyle(
             "AcademicAbstractHeading",
             parent=sample["Normal"],
-            fontName="Times-Bold",
+            fontName=bold_font,
             fontSize=10,
             leading=13,
             alignment=1,  # Center
@@ -132,7 +144,7 @@ def _create_academic_styles() -> dict[str, ParagraphStyle]:
         "AbstractBody": ParagraphStyle(
             "AcademicAbstractBody",
             parent=sample["Normal"],
-            fontName="Times-Roman",
+            fontName=font_name,
             fontSize=10,
             leading=13.5,
             alignment=4,  # Justified
@@ -144,7 +156,7 @@ def _create_academic_styles() -> dict[str, ParagraphStyle]:
         "Keywords": ParagraphStyle(
             "AcademicKeywords",
             parent=sample["Normal"],
-            fontName="Times-Roman",
+            fontName=font_name,
             fontSize=9.5,
             leading=13,
             alignment=4,  # Justified
@@ -156,7 +168,7 @@ def _create_academic_styles() -> dict[str, ParagraphStyle]:
         "Heading1": ParagraphStyle(
             "AcademicH1",
             parent=sample["Normal"],
-            fontName="Times-Bold",
+            fontName=bold_font,
             fontSize=12,
             leading=15,
             spaceBefore=14,
@@ -167,7 +179,7 @@ def _create_academic_styles() -> dict[str, ParagraphStyle]:
         "Heading2": ParagraphStyle(
             "AcademicH2",
             parent=sample["Normal"],
-            fontName="Times-Bold",
+            fontName=bold_font,
             fontSize=11,
             leading=14,
             spaceBefore=10,
@@ -175,20 +187,73 @@ def _create_academic_styles() -> dict[str, ParagraphStyle]:
             keepWithNext=True,
             textColor=colors.black,
         ),
+        "Heading3": ParagraphStyle(
+            "AcademicH3",
+            parent=sample["Normal"],
+            fontName=bold_italic_font,
+            fontSize=10.5,
+            leading=13.5,
+            spaceBefore=8,
+            spaceAfter=2,
+            keepWithNext=True,
+            textColor=colors.black,
+        ),
         "Body": ParagraphStyle(
             "AcademicBody",
             parent=sample["Normal"],
-            fontName="Times-Roman",
+            fontName=font_name,
             fontSize=10,
             leading=13.5,
             alignment=4,  # Justified
             spaceAfter=6,
             textColor=colors.black,
         ),
+        "ListItem": ParagraphStyle(
+            "AcademicListItem",
+            parent=sample["Normal"],
+            fontName=font_name,
+            fontSize=10,
+            leading=13.5,
+            leftIndent=16,
+            spaceAfter=2,
+            spaceBefore=1,
+            textColor=colors.black,
+        ),
+        "Blockquote": ParagraphStyle(
+            "AcademicBlockquote",
+            parent=sample["Normal"],
+            fontName=italic_font,
+            fontSize=10,
+            leading=13.5,
+            leftIndent=24,
+            rightIndent=24,
+            spaceBefore=4,
+            spaceAfter=6,
+            textColor=colors.black,
+        ),
+        "CodeBlock": ParagraphStyle(
+            "AcademicCodeBlock",
+            parent=sample["Normal"],
+            fontName="Courier",
+            fontSize=9,
+            leading=12,
+            leftIndent=16,
+            spaceBefore=4,
+            spaceAfter=6,
+            textColor=colors.HexColor("#222222"),
+        ),
+        "TableCell": ParagraphStyle(
+            "AcademicTableCell",
+            parent=sample["Normal"],
+            fontName=font_name,
+            fontSize=9,
+            leading=11.5,
+            textColor=colors.black,
+        ),
         "Caption": ParagraphStyle(
             "AcademicCaption",
             parent=sample["Normal"],
-            fontName="Times-Italic",
+            fontName=italic_font,
             fontSize=9,
             leading=12,
             alignment=1,  # Center
@@ -199,7 +264,7 @@ def _create_academic_styles() -> dict[str, ParagraphStyle]:
         "Reference": ParagraphStyle(
             "AcademicReference",
             parent=sample["Normal"],
-            fontName="Times-Roman",
+            fontName=font_name,
             fontSize=9.5,
             leading=13,
             alignment=4,  # Justified
@@ -211,7 +276,7 @@ def _create_academic_styles() -> dict[str, ParagraphStyle]:
         "MathBlock": ParagraphStyle(
             "AcademicMathBlock",
             parent=sample["Normal"],
-            fontName="Times-Italic",
+            fontName=italic_font,
             fontSize=10,
             leading=14,
             alignment=1,  # Center
@@ -244,21 +309,29 @@ def _build_story(paper: PaperDraft, styles: dict[str, ParagraphStyle]) -> list[A
         HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#CCCCCC"), spaceAfter=12)
     )
 
-    # Sections
-    for section_idx, section in enumerate(paper.sections, start=1):
-        heading_text = (
-            section.heading
-            if re.match(r"^\d", section.heading)
-            else f"{section_idx}. {section.heading}"
-        )
-        story.append(Paragraph(html.escape(heading_text), styles["Heading1"]))
-        _render_section_content_pdf(story, section.content, styles)
+    body_sections = [
+        sec
+        for sec in paper.sections
+        if sec.id.lower() not in ("references", "bibliography")
+        and sec.heading.strip().lower() not in ("references", "bibliography", "6. references")
+    ]
 
-    # References
+    # Sections with Markdown interpretation and hierarchical numbering
+    for section_idx, section in enumerate(body_sections, start=1):
+        clean_title = clean_heading_text(section.heading)
+        heading_text = f"{section_idx}. {clean_title}"
+        story.append(Paragraph(html.escape(heading_text), styles["Heading1"]))
+        blocks = parse_markdown_blocks(section.content)
+        render_blocks_to_pdf(story, blocks, styles, section_index=section_idx, numbered=True)
+
+    # References (only bibliographic entries)
     if paper.references:
         story.append(Paragraph("References", styles["Heading1"]))
-        for ref in paper.references:
-            story.append(Paragraph(html.escape(ref.text), styles["Reference"]))
+        for ref_idx, ref in enumerate(paper.references, start=1):
+            ref_text = ref.text.strip()
+            if not re.match(r"^\[\d+\]", ref_text) and not re.match(r"^\d+\.", ref_text):
+                ref_text = f"[{ref_idx}] {ref_text}"
+            story.append(Paragraph(html.escape(ref_text), styles["Reference"]))
 
     return story
 

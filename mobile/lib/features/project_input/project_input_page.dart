@@ -67,13 +67,12 @@ const _statusLabels = <String, String>{
 };
 
 const _baseSections = <String>[
-  'abstract',
   'introduction',
+  'related_work',
   'methodology',
   'results',
   'discussion',
   'conclusion',
-  'references',
 ];
 
 class ProjectInputPage extends StatefulWidget {
@@ -269,7 +268,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     final objectives = _documentMode && _nonblankLines(_controllers['objectives']!.text).isEmpty
         ? [
             if (desc.isNotEmpty) desc,
-            'Synthesize and evaluate the research claims presented in the source document.',
+            'Formalize research methodology and experimental benchmark evaluation.',
           ]
         : _nonblankLines(_controllers['objectives']!.text);
 
@@ -337,7 +336,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
             : 'Scientific Research Study';
       }
       if ((_controllers['description']?.text.trim() ?? '').isEmpty && _controllers['source_draft']!.text.trim().isNotEmpty) {
-        _controllers['description']!.text = 'Synthesize and evaluate the research claims presented in the source document.';
+        _controllers['description']!.text = 'Investigation and manuscript synthesis based on the supplied research dossier.';
       }
       _formKey.currentState?.validate();
       if (_fieldErrors.isNotEmpty) {
@@ -1486,6 +1485,12 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                 _controllers['title']!.text.trim() == 'Scientific Research Study') &&
             analysis.inferredTitle.isNotEmpty) {
           _controllers['title']!.text = analysis.inferredTitle;
+        }
+
+        if (_controllers['references']!.text.trim().isEmpty &&
+            analysis.extractedReferences.isNotEmpty) {
+          _controllers['references']!.text =
+              analysis.extractedReferences.map((r) => r.text).join('\n');
         }
 
         if (analysis.requiresClarification) {

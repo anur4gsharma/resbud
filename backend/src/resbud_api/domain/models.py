@@ -1,9 +1,9 @@
 """Typed domain representations matching the versioned Resbud contracts."""
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StringConstraints, model_serializer, model_validator
 
 SectionId = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{1,39}$")]
 ReferenceId = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{1,40}$")]
@@ -75,9 +75,26 @@ class ProjectContext(ContractModel):
         return self
 
 
+ProvenanceType = Literal["user_supplied", "extracted", "verified", "placeholder"]
+VerificationStatusType = Literal["unverified", "verified", "incomplete", "disputed"]
+
+
 class ReferenceInput(ContractModel):
     id: ReferenceId
     text: Annotated[str, Field(min_length=1, max_length=2000)]
+    raw_text: Annotated[str, Field(max_length=4000)] | None = None
+    authors: list[Annotated[str, Field(max_length=300)]] | None = None
+    year: int | None = None
+    title: Annotated[str, Field(max_length=500)] | None = None
+    venue: Annotated[str, Field(max_length=500)] | None = None
+    volume: Annotated[str, Field(max_length=100)] | None = None
+    issue: Annotated[str, Field(max_length=100)] | None = None
+    pages: Annotated[str, Field(max_length=100)] | None = None
+    publisher: Annotated[str, Field(max_length=300)] | None = None
+    doi: Annotated[str, Field(max_length=200)] | None = None
+    url: Annotated[str, Field(max_length=1000)] | None = None
+    provenance: ProvenanceType | None = None
+    verification_status: VerificationStatusType | None = None
 
 
 class PaperPreferences(ContractModel):

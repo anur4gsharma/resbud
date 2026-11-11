@@ -153,7 +153,9 @@ def test_backend_end_to_end_vertical_slice_generation_to_docx_parsing() -> None:
     assert "Abstract" in full_text
     assert updated_paper["abstract"] in full_text
     assert "Methodology" in full_text
-    assert replacement_section["content"] in full_text
+    for para in replacement_section["content"].split("\n\n"):
+        if para.strip():
+            assert para.strip() in full_text
     assert "References" in full_text
     assert "Vaswani, A." in full_text
 

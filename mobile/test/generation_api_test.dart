@@ -47,6 +47,21 @@ void main() {
       expect(project['research_field'], 'Computer Science');
     });
 
+    test('accepts project containing figures and transient fields without throwing unsupported fields error', () {
+      final proj = validProject();
+      proj['figures'] = [
+        {'id': 'fig_1', 'caption': 'Pipeline diagram', 'description': 'Overview'}
+      ];
+      proj['description'] = 'Some description';
+      proj['creation_mode'] = 'document';
+
+      final request = GenerationRequest.fromInputs(
+        project: proj,
+        sourceDraft: 'Source draft with attached figure.',
+      );
+      expect(request.project.title, 'Test Paper');
+    });
+
     test('rejects empty source draft', () {
       expect(
         () => GenerationRequest.fromInputs(

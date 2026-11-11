@@ -23,7 +23,9 @@ build/
 *.sqlite
 *.sqlite3
 *.docx
+*.pdf
 *.tmp
+/docs/generated_verification/
 
 # Flutter / Dart
 .dart_tool/

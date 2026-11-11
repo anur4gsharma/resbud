@@ -205,7 +205,7 @@ class GeminiProvider:
             if isinstance(data, dict):
                 # Ensure authoritative user references are preserved exactly as required by contract
                 data["references"] = [
-                    {"id": r.id, "text": r.text} for r in generation_input.brief.references
+                    r.model_dump(mode="json") for r in generation_input.brief.references
                 ]
                 data["schema_version"] = 1
                 if not data.get("review_warnings"):

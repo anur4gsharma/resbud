@@ -88,6 +88,101 @@ def extract_document_text(file_name: str, content_bytes: bytes) -> tuple[str, st
         )
 
 
+def extract_bibliographic_references(text: str) -> list[ReferenceInput]:
+    """Extract and parse structured references preserving multi-line metadata and source provenance."""
+    refs: list[ReferenceInput] = []
+
+    # 1. Bracketed citation blocks: [1], [2], [Robertson 2009]
+    pat_bracket = re.compile(
+        r"(?:^|\n)\s*\[(\d+|[A-Za-z]+(?:\s*et\s*al\.)?,?\s*\d{4})\]\s*([\s\S]*?)"
+        r"(?=(?:\n\s*\[(?:\d+|[A-Za-z]+(?:\s*et\s*al\.)?,?\s*\d{4})\]|\n\s*={3,}|\Z))"
+    )
+    matches = pat_bracket.findall(text)
+
+    # 2. Fallback: numbered list in references/bibliography section
+    if not matches:
+        ref_sec = re.search(
+            r"(?:REFERENCES|BIBLIOGRAPHY)\s*\n=*\s*\n([\s\S]*?)(?:\n\s*={3,}|\Z)",
+            text,
+            re.IGNORECASE,
+        )
+        sec_text = ref_sec.group(1) if ref_sec else text
+        pat_num = re.compile(
+            r"(?:^|\n)\s*(\d+)\.\s+([A-Z][\s\S]*?)(?=(?:\n\s*\d+\.\s+[A-Z]|\n\s*={3,}|\Z))"
+        )
+        matches = pat_num.findall(sec_text)
+
+    # 3. Fallback: line-by-line regex if still empty
+    if not matches:
+        line_matches = re.findall(
+            r"\[(\d+|[A-Za-z]+(?:\s*et\s*al\.)?,?\s*\d{4})\]\s*([^\n]+)", text
+        )
+        matches = [(m[0], m[1]) for m in line_matches]
+
+    for idx, (_marker, raw_body) in enumerate(matches[:50]):
+        clean = re.sub(r"\s+", " ", raw_body).strip()
+        clean = re.sub(
+            r"\s*(?:Verify final bibliographic|18\.\s*USING THIS DOSSIER).*$",
+            "",
+            clean,
+            flags=re.IGNORECASE,
+        ).strip()
+        if len(clean) < 10:
+            continue
+
+        doi_m = re.search(
+            r"(?:https?://(?:dx\.)?doi\.org/|doi:\s*)(10\.\d{4,9}/[-._;()/:A-Za-z0-9]+)",
+            clean,
+            re.IGNORECASE,
+        )
+        doi = doi_m.group(1).rstrip(".,;") if doi_m else None
+
+        url_m = re.search(r"(https?://[^\s]+)", clean)
+        url = (
+            url_m.group(1).rstrip(".,;")
+            if url_m
+            else (f"https://doi.org/{doi}" if doi else None)
+        )
+
+        year_m = re.search(r"\b(19\d{2}|20\d{2})\b", clean)
+        year = int(year_m.group(1)) if year_m else None
+
+        title_m = re.search(r"[“\"]([^”\"]+)[”\"]", clean)
+        title = title_m.group(1).strip().rstrip(".,;") if title_m else None
+
+        authors = None
+        venue = None
+        if title_m:
+            author_str = clean[: title_m.start()].strip().rstrip(",").strip()
+            if author_str:
+                authors = [
+                    a.strip()
+                    for a in re.split(r"\s*(?:,|&|\band\b)\s*", author_str)
+                    if a.strip()
+                ]
+            venue_str = clean[title_m.end() :].strip().lstrip(",").strip()
+            venue_str = re.sub(r"(?:DOI:?\s*|https?://)\S+", "", venue_str).strip().rstrip(",. ")
+            if venue_str:
+                venue = venue_str
+
+        refs.append(
+            ReferenceInput(
+                id=f"ref_{idx + 1}",
+                text=clean[:2000],
+                raw_text=clean[:4000],
+                title=title,
+                authors=authors,
+                year=year,
+                venue=venue,
+                doi=doi,
+                url=url,
+                provenance="extracted",
+                verification_status="verified" if doi else "unverified",
+            )
+        )
+    return refs
+
+
 def assess_research_quality(request: ResearchAnalysisRequest) -> ResearchAnalysisResponse:
     """Analyze research material, evaluate sufficiency, and generate dynamic outline."""
     text = request.source_material.strip()
@@ -307,12 +402,7 @@ def assess_research_quality(request: ResearchAnalysisRequest) -> ResearchAnalysi
         )
 
     # Check for references
-    refs_found: list[ReferenceInput] = []
-    ref_matches = re.findall(r"\[(\d+|[A-Za-z]+(?:\s*et\s*al\.)?,?\s*\d{4})\]\s*([^\n]+)", text)
-    for idx, (_marker, ref_text) in enumerate(ref_matches[:50]):
-        clean_text = ref_text.strip()
-        if len(clean_text) >= 5:
-            refs_found.append(ReferenceInput(id=f"ref_{idx + 1}", text=clean_text))
+    refs_found: list[ReferenceInput] = extract_bibliographic_references(text)
 
     if not refs_found:
         warnings.append(

@@ -22,7 +22,20 @@
     "references": [
       {
         "id": "ref_1",
-        "text": "  Example Author. (2025). Example title.  "
+        "text": "  Example Author. (2025). Example title.  ",
+        "raw_text": null,
+        "authors": null,
+        "year": null,
+        "title": null,
+        "venue": null,
+        "volume": null,
+        "issue": null,
+        "pages": null,
+        "publisher": null,
+        "doi": null,
+        "url": null,
+        "provenance": null,
+        "verification_status": null
       }
     ],
     "review_warnings": [

@@ -19,6 +19,11 @@ from PIL import Image as PILImage
 from resbud_api.core.errors import ResbudError
 from resbud_api.domain.models import PaperDraft
 from resbud_api.services.chart_generator import render_academic_chart_from_spec
+from resbud_api.services.markdown_renderer import (
+    clean_heading_text,
+    parse_markdown_blocks,
+    render_blocks_to_docx,
+)
 
 MAX_EXPORT_BYTES = 8 * 1024 * 1024
 DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -148,22 +153,44 @@ def _create_document(paper: PaperDraft) -> Any:
     _ensure_run_style(kw_p, bold=True)
     _add_text_paragraph(document, ", ".join(paper.keywords))
 
-    for section in paper.sections:
-        sec_p = document.add_heading(section.heading, level=1)
+    body_sections = [
+        sec
+        for sec in paper.sections
+        if sec.id.lower() not in ("references", "bibliography")
+        and sec.heading.strip().lower() not in ("references", "bibliography", "6. references")
+    ]
+
+    for sec_idx, section in enumerate(body_sections, start=1):
+        clean_title = clean_heading_text(section.heading)
+        heading_text = f"{sec_idx}. {clean_title}"
+        sec_p = document.add_heading(heading_text, level=1)
         _ensure_run_style(sec_p, bold=True)
-        _render_section_content(document, section.content)
+        blocks = parse_markdown_blocks(section.content)
+        render_blocks_to_docx(
+            document,
+            blocks,
+            section_index=sec_idx,
+            numbered=True,
+            academic_font="Times New Roman",
+        )
 
     if paper.references:
         ref_heading = document.add_heading("References", level=1)
         _ensure_run_style(ref_heading, bold=True)
-        for reference in paper.references:
-            paragraph = document.add_paragraph(reference.text)
+        for ref_idx, reference in enumerate(paper.references, start=1):
+            ref_text = reference.text.strip()
+            if not re.match(r"^\[\d+\]", ref_text) and not re.match(r"^\d+\.", ref_text):
+                ref_text = f"[{ref_idx}] {ref_text}"
+            paragraph = document.add_paragraph()
             paragraph.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            paragraph.paragraph_format.left_indent = Inches(0.25)
-            paragraph.paragraph_format.first_line_indent = Inches(-0.25)
+            paragraph.paragraph_format.left_indent = Inches(0.3)
+            paragraph.paragraph_format.first_line_indent = Inches(-0.3)
             paragraph.paragraph_format.space_after = Pt(4)
             paragraph.paragraph_format.line_spacing = 1.15
-            _ensure_run_style(paragraph)
+            run = paragraph.add_run(ref_text)
+            run.font.name = "Times New Roman"
+            run.font.size = Pt(9.5)
+            run.font.color.rgb = RGBColor(0, 0, 0)
 
     return document
 

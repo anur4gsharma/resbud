@@ -24,7 +24,8 @@ class GenerationRequest {
       ..remove('references')
       ..remove('preferences')
       ..remove('description')
-      ..remove('creation_mode');
+      ..remove('creation_mode')
+      ..remove('figures');
     final projectPayload = ProjectContextPayload.fromJson(context);
     final references = _list(project['references'], 'project.references')
         .map((value) => ReferencePayload.fromJson(_map(value, 'reference')))
@@ -173,13 +174,61 @@ class ProjectContextPayload {
 }
 
 class ReferencePayload {
-  const ReferencePayload({required this.id, required this.text});
+  const ReferencePayload({
+    required this.id,
+    required this.text,
+    this.rawText,
+    this.authors,
+    this.year,
+    this.title,
+    this.venue,
+    this.volume,
+    this.issue,
+    this.pages,
+    this.publisher,
+    this.doi,
+    this.url,
+    this.provenance,
+    this.verificationStatus,
+  });
 
   final String id;
   final String text;
+  final String? rawText;
+  final List<String>? authors;
+  final int? year;
+  final String? title;
+  final String? venue;
+  final String? volume;
+  final String? issue;
+  final String? pages;
+  final String? publisher;
+  final String? doi;
+  final String? url;
+  final String? provenance;
+  final String? verificationStatus;
 
   factory ReferencePayload.fromJson(Map<String, Object?> json) {
-    _requireKeys(json, const {'id', 'text'}, 'reference');
+    _requireKeys(
+      json,
+      const {'id', 'text'},
+      'reference',
+      optional: const {
+        'raw_text',
+        'authors',
+        'year',
+        'title',
+        'venue',
+        'volume',
+        'issue',
+        'pages',
+        'publisher',
+        'doi',
+        'url',
+        'provenance',
+        'verification_status',
+      },
+    );
     final id = _boundedString(json['id'], 'reference.id', 1, 40);
     if (!_referenceIdPattern.hasMatch(id)) {
       throw const FormatException('Reference IDs may use letters, numbers, underscores, and hyphens.');
@@ -187,10 +236,39 @@ class ReferencePayload {
     return ReferencePayload(
       id: id,
       text: _boundedString(json['text'], 'reference.text', 1, 2000),
+      rawText: json['raw_text'] as String?,
+      authors: (json['authors'] as List?)?.map((e) => e.toString()).toList(),
+      year: json['year'] as int?,
+      title: json['title'] as String?,
+      venue: json['venue'] as String?,
+      volume: json['volume'] as String?,
+      issue: json['issue'] as String?,
+      pages: json['pages'] as String?,
+      publisher: json['publisher'] as String?,
+      doi: json['doi'] as String?,
+      url: json['url'] as String?,
+      provenance: json['provenance'] as String?,
+      verificationStatus: json['verification_status'] as String?,
     );
   }
 
-  Map<String, Object?> toJson() => {'id': id, 'text': text};
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'text': text,
+    if (rawText != null) 'raw_text': rawText,
+    if (authors != null) 'authors': authors,
+    if (year != null) 'year': year,
+    if (title != null) 'title': title,
+    if (venue != null) 'venue': venue,
+    if (volume != null) 'volume': volume,
+    if (issue != null) 'issue': issue,
+    if (pages != null) 'pages': pages,
+    if (publisher != null) 'publisher': publisher,
+    if (doi != null) 'doi': doi,
+    if (url != null) 'url': url,
+    if (provenance != null) 'provenance': provenance,
+    if (verificationStatus != null) 'verification_status': verificationStatus,
+  };
 }
 
 class PaperPreferencesPayload {

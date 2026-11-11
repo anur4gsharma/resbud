@@ -93,6 +93,48 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 2000
+          },
+          "raw_text": {
+            "type": ["string", "null"]
+          },
+          "authors": {
+            "type": ["array", "null"],
+            "items": { "type": "string" }
+          },
+          "year": {
+            "type": ["integer", "null"]
+          },
+          "title": {
+            "type": ["string", "null"]
+          },
+          "venue": {
+            "type": ["string", "null"]
+          },
+          "volume": {
+            "type": ["string", "null"]
+          },
+          "issue": {
+            "type": ["string", "null"]
+          },
+          "pages": {
+            "type": ["string", "null"]
+          },
+          "publisher": {
+            "type": ["string", "null"]
+          },
+          "doi": {
+            "type": ["string", "null"]
+          },
+          "url": {
+            "type": ["string", "null"]
+          },
+          "provenance": {
+            "type": ["string", "null"],
+            "enum": ["user_supplied", "extracted", "verified", "placeholder", null]
+          },
+          "verification_status": {
+            "type": ["string", "null"],
+            "enum": ["unverified", "verified", "incomplete", "disputed", null]
           }
         }
       }

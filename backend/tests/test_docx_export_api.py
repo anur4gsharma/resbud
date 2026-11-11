@@ -58,12 +58,12 @@ def test_export_returns_reopenable_docx_in_paper_order_with_safe_headers() -> No
         "First abstract line.\nSecond abstract line.",
         "Keywords",
         "workflow, evaluation",
-        "Results",
+        "1. Results",
         "[INSERT EXPERIMENTAL RESULTS]",
-        "Introduction",
+        "2. Introduction",
         "A draft section.",
         "References",
-        "  Example Author. (2025). Example title.  ",
+        "[1] Example Author. (2025). Example title.",
     ]
     assert paragraphs[0].style.name == "Title"
     assert paragraphs[1].style.name == "Heading 1"

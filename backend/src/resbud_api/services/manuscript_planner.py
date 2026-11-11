@@ -86,20 +86,53 @@ def _extract_terminology_glossary(brief: ResearchBrief) -> dict[str, str]:
     return glossary
 
 
+def _clean_academic_phrase(text: str, fallback: str) -> str:
+    cleaned = (text or "").strip()
+    residue_patterns = [
+        r"synthesize and evaluate the research claims presented in the source document\.?",
+        r"synthesize and evaluate the research claims\.?",
+        r"insert your verified empirical findings.*",
+        r"investigation and manuscript synthesis based on the supplied research dossier\.?",
+        r"write a detailed introduction.*",
+        r"add relevant discussion.*",
+        r"provide more information.*",
+    ]
+    for pattern in residue_patterns:
+        cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE).strip()
+    return cleaned if cleaned else fallback
+
+
 def _synthesize_abstract(brief: ResearchBrief, target_words: int) -> str:
     title = _normalize_title(brief)
     field = brief.project.research_field or "scientific inquiry"
-    question = brief.project.research_question or "the core research problem"
-    contribution = brief.project.claimed_contribution or "a structured methodological evaluation"
+    question = _clean_academic_phrase(
+        brief.project.research_question,
+        f"the comparative trade-offs in {title.lower()}",
+    )
+    contribution = _clean_academic_phrase(
+        brief.project.claimed_contribution,
+        "a controlled comparative evaluation and reproducible benchmark architecture",
+    )
     method = brief.project.methodology or "a rigorous empirical comparison"
-    results = brief.project.results or "quantitative improvements across primary benchmark indicators"
     limitations = brief.project.limitations or "specific boundary constraints and domain assumptions"
+
+    has_results = (
+        brief.project.results_status == "provided"
+        and bool(brief.project.results and brief.project.results.strip())
+    )
+    if has_results:
+        findings_clause = f"Empirical findings demonstrate that {brief.project.results.strip().lower()}."
+    else:
+        findings_clause = (
+            "Although empirical benchmarking experiments remain proposed without collected evaluation data, "
+            "the protocol formalizes standardized baseline controls, evaluation metrics, and operational boundaries."
+        )
 
     abstract = (
         f"This study investigates {question} within the context of {field}. Addressing key challenges in "
         f"{title.lower()}, we present {contribution}. Through {method.lower()}, we examine operational behavior, "
-        f"systematic failure modes, and statistical indicators under controlled experimental conditions. Empirical findings demonstrate "
-        f"that {results.lower()}. While {limitations.lower()} present specific boundary conditions for deployment, these results "
+        f"systematic failure modes, and statistical indicators under controlled experimental conditions. {findings_clause} "
+        f"While {limitations.lower()} present specific boundary conditions for deployment, these results "
         f"provide verifiable insights and establish foundational guidance for subsequent methodological refinement and reproducible scientific deployment."
     )
     return abstract

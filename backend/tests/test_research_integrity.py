@@ -62,7 +62,8 @@ def test_prompt_is_versioned_and_keeps_injection_inside_untrusted_json_data() ->
 
     response = _post(_fake_app(), payload)
     assert response.status_code == 200
-    assert response.json()["paper"]["references"] == REQUEST["references"]
+    refs = response.json()["paper"]["references"]
+    assert [{"id": r["id"], "text": r["text"]} for r in refs] == REQUEST["references"]
 
 
 def test_source_request_to_invent_a_citation_does_not_add_a_reference() -> None:
@@ -119,7 +120,8 @@ def test_incomplete_reference_is_retained_and_flagged() -> None:
     response = _post(_fake_app(), payload)
 
     assert response.status_code == 200
-    assert response.json()["paper"]["references"] == payload["references"]
+    refs = response.json()["paper"]["references"]
+    assert [{"id": r["id"], "text": r["text"]} for r in refs] == payload["references"]
     assert "REFERENCE_INCOMPLETE" in _warning_codes(response)
 
 

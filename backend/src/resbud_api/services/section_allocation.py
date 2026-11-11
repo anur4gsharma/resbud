@@ -145,9 +145,9 @@ def compute_adaptive_section_budgets(
         # If user explicitly requested sections, map to existing or custom
         mapped_weights: dict[str, float] = {}
         for s in desired_sections:
-            if s == "abstract":
+            canonical = s.replace("-", "_").lower()
+            if canonical in ("abstract", "references", "bibliography"):
                 continue
-            canonical = s.replace("-", "_")
             if canonical in base_weights:
                 mapped_weights[canonical] = base_weights[canonical]
             elif "intro" in canonical:
@@ -175,7 +175,7 @@ def compute_adaptive_section_budgets(
     # 7. Construct SectionBlueprints with Detailed Heading and Purpose
     section_specs: dict[str, dict[str, Any]] = {
         "introduction": {
-            "heading": "1. Introduction and Problem Statement",
+            "heading": "Introduction and Problem Statement",
             "purpose": "Establish scientific motivation, operational context, specific research questions, and contributions.",
             "subsections": [
                 ("Context & Motivation", "Broader scientific landscape and core engineering challenges."),
@@ -184,7 +184,7 @@ def compute_adaptive_section_budgets(
             ],
         },
         "related_work": {
-            "heading": "2. Related Work and Theoretical Foundations",
+            "heading": "Related Work and Theoretical Foundations",
             "purpose": "Situate work within existing academic literature, contrasting prior methodologies with the current approach.",
             "subsections": [
                 ("Baseline Approaches", "Historical algorithms and their scaling bounds."),
@@ -193,7 +193,7 @@ def compute_adaptive_section_budgets(
             ],
         },
         "literature_review": {
-            "heading": "2. Literature Review",
+            "heading": "Literature Review",
             "purpose": "Comprehensive review of theoretical background and comparative literature.",
             "subsections": [
                 ("Foundational Concepts", "Core conceptual underpinnings."),
@@ -202,7 +202,7 @@ def compute_adaptive_section_budgets(
             ],
         },
         "methodology": {
-            "heading": "3. System Architecture and Methodology",
+            "heading": "System Architecture and Methodology",
             "purpose": "Detail step-by-step technical architecture, parameters, data sampling protocols, and evaluation metrics.",
             "subsections": [
                 ("System Architecture & Pipeline", "End-to-end component flow, module interfaces, and representations."),
@@ -211,7 +211,7 @@ def compute_adaptive_section_budgets(
             ],
         },
         "results": {
-            "heading": "4. Empirical Results and Quantitative Evaluation",
+            "heading": "Empirical Results and Quantitative Evaluation",
             "purpose": "Present empirical measurements, paired comparison tables, statistical significance tests, and ablation insights.",
             "subsections": [
                 ("Primary Benchmark Findings", "Comparative performance tables against baseline conditions."),
@@ -220,7 +220,7 @@ def compute_adaptive_section_budgets(
             ],
         },
         "discussion": {
-            "heading": "5. Discussion and Critical Limitations",
+            "heading": "Discussion and Critical Limitations",
             "purpose": "Interpret findings, evaluate practical trade-offs, state explicit assumptions, and disclose limitations.",
             "subsections": [
                 ("Analytical Interpretation", "Theoretical implications of observed performance differentials."),
@@ -229,7 +229,7 @@ def compute_adaptive_section_budgets(
             ],
         },
         "conclusion": {
-            "heading": "6. Conclusion and Future Directions",
+            "heading": "Conclusion and Future Directions",
             "purpose": "Synthesize core conclusions, summarize validated takeaways, and outline prioritized future research avenues.",
             "subsections": [
                 ("Summary of Contributions", "Concise restatement of validated empirical takeaways."),
