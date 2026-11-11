@@ -83,7 +83,17 @@ void main() {
     FocusManager.instance.primaryFocus?.unfocus();
     var iterations = 0;
     while (target.evaluate().isEmpty && iterations < 30) {
-      final topLeft = tester.getTopLeft(find.byType(ListView).first);
+      final listViews = find.byType(ListView);
+      final scrollables = find.byType(Scrollable);
+      final targetScrollable = listViews.evaluate().isNotEmpty
+          ? listViews.first
+          : (scrollables.evaluate().isNotEmpty ? scrollables.first : null);
+      if (targetScrollable == null) {
+        await tester.pump(const Duration(milliseconds: 100));
+        iterations++;
+        continue;
+      }
+      final topLeft = tester.getTopLeft(targetScrollable);
       await tester.dragFrom(
         topLeft + const Offset(15, 200),
         const Offset(0, -250),
@@ -185,9 +195,12 @@ void main() {
     // 5. Submit to backend using fake provider
     await tester.tap(find.text('Generate'));
     await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
+    for (var i = 0; i < 30 && fakeApi.callCount == 0; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump();
+    }
     await tester.pumpAndSettle();
 
     expect(fakeApi.callCount, 1);
@@ -424,9 +437,12 @@ void main() {
 
     await tester.tap(find.text('Generate'));
     await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
+    for (var i = 0; i < 30 && find.textContaining('timed out').evaluate().isEmpty; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump();
+    }
     await tester.pumpAndSettle();
 
     // Verify error surfaced and input draft preserved
@@ -485,9 +501,12 @@ void main() {
 
     await tester.tap(find.text('Generate'));
     await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
+    for (var i = 0; i < 30 && find.text('Review generated draft').evaluate().isEmpty; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump();
+    }
     await tester.pumpAndSettle();
 
     // Review dialog -> save paper

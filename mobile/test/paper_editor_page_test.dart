@@ -582,9 +582,12 @@ void main() {
     expect(exportSavedBtn, findsOneWidget);
     await tester.tap(exportSavedBtn);
     await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
+    for (var i = 0; i < 20 && fakeExportApi.exportCallCount == 0; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump();
+    }
     await tester.pumpAndSettle();
 
     // The exported paper content must match the SAVED version 1 content, NOT the unsaved widget content!
@@ -620,9 +623,12 @@ void main() {
     expect(saveAndExportBtn, findsOneWidget);
     await tester.tap(saveAndExportBtn);
     await tester.pump();
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
-    );
+    for (var i = 0; i < 20 && fakeExportApi.exportCallCount == 0; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await tester.pump();
+    }
     await tester.pumpAndSettle();
 
     // Repository now has Version 2
