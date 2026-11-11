@@ -466,7 +466,7 @@ class PaperSectionPayload {
     return PaperSectionPayload(
       id: id,
       heading: _boundedString(json['heading'], 'section.heading', 1, 150),
-      content: _boundedString(json['content'], 'section.content', 0, 30000),
+      content: _boundedString(json['content'], 'section.content', 0, 25000000),
       state: _enumValue(json['state'], 'section.state', const [
         'draft', 'needs_input', 'not_applicable',
       ]),

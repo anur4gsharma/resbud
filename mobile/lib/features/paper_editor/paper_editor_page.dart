@@ -2201,7 +2201,8 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
               controller: controller,
               minLines: 4,
               maxLines: null,
-              maxLength: 30000,
+              maxLength: 25000000,
+              buildCounter: (context, {required currentLength, required isFocused, maxLength}) => null,
               decoration: InputDecoration(
                 labelText: 'Content (${section.heading})',
                 hintText: isNotApplicable

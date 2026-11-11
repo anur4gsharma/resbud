@@ -257,3 +257,33 @@ def test_unconducted_results_produce_hypothesized_protocol_not_fabricated_claims
     # Abstract must not claim empirical performance gains
     assert "empirical findings demonstrate" not in plan.abstract.lower()
     assert "remain proposed without collected evaluation data" in plan.abstract.lower()
+
+
+def test_large_section_with_embedded_figures_exports_successfully() -> None:
+    tiny_png_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
+    large_figure_md = f"![Figure 1: Benchmark](data:image/png;base64,{tiny_png_b64})\n\n"
+    large_content = ("Context discussion paragraph.\n\n" + large_figure_md) * 350
+    assert len(large_content) > 30000
+
+    paper = PaperDraft(
+        schema_version=1,
+        title="High Resolution Benchmark Figures",
+        abstract="Evaluating multi-figure section rendering.",
+        keywords=["figures", "evaluation"],
+        sections=[
+            PaperSection(
+                id="results",
+                heading="Results",
+                content=large_content,
+                state="draft",
+            )
+        ],
+        references=[],
+        review_warnings=[],
+    )
+
+    docx_bytes = export_paper_docx(paper)
+    assert len(docx_bytes) > 500
+
+    pdf_bytes = export_paper_pdf(paper)
+    assert len(pdf_bytes) > 500

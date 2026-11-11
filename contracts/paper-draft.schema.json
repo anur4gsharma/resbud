@@ -61,7 +61,7 @@
           },
           "content": {
             "type": "string",
-            "maxLength": 30000
+            "maxLength": 25000000
           },
           "state": {
             "type": "string",

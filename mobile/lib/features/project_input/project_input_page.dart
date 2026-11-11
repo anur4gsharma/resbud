@@ -2999,7 +2999,15 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
 
   Widget _buildFigureItemCard(int index) {
     final fig = _attachedFigures[index];
-    Uint8List? bytes = fig['bytes'] as Uint8List?;
+    Uint8List? bytes;
+    if (fig['bytes'] is Uint8List) {
+      bytes = fig['bytes'] as Uint8List;
+    } else if (fig['bytes'] is List) {
+      try {
+        bytes = Uint8List.fromList((fig['bytes'] as List).map((e) => (e as num).toInt()).toList());
+        fig['bytes'] = bytes;
+      } catch (_) {}
+    }
     if (bytes == null && fig['base64'] is String) {
       try {
         final b64 = (fig['base64'] as String).split('base64,').last;

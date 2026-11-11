@@ -785,6 +785,17 @@ void main() {
         expect(section.state, state);
       }
     });
+
+    test('accepts section content exceeding 30,000 characters for embedded figures', () {
+      final largeContent = 'Prose ' + ('A' * 60000);
+      final section = PaperSectionPayload.fromJson({
+        'id': 'methodology',
+        'heading': 'Methodology',
+        'content': largeContent,
+        'state': 'draft',
+      });
+      expect(section.content.length, 60006);
+    });
   });
 
   group('ReviewWarningPayload', () {

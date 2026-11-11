@@ -130,7 +130,7 @@ class ReviewWarning(ContractModel):
 class PaperSection(ContractModel):
     id: SectionId
     heading: Annotated[str, Field(min_length=1, max_length=150)]
-    content: Annotated[str, Field(max_length=30000)]
+    content: Annotated[str, Field(max_length=25000000)]
     state: SectionState
 
 

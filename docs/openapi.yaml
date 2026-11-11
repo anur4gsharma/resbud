@@ -315,7 +315,7 @@ components:
       properties:
         id: { type: string, pattern: '^[a-z][a-z0-9_]{1,39}$' }
         heading: { type: string, minLength: 1, maxLength: 150 }
-        content: { type: string, maxLength: 30000 }
+        content: { type: string, maxLength: 25000000 }
         state: { type: string, enum: [draft, needs_input, not_applicable] }
     PaperDraft:
       description: Section IDs must be unique within one paper draft.
