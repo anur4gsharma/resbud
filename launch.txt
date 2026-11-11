@@ -1,0 +1,2 @@
+backend : cd backend && uv run uvicorn resbud_api.main:app --reload;
+frontend : cd mobile && flutter run;
