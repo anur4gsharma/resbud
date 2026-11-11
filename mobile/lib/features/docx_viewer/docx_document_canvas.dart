@@ -342,8 +342,7 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
         // Check for block math equation
         if ((trimmed.startsWith(r'$$') && trimmed.endsWith(r'$$') && trimmed.length > 4) ||
             (trimmed.startsWith(r'\[') && trimmed.endsWith(r'\]') && trimmed.length > 4) ||
-            (trimmed.startsWith(r'\begin{equation}') && trimmed.endsWith(r'\end{equation}')) ||
-            (trimmed.startsWith(r'\begin{align}') && trimmed.endsWith(r'\end{align}'))) {
+            RegExp(r'^\\begin\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?\}[\s\S]*?\\end\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?\}$').hasMatch(trimmed)) {
           return _buildMathEquationBlock(trimmed, zoom);
         }
 
@@ -396,7 +395,7 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
       color: const Color(0xFF111111),
     );
 
-    if (!text.contains(r'$') && !text.contains(r'\(') && !text.contains(r'\[')) {
+    if (!text.contains(r'$') && !text.contains(r'\(') && !text.contains(r'\[') && !text.contains('`')) {
       return Padding(
         padding: EdgeInsets.only(bottom: 8.0 * zoom),
         child: Text(
@@ -407,8 +406,14 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
       );
     }
 
-    final mathRegex = RegExp(r'(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\$[^$\n]+\$|\\\([\s\S]*?\\\))');
-    final matches = mathRegex.allMatches(text);
+    final inlineTokenRegex = RegExp(
+      r'(`[^`\n]+`)|'
+      r'(\\\$)|'
+      r'(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\])|'
+      r'(\\\([\s\S]*?\\\))|'
+      r'((?<!\\)\$(?!\s)(?!\d+(?:\s|[.,;:!?]|$))(?:[^$\n\\]|\\.)+?(?<!\s)\$(?!\d))',
+    );
+    final matches = inlineTokenRegex.allMatches(text);
     if (matches.isEmpty) {
       return Padding(
         padding: EdgeInsets.only(bottom: 8.0 * zoom),
@@ -431,35 +436,53 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
         ));
       }
 
-      final rawMath = match.group(0)!;
-      String cleanLatex = rawMath;
-      if (rawMath.startsWith(r'$$') && rawMath.endsWith(r'$$')) {
-        cleanLatex = rawMath.substring(2, rawMath.length - 2).trim();
-      } else if (rawMath.startsWith(r'\[') && rawMath.endsWith(r'\]')) {
-        cleanLatex = rawMath.substring(2, rawMath.length - 2).trim();
-      } else if (rawMath.startsWith(r'$') && rawMath.endsWith(r'$')) {
-        cleanLatex = rawMath.substring(1, rawMath.length - 1).trim();
-      } else if (rawMath.startsWith(r'\(') && rawMath.endsWith(r'\)')) {
-        cleanLatex = rawMath.substring(2, rawMath.length - 2).trim();
+      final rawToken = match.group(0)!;
+      // 1. Code token
+      if (match.group(1) != null) {
+        spans.add(TextSpan(
+          text: rawToken.substring(1, rawToken.length - 1),
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 9.5 * zoom,
+            backgroundColor: Colors.black.withValues(alpha: 0.05),
+          ),
+        ));
       }
+      // 2. Escaped dollar
+      else if (match.group(2) != null) {
+        spans.add(TextSpan(text: r'$', style: bodyStyle));
+      }
+      // 3. Math tokens (display, paren, dollar)
+      else {
+        String cleanLatex = rawToken;
+        if (rawToken.startsWith(r'$$') && rawToken.endsWith(r'$$')) {
+          cleanLatex = rawToken.substring(2, rawToken.length - 2).trim();
+        } else if (rawToken.startsWith(r'\[') && rawToken.endsWith(r'\]')) {
+          cleanLatex = rawToken.substring(2, rawToken.length - 2).trim();
+        } else if (rawToken.startsWith(r'$') && rawToken.endsWith(r'$')) {
+          cleanLatex = rawToken.substring(1, rawToken.length - 1).trim();
+        } else if (rawToken.startsWith(r'\(') && rawToken.endsWith(r'\)')) {
+          cleanLatex = rawToken.substring(2, rawToken.length - 2).trim();
+        }
 
-      spans.add(
-        WidgetSpan(
-          alignment: PlaceholderAlignment.middle,
-          child: Math.tex(
-            cleanLatex,
-            mathStyle: MathStyle.text,
-            textStyle: TextStyle(
-              fontSize: 10.5 * zoom,
-              color: Colors.black,
-            ),
-            onErrorFallback: (_) => Text(
-              rawMath,
-              style: bodyStyle.copyWith(fontStyle: FontStyle.italic),
+        spans.add(
+          WidgetSpan(
+            alignment: PlaceholderAlignment.middle,
+            child: Math.tex(
+              cleanLatex,
+              mathStyle: MathStyle.text,
+              textStyle: TextStyle(
+                fontSize: 10.5 * zoom,
+                color: Colors.black,
+              ),
+              onErrorFallback: (_) => Text(
+                rawToken,
+                style: bodyStyle.copyWith(fontStyle: FontStyle.italic),
+              ),
             ),
           ),
-        ),
-      );
+        );
+      }
 
       lastIndex = match.end;
     }

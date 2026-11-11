@@ -10,13 +10,22 @@ from __future__ import annotations
 import base64
 import html
 import io
+import os
 import re
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
+import latex2mathml.converter
 import math2docx
+import mathml2omml
+import matplotlib
+import matplotlib.pyplot as plt
+
+matplotlib.use("Agg")
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import parse_xml
 from docx.shared import Inches, Pt, RGBColor
 from PIL import Image as PILImage
 from reportlab.lib import colors
@@ -105,8 +114,11 @@ MarkdownBlock = (
 # --- Inline Token Regex ---
 
 INLINE_TOKEN_RE = re.compile(
-    r"(?P<math>\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\$[^$\n]+\$|\\\([\s\S]*?\\\))|"
     r"(?P<code>`[^`\n]+`)|"
+    r"(?P<escaped_dollar>\\\$)|"
+    r"(?P<math_display>\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\])|"
+    r"(?P<math_paren>\\\([\s\S]*?\\\))|"
+    r"(?P<math_dollar>(?<!\\)\$(?!\s)(?!\d+(?:\s|[.,;:!?]|$))((?:[^$\n\\]|\\.)+?)(?<!\s)\$(?!\d))|"
     r"(?P<bold_italic>\*\*\*[^*]+\*\*\*|___[^_]+___)|"
     r"(?P<bold>\*\*[^*]+\*\*|__[^_]+__)|"
     r"(?P<italic>\*[^*\n]+\*|(?<=\s)_[^_\n]+_(?=\s|[.,;:!?]|$))|"
@@ -114,7 +126,7 @@ INLINE_TOKEN_RE = re.compile(
 )
 
 BLOCK_MATH_PATTERN = re.compile(
-    r"^(?:\$\$([\s\S]*?)\$\$|\\\[([\s\S]*?)\\\]|\\begin\{(?:equation|align|gather)\*?}([\s\S]*?)\\end\{(?:equation|align|gather)\*?})$"
+    r"^(?:\$\$([\s\S]*?)\$\$|\\\[([\s\S]*?)\\\]|\\begin\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?}([\s\S]*?)\\end\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?})$"
 )
 
 
@@ -131,16 +143,18 @@ def parse_inline_spans(text: str) -> list[InlineSpan]:
 
         kind = match.lastgroup
         raw = match.group(0)
-        if kind == "math":
+        if kind == "escaped_dollar":
+            spans.append(InlineSpan(kind="text", content="$"))
+        elif kind in ("math", "math_display", "math_paren", "math_dollar"):
             clean = raw
             if (raw.startswith("$$") and raw.endswith("$$")) or (
                 raw.startswith(r"\[") and raw.endswith(r"\]")
             ):
                 clean = raw[2:-2].strip()
-            elif (raw.startswith("$") and raw.endswith("$")) or (
-                raw.startswith(r"\(") and raw.endswith(r"\)")
-            ):
-                clean = raw[1:-1].strip() if raw.startswith("$") else raw[2:-2].strip()
+            elif raw.startswith(r"\(") and raw.endswith(r"\)"):
+                clean = raw[2:-2].strip()
+            elif raw.startswith("$") and raw.endswith("$"):
+                clean = raw[1:-1].strip()
             spans.append(InlineSpan(kind="math", content=clean))
         elif kind == "code":
             spans.append(InlineSpan(kind="code", content=raw[1:-1]))
@@ -243,6 +257,24 @@ def parse_markdown_blocks(content: str) -> list[MarkdownBlock]:
             blocks.append(MathBlock(latex="\n".join(math_lines).strip()))
             continue
 
+        # Multiline block environment \begin{env} ... \end{env}
+        env_match = re.match(r"^\\begin\{([a-zA-Z0-9*]+)\}", trimmed)
+        if env_match:
+            env_name = env_match.group(1)
+            math_lines = [lines[i]]
+            if not trimmed.endswith(f"\\end{{{env_name}}}"):
+                i += 1
+                while i < n and f"\\end{{{env_name}}}" not in lines[i]:
+                    math_lines.append(lines[i])
+                    i += 1
+                if i < n:
+                    math_lines.append(lines[i])
+                    i += 1
+            else:
+                i += 1
+            blocks.append(MathBlock(latex="\n".join(math_lines).strip()))
+            continue
+
         # 3. Figure (![caption](src))
         fig_match = re.match(r"^!\[(.*?)\]\((.*?)\)$", trimmed)
         if fig_match:
@@ -324,6 +356,7 @@ def parse_markdown_blocks(content: str) -> list[MarkdownBlock]:
             and not re.match(r"^[*+-]\s+", lines[i].strip())
             and not re.match(r"^\d+\.\s+", lines[i].strip())
             and not BLOCK_MATH_PATTERN.match(lines[i].strip())
+            and not re.match(r"^\\begin\{[a-zA-Z0-9*]+\}", lines[i].strip())
             and lines[i].strip() not in ("$$", r"\[")
         ):
             para_lines.append(lines[i].strip())
@@ -349,7 +382,6 @@ def render_blocks_to_docx(
     """Render structured Markdown blocks into a Word document with hierarchical numbering."""
     sub_index = 0
     subsub_index = 0
-    pure_black = RGBColor(0, 0, 0)
 
     for block in blocks:
         if isinstance(block, HeadingBlock):
@@ -417,13 +449,7 @@ def render_blocks_to_docx(
             p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p.paragraph_format.space_before = Pt(8)
             p.paragraph_format.space_after = Pt(8)
-            try:
-                math2docx.add_math(p, block.latex)
-            except Exception:
-                run = p.add_run(block.latex)
-                run.font.name = academic_font
-                run.font.italic = True
-                run.font.color.rgb = pure_black
+            _render_math_to_docx(p, block.latex, academic_font)
 
         elif isinstance(block, TableBlock):
             _render_table_to_docx(document, block.headers, block.rows, academic_font)
@@ -442,6 +468,46 @@ def render_blocks_to_docx(
                 _render_figure_bytes_to_docx(document, chart_bytes, caption, academic_font)
 
 
+def _render_math_to_docx(paragraph: Any, latex_str: str, font_name: str) -> None:
+    """Render LaTeX equation into Word paragraph using native OMML, with resilient fallback."""
+    clean = latex_str.strip()
+    if clean.startswith("$$") and clean.endswith("$$") and len(clean) > 4:
+        clean = clean[2:-2].strip()
+    elif clean.startswith(r"\[") and clean.endswith(r"\]") and len(clean) > 4:
+        clean = clean[2:-2].strip()
+    elif clean.startswith(r"\(") and clean.endswith(r"\)") and len(clean) > 4:
+        clean = clean[2:-2].strip()
+
+    # Pre-clean alignment tokens for latex2mathml compatibility
+    sanitized = clean
+    if "&" in sanitized and ("aligned" in sanitized or "align" in sanitized):
+        sanitized = re.sub(r"\\begin\{(?:align|aligned)\*?\}", r"\\begin{matrix}", sanitized)
+        sanitized = re.sub(r"\\end\{(?:align|aligned)\*?\}", r"\\end{matrix}", sanitized)
+        sanitized = re.sub(r"&=", "=", sanitized)
+
+    try:
+        mathml = latex2mathml.converter.convert(sanitized)
+        mathml = mathml.replace("<mi>&</mi>", "").replace("<mi>&amp;</mi>", "")
+        omml = mathml2omml.convert(mathml)
+        xml = f'<p xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">{omml}</p>'
+        paragraph._p.append(parse_xml(xml)[0])
+        return
+    except Exception:
+        pass
+
+    try:
+        math2docx.add_math(paragraph, clean)
+        return
+    except Exception:
+        pass
+
+    # High fidelity styled fallback
+    run = paragraph.add_run(clean)
+    run.font.name = font_name
+    run.font.italic = True
+    run.font.color.rgb = RGBColor(0, 0, 0)
+
+
 def _render_spans_to_docx_paragraph(
     paragraph: Any,
     spans: list[InlineSpan],
@@ -451,15 +517,8 @@ def _render_spans_to_docx_paragraph(
     pure_black = RGBColor(0, 0, 0)
     for span in spans:
         if span.kind == "math":
-            try:
-                math2docx.add_math(paragraph, span.content)
-                continue
-            except Exception:
-                run = paragraph.add_run(span.content)
-                run.font.name = font_name
-                run.font.italic = True
-                run.font.color.rgb = pure_black
-                continue
+            _render_math_to_docx(paragraph, span.content, font_name)
+            continue
 
         run = paragraph.add_run(span.content)
         run.font.name = "Consolas" if span.kind == "code" else font_name
@@ -647,13 +706,138 @@ def setup_reportlab_academic_fonts() -> str:
     return "Times-Roman"
 
 
+_INLINE_MATH_CACHE: dict[str, str] = {}
+_INLINE_MATH_DIR: tempfile.TemporaryDirectory[str] | None = None
+
+
+def _get_inline_math_img_tag(latex: str) -> str:
+    global _INLINE_MATH_DIR
+    clean = latex.strip()
+    if clean.startswith("$") and clean.endswith("$") and len(clean) > 2:
+        clean = clean[1:-1].strip()
+    elif clean.startswith(r"\(") and clean.endswith(r"\)") and len(clean) > 4:
+        clean = clean[2:-2].strip()
+
+    if clean in _INLINE_MATH_CACHE:
+        return _INLINE_MATH_CACHE[clean]
+
+    if _INLINE_MATH_DIR is None:
+        _INLINE_MATH_DIR = tempfile.TemporaryDirectory(prefix="resbud_inline_math_")
+
+    try:
+        mathtext_str = (
+            f"${clean}$" if not (clean.startswith("$") and clean.endswith("$")) else clean
+        )
+        fig = plt.figure()
+        fig.patch.set_alpha(0.0)
+        fig.text(0.5, 0.5, mathtext_str, fontsize=10, ha="center", va="center")
+        buf = io.BytesIO()
+        fig.savefig(
+            buf, format="png", dpi=300, transparent=True, bbox_inches="tight", pad_inches=0.01
+        )
+        plt.close(fig)
+        buf.seek(0)
+        with PILImage.open(buf) as pil_img:
+            w_px, h_px = pil_img.size
+            w_pt = (w_px / 300.0) * 72.0
+            h_pt = (h_px / 300.0) * 72.0
+
+        file_path = os.path.join(_INLINE_MATH_DIR.name, f"math_{abs(hash(clean))}.png")
+        with open(file_path, "wb") as f:
+            f.write(buf.getvalue())
+
+        valign = -2 if h_pt <= 16 else -4
+        tag = f'<img src="{file_path}" width="{w_pt:.1f}" height="{h_pt:.1f}" valign="{valign}"/>'
+        _INLINE_MATH_CACHE[clean] = tag
+        return tag
+    except Exception:
+        fallback = f"<i>{html.escape(clean)}</i>"
+        _INLINE_MATH_CACHE[clean] = fallback
+        return fallback
+
+
+def _render_math_to_pdf_flowable(latex: str, styles: dict[str, ParagraphStyle]) -> Any:
+    """Render a LaTeX display equation into a centered high-DPI image flowable or table."""
+    clean = latex.strip()
+    if clean.startswith("$$") and clean.endswith("$$") and len(clean) > 4:
+        clean = clean[2:-2].strip()
+    elif clean.startswith(r"\[") and clean.endswith(r"\]") and len(clean) > 4:
+        clean = clean[2:-2].strip()
+
+    # If it's a matrix environment like \begin{pmatrix} ... \end{pmatrix}
+    m = re.search(r"\\begin\{(pmatrix|matrix|bmatrix)\}([\s\S]*?)\\end\{\1\}", clean)
+    if m:
+        body = m.group(2).strip()
+        raw_rows = [r.strip() for r in body.split(r"\\") if r.strip()]
+        if raw_rows:
+            table_data = []
+            for row in raw_rows:
+                row_cells = []
+                for cell in row.split("&"):
+                    cell_text = cell.strip()
+                    row_cells.append(
+                        Paragraph(f"<i>{html.escape(cell_text)}</i>", styles["Normal"])
+                    )
+                table_data.append(row_cells)
+            t = Table(table_data, hAlign="CENTER")
+            t.setStyle(
+                TableStyle(
+                    [
+                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                        ("TOPPADDING", (0, 0), (-1, -1), 4),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ]
+                )
+            )
+            return t
+
+    # Mathtext preprocessing
+    mathtext_str = clean
+    if mathtext_str.startswith(r"\begin{aligned}") and mathtext_str.endswith(r"\end{aligned}"):
+        mathtext_str = mathtext_str.replace(r"\begin{aligned}", "").replace(r"\end{aligned}", "")
+    mathtext_str = re.sub(r"&=", "=", mathtext_str)
+    mathtext_str = re.sub(r"&", " ", mathtext_str)
+
+    if not (mathtext_str.startswith("$") and mathtext_str.endswith("$")):
+        mathtext_str = f"${mathtext_str}$"
+
+    try:
+        fig = plt.figure()
+        fig.patch.set_alpha(0.0)
+        fig.text(0.5, 0.5, mathtext_str, fontsize=12, ha="center", va="center")
+        buf = io.BytesIO()
+        fig.savefig(
+            buf, format="png", dpi=300, transparent=True, bbox_inches="tight", pad_inches=0.03
+        )
+        plt.close(fig)
+        buf.seek(0)
+        with PILImage.open(buf) as pil_img:
+            w_px, h_px = pil_img.size
+            w_pt = (w_px / 300.0) * 72.0
+            h_pt = (h_px / 300.0) * 72.0
+            max_w = 460.0
+            if w_pt > max_w:
+                scale = max_w / w_pt
+                w_pt = max_w
+                h_pt = h_pt * scale
+        buf.seek(0)
+        img = RLImage(buf, width=w_pt, height=h_pt)
+        img.hAlign = "CENTER"
+        return img
+    except Exception:
+        return Paragraph(f"<i>{html.escape(clean)}</i>", styles["MathBlock"])
+
+
 def spans_to_reportlab_html(spans: list[InlineSpan]) -> str:
     """Convert typed inline spans to safe ReportLab XML/HTML markup."""
     parts: list[str] = []
     for span in spans:
         escaped = html.escape(span.content)
         if span.kind == "math":
-            parts.append(f"<i>{escaped}</i>")
+            parts.append(_get_inline_math_img_tag(span.content))
         elif span.kind == "code":
             parts.append(f"<code>{escaped}</code>")
         elif span.kind == "bold":
@@ -716,7 +900,10 @@ def render_blocks_to_pdf(
             story.append(Preformatted(block.code, styles["CodeBlock"]))
 
         elif isinstance(block, MathBlock):
-            story.append(Paragraph(f"<i>{html.escape(block.latex)}</i>", styles["MathBlock"]))
+            flowable = _render_math_to_pdf_flowable(block.latex, styles)
+            story.append(Spacer(1, 4))
+            story.append(flowable)
+            story.append(Spacer(1, 4))
 
         elif isinstance(block, TableBlock):
             _render_table_to_pdf(story, block.headers, block.rows, styles)

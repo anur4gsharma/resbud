@@ -18,6 +18,28 @@ external JSPromise<PdfRenderResult?>? _renderPdfToElement(
   JSString base64Data,
 );
 
+@JS('setPdfViewerPage')
+external void _setPdfViewerPage(JSAny containerOrId, JSNumber pageNum);
+
+@JS('printPdfViewer')
+external void _printPdfViewer(JSAny? containerOrId);
+
+void setPdfViewerPageWeb(String viewId, int pageNum) {
+  try {
+    _setPdfViewerPage('pdf-container-$viewId'.toJS, pageNum.toJS);
+  } catch (_) {}
+}
+
+void printPdfWeb([String? viewId]) {
+  try {
+    if (viewId != null) {
+      _printPdfViewer('pdf-container-$viewId'.toJS);
+    } else {
+      _printPdfViewer(null);
+    }
+  } catch (_) {}
+}
+
 Widget buildPdfWebEmbed({
   required String viewId,
   required String base64Bytes,

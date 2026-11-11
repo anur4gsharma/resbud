@@ -175,7 +175,8 @@
 
           container.innerHTML = "";
           var iframe = document.createElement("iframe");
-          iframe.src = blobUrl;
+          // Standard PDF open parameters to suppress browser's duplicate toolbar and sidebar
+          iframe.src = blobUrl + "#toolbar=0&navpanes=0&scrollbar=1";
           iframe.style.width = "100%";
           iframe.style.height = "100%";
           iframe.style.border = "none";
@@ -188,5 +189,32 @@
       }
       attempt(6);
     });
+  };
+
+  window.setPdfViewerPage = function(targetOrId, pageNum) {
+    var container = _findDocxContainer(targetOrId);
+    if (container) {
+      var iframe = container.querySelector("iframe");
+      if (iframe && iframe.src) {
+        var base = iframe.src.split("#")[0];
+        iframe.src = base + "#page=" + pageNum + "&toolbar=0&navpanes=0&scrollbar=1";
+      }
+    }
+  };
+
+  window.printPdfViewer = function(targetOrId) {
+    var container = targetOrId ? _findDocxContainer(targetOrId) : null;
+    if (container) {
+      var iframe = container.querySelector("iframe");
+      if (iframe && iframe.contentWindow) {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+          return true;
+        } catch(e) {}
+      }
+    }
+    window.print();
+    return true;
   };
 })();

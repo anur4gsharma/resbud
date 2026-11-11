@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/local_project_repository.dart';
+import '../docx_viewer/docx_document_canvas.dart';
 import '../docx_viewer/docx_viewer.dart';
 import '../export/docx_export_client.dart';
 import '../export/docx_file_saver.dart';
@@ -60,6 +61,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
   bool _isSaving = false;
   bool _isExporting = false;
   String? _activeRegeneratingSectionId;
+  final Set<String> _previewingSectionIds = {};
 
   final _referencesKey = GlobalKey();
   final _abstractKey = GlobalKey();
@@ -2211,6 +2213,49 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                 alignLabelWithHint: true,
               ),
             ),
+            if (_previewingSectionIds.contains(section.id)) ...[
+              Container(
+                key: ValueKey('section-preview-${section.id}'),
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(top: 8),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.preview, size: 14, color: Colors.blueGrey),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Rendered Mathematics & Formatting Preview',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blueGrey.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 12),
+                    DocxDocumentCanvas(
+                      paper: _paper.copyWith(
+                        sections: [
+                          section.copyWith(
+                            content: controller?.text ?? section.content,
+                          ),
+                        ],
+                      ),
+                      zoom: 1.0,
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Wrap(
               alignment: WrapAlignment.end,
@@ -2218,6 +2263,29 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
               runSpacing: 6,
               children: [
                 if (!isNotApplicable) ...[
+                  TextButton.icon(
+                    key: ValueKey('button-preview-math-${section.id}'),
+                    onPressed: () {
+                      setState(() {
+                        if (_previewingSectionIds.contains(section.id)) {
+                          _previewingSectionIds.remove(section.id);
+                        } else {
+                          _previewingSectionIds.add(section.id);
+                        }
+                      });
+                    },
+                    icon: Icon(
+                      _previewingSectionIds.contains(section.id)
+                          ? Icons.edit_note
+                          : Icons.functions,
+                      size: 16,
+                    ),
+                    label: Text(
+                      _previewingSectionIds.contains(section.id)
+                          ? 'Hide Preview'
+                          : 'Preview Equations',
+                    ),
+                  ),
                   TextButton.icon(
                     key: ValueKey('button-insert-figure-${section.id}'),
                     onPressed: () => _pickAndInsertFigure(section),

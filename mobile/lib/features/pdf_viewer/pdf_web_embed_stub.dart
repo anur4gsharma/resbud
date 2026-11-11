@@ -9,3 +9,7 @@ Widget buildPdfWebEmbed({
 }
 
 bool get isPdfWebEmbedSupported => false;
+
+void setPdfViewerPageWeb(String viewId, int pageNum) {}
+
+void printPdfWeb([String? viewId]) {}

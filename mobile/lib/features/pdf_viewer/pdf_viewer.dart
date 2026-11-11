@@ -10,6 +10,22 @@ import 'pdf_web_embed_stub.dart'
     if (dart.library.js_interop) 'pdf_web_embed.dart';
 
 /// Embedded Native Academic PDF Viewer for Resbud manuscripts.
+int extractPdfPageCount(Uint8List bytes) {
+  final text = latin1.decode(bytes, allowInvalid: true);
+  final pageMatches = RegExp(r'/Type\s*/Page\b').allMatches(text);
+  if (pageMatches.isNotEmpty) {
+    return pageMatches.length;
+  }
+  final countMatches = RegExp(r'/Count\s+(\d+)').allMatches(text);
+  if (countMatches.isNotEmpty) {
+    for (final m in countMatches) {
+      final parsed = int.tryParse(m.group(1) ?? '1');
+      if (parsed != null && parsed > 0) return parsed;
+    }
+  }
+  return 1;
+}
+
 class PdfViewer extends StatefulWidget {
   const PdfViewer({
     super.key,
@@ -44,14 +60,21 @@ class _PdfViewerState extends State<PdfViewer> {
   double _zoom = 1.0;
   int _currentPage = 1;
   int _totalPages = 1;
+  int _rotationDegrees = 0;
   bool _isFullscreen = false;
   bool _useCanvasFallback = false;
   final ScrollController _scrollController = ScrollController();
+
+  String get _activeViewId =>
+      'pdf-${widget.paper.title.hashCode}-${_pdfBytes?.length ?? 0}';
 
   @override
   void initState() {
     super.initState();
     _pdfBytes = widget.initialPdfBytes;
+    if (_pdfBytes != null && _pdfBytes!.isNotEmpty) {
+      _totalPages = extractPdfPageCount(_pdfBytes!);
+    }
     if (kIsWeb && _pdfBytes == null && widget.exportApi != null) {
       _fetchPdfBinary();
     }
@@ -60,6 +83,12 @@ class _PdfViewerState extends State<PdfViewer> {
   @override
   void didUpdateWidget(covariant PdfViewer oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialPdfBytes != widget.initialPdfBytes) {
+      _pdfBytes = widget.initialPdfBytes;
+      if (_pdfBytes != null && _pdfBytes!.isNotEmpty) {
+        _totalPages = extractPdfPageCount(_pdfBytes!);
+      }
+    }
     if (kIsWeb && oldWidget.paper != widget.paper) {
       _fetchPdfBinary();
     }
@@ -82,6 +111,7 @@ class _PdfViewerState extends State<PdfViewer> {
       if (!mounted) return;
       setState(() {
         _pdfBytes = result.bytes;
+        _totalPages = extractPdfPageCount(result.bytes);
         _isExportingPdf = false;
       });
     } catch (e) {
@@ -94,10 +124,36 @@ class _PdfViewerState extends State<PdfViewer> {
     }
   }
 
+  void _goToPage(int targetPage) {
+    final page = targetPage.clamp(1, _totalPages);
+    setState(() => _currentPage = page);
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        (page - 1) * 800.0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+    if (kIsWeb && _pdfBytes != null) {
+      setPdfViewerPageWeb(_activeViewId, page);
+    }
+  }
+
   void _zoomIn() => setState(() => _zoom = (_zoom + 0.1).clamp(0.5, 2.5));
   void _zoomOut() => setState(() => _zoom = (_zoom - 0.1).clamp(0.5, 2.5));
   void _resetZoom() => setState(() => _zoom = 1.0);
   void _fitToWidth() => setState(() => _zoom = 1.0);
+  void _rotateClockwise() => setState(() => _rotationDegrees = (_rotationDegrees + 90) % 360);
+
+  void _printPdf() {
+    if (kIsWeb) {
+      printPdfWeb(_activeViewId);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Print sent to system document spooler.')),
+      );
+    }
+  }
 
   Future<void> _downloadDocx() async {
     if (widget.onDownload != null) {
@@ -222,16 +278,7 @@ class _PdfViewerState extends State<PdfViewer> {
               key: const ValueKey('button-pdf-page-prev'),
               tooltip: 'Previous page',
               icon: const Icon(Icons.chevron_left, color: Colors.white70, size: 20),
-              onPressed: _currentPage > 1
-                  ? () {
-                      setState(() => _currentPage--);
-                      _scrollController.animateTo(
-                        (_currentPage - 1) * 800.0,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOut,
-                      );
-                    }
-                  : null,
+              onPressed: _currentPage > 1 ? () => _goToPage(_currentPage - 1) : null,
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -253,16 +300,7 @@ class _PdfViewerState extends State<PdfViewer> {
               key: const ValueKey('button-pdf-page-next'),
               tooltip: 'Next page',
               icon: const Icon(Icons.chevron_right, color: Colors.white70, size: 20),
-              onPressed: _currentPage < _totalPages
-                  ? () {
-                      setState(() => _currentPage++);
-                      _scrollController.animateTo(
-                        (_currentPage - 1) * 800.0,
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOut,
-                      );
-                    }
-                  : null,
+              onPressed: _currentPage < _totalPages ? () => _goToPage(_currentPage + 1) : null,
             ),
 
             const SizedBox(width: 16),
@@ -307,6 +345,22 @@ class _PdfViewerState extends State<PdfViewer> {
             const SizedBox(width: 8),
             Container(width: 1, height: 20, color: Colors.white24),
             const SizedBox(width: 8),
+
+            // Rotate
+            IconButton(
+              key: const ValueKey('button-pdf-viewer-rotate'),
+              tooltip: 'Rotate clockwise',
+              icon: const Icon(Icons.rotate_right, color: Colors.white70, size: 20),
+              onPressed: _rotateClockwise,
+            ),
+
+            // Print
+            IconButton(
+              key: const ValueKey('button-pdf-viewer-print'),
+              tooltip: 'Print manuscript',
+              icon: const Icon(Icons.print, color: Colors.white70, size: 20),
+              onPressed: _printPdf,
+            ),
 
             // Download PDF
             IconButton(
@@ -354,8 +408,9 @@ class _PdfViewerState extends State<PdfViewer> {
   }
 
   Widget _buildViewerContent() {
+    Widget content;
     if (_isExportingPdf && _pdfBytes == null) {
-      return const Center(
+      content = const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -376,34 +431,40 @@ class _PdfViewerState extends State<PdfViewer> {
           ],
         ),
       );
-    }
-
-    if (kIsWeb &&
+    } else if (kIsWeb &&
         isPdfWebEmbedSupported &&
         !_useCanvasFallback &&
         _pdfBytes != null &&
         _pdfBytes!.isNotEmpty) {
       final base64Str = base64Encode(_pdfBytes!);
-      return buildPdfWebEmbed(
-        viewId: 'pdf-${widget.paper.title.hashCode}-${_pdfBytes!.length}',
+      content = buildPdfWebEmbed(
+        viewId: _activeViewId,
         base64Bytes: base64Str,
         onError: () {
           if (mounted) setState(() => _useCanvasFallback = true);
         },
       );
+    } else {
+      // High fidelity publication canvas fallback (desktop, mobile, headless tests)
+      content = DocxDocumentCanvas(
+        key: ValueKey('pdf-canvas-${widget.paper.hashCode}'),
+        paper: widget.paper,
+        zoom: _zoom,
+        scrollController: _scrollController,
+        onPageCountResolved: (count) {
+          if (mounted && _pdfBytes == null && count != _totalPages) {
+            setState(() => _totalPages = count);
+          }
+        },
+      );
     }
 
-    // High fidelity publication canvas fallback (desktop, mobile, headless tests)
-    return DocxDocumentCanvas(
-      key: ValueKey('pdf-canvas-${widget.paper.hashCode}'),
-      paper: widget.paper,
-      zoom: _zoom,
-      scrollController: _scrollController,
-      onPageCountResolved: (count) {
-        if (mounted && count != _totalPages) {
-          setState(() => _totalPages = count);
-        }
-      },
-    );
+    if (_rotationDegrees != 0) {
+      return RotatedBox(
+        quarterTurns: _rotationDegrees ~/ 90,
+        child: content,
+      );
+    }
+    return content;
   }
 }

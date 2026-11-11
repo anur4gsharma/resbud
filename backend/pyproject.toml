@@ -63,6 +63,8 @@ module = [
     "pypdf.*",
     "math2docx.*",
     "latex2mathml.*",
+    "mathml2omml.*",
+    "mathml2omml",
 ]
 ignore_missing_imports = true
 
