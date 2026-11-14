@@ -26,8 +26,12 @@ from resbud_api.services.markdown_renderer import (
 from resbud_api.services.pdf_export import export_paper_pdf
 
 
-def test_fixture_1_inline_fraction_extracted_to_block_equation() -> None:
-    text = r"The cosine similarity between two vectors is calculated as \(cos(q,d) = \frac{q \cdot d}{||q|| ||d||}\), where q represents the query vector."
+def test_fixture_1_display_fraction_extracted_to_block_equation() -> None:
+    text = (
+        r"The cosine similarity between two vectors is calculated as "
+        r"$$\cos(q,d) = \frac{q \cdot d}{||q|| ||d||}$$"
+        r", where $q$ represents the query vector."
+    )
     blocks = parse_markdown_blocks(text)
     assert len(blocks) == 3
     assert isinstance(blocks[0], ParagraphBlock)
@@ -38,19 +42,21 @@ def test_fixture_1_inline_fraction_extracted_to_block_equation() -> None:
 
     assert isinstance(blocks[1], EquationBlockNode)
     assert r"\frac{q \cdot d}{||q|| ||d||}" in blocks[1].latex
-    assert blocks[1].display_type == "extracted_inline"
+    assert blocks[1].display_type == "display"
     assert blocks[1].rendering_status == "ok"
 
     assert isinstance(blocks[2], ParagraphBlock)
-    assert "Here, q represents the query vector." in "".join(s.content for s in blocks[2].spans)
-    assert all(s.kind != "math" for s in blocks[2].spans)
+    math_spans = [s for s in blocks[2].spans if s.kind == "math"]
+    assert len(math_spans) == 1
+    assert math_spans[0].content == "q"
+    assert "where" in "".join(s.content for s in blocks[2].spans)
 
 
 def test_fixture_2_summation_embedded_between_prose_sentences() -> None:
     text = (
         r"We compute the arithmetic series as follows: "
         r"$$\sum_{i=1}^{n} i = \frac{n(n+1)}{2}$$"
-        r", where n denotes the total number of terms."
+        r", where $n$ denotes the total number of terms."
     )
     blocks = parse_markdown_blocks(text)
     eq_blocks = [b for b in blocks if isinstance(b, EquationBlockNode)]
@@ -59,8 +65,9 @@ def test_fixture_2_summation_embedded_between_prose_sentences() -> None:
     assert len(eq_blocks) == 1
     assert r"\sum_{i=1}^{n} i" in eq_blocks[0].latex
     assert len(prose_blocks) == 2
-    for pb in prose_blocks:
-        assert all(s.kind != "math" for s in pb.spans)
+    math_spans = [s for s in prose_blocks[1].spans if s.kind == "math"]
+    assert len(math_spans) == 1
+    assert math_spans[0].content == "n"
 
 
 def test_fixture_3_display_integral() -> None:
@@ -72,28 +79,26 @@ def test_fixture_3_display_integral() -> None:
     assert blocks[0].display_type == "display"
 
 
-def test_fixture_4_multiple_equations_in_same_paragraph() -> None:
+def test_fixture_4_inline_equations_remain_in_single_paragraph() -> None:
     text = r"In asymptotic analysis, the algorithm runs in \(O(n \log n)\) time under condition $k \ge 1$."
     blocks = parse_markdown_blocks(text)
-    eq_blocks = [b for b in blocks if isinstance(b, EquationBlockNode)]
-    prose_blocks = [b for b in blocks if isinstance(b, ParagraphBlock)]
-
-    assert len(eq_blocks) == 2
-    assert eq_blocks[0].latex == r"O(n \log n)"
-    assert eq_blocks[1].latex == r"k \ge 1"
-
-    assert len(prose_blocks) == 2
-    assert "In asymptotic analysis" in "".join(s.content for s in prose_blocks[0].spans)
-    for pb in prose_blocks:
-        assert all(s.kind != "math" for s in pb.spans)
+    assert len(blocks) == 1
+    assert isinstance(blocks[0], ParagraphBlock)
+    math_spans = [s for s in blocks[0].spans if s.kind == "math"]
+    assert len(math_spans) == 2
+    assert math_spans[0].content == r"O(n \log n)"
+    assert math_spans[1].content == r"k \ge 1"
+    assert "In asymptotic analysis, the algorithm runs in" in "".join(s.content for s in blocks[0].spans)
 
 
-def test_fixture_5_greek_letters_and_subscripts() -> None:
+def test_fixture_5_greek_letters_and_subscripts_inline() -> None:
     text = r"The model regularization is governed by $\alpha_i + \beta_j \le \lambda$."
     blocks = parse_markdown_blocks(text)
-    eq_blocks = [b for b in blocks if isinstance(b, EquationBlockNode)]
-    assert len(eq_blocks) == 1
-    assert eq_blocks[0].latex == r"\alpha_i + \beta_j \le \lambda"
+    assert len(blocks) == 1
+    assert isinstance(blocks[0], ParagraphBlock)
+    math_spans = [s for s in blocks[0].spans if s.kind == "math"]
+    assert len(math_spans) == 1
+    assert math_spans[0].content == r"\alpha_i + \beta_j \le \lambda"
 
 
 def test_fixture_6_matrix_environment_parsing() -> None:
@@ -170,7 +175,7 @@ def test_fixture_11_technical_strings_with_backslashes_and_escaped_dollars() -> 
 
 
 def test_fixture_12_unsupported_mathematical_command_yields_warning() -> None:
-    unsupported_text = r"We apply \(\unsupportedmacro{x}\) to the input sequence."
+    unsupported_text = r"We apply $$\unsupportedmacro{x}$$ to the input sequence."
     blocks = parse_markdown_blocks(unsupported_text)
     eq_blocks = [b for b in blocks if isinstance(b, EquationBlockNode)]
     assert len(eq_blocks) == 1
@@ -186,7 +191,7 @@ def test_real_manuscript_prose_from_foundation_models_paper() -> None:
     """
     sentence_1 = (
         r"Maximum likelihood estimation minimizes the loss "
-        r"\(L(\theta;\rho\circ\mu) := -\mathbb{E}_{x\sim\rho} \mathbb{E}_{y\sim\mu(\cdot|x)}[\log\pi_\theta(y|x)]\), "
+        r"\[L(\theta;\rho\circ\mu) := -\mathbb{E}_{x\sim\rho} \mathbb{E}_{y\sim\mu(\cdot|x)}[\log\pi_\theta(y|x)]\], "
         r"where x is the prompt and y is completion."
     )
     blocks_1 = parse_markdown_blocks(sentence_1)
@@ -202,10 +207,9 @@ def test_real_manuscript_prose_from_foundation_models_paper() -> None:
     assert blocks_1[1].rendering_status == "ok"
 
     assert isinstance(blocks_1[2], ParagraphBlock)
-    assert "Here, x is the prompt and y is completion." in "".join(
+    assert "where x is the prompt and y is completion." in "".join(
         s.content for s in blocks_1[2].spans
     )
-    assert all(s.kind != "math" for s in blocks_1[2].spans)
 
     sentence_2 = (
         r"For a fixed training data distribution, this loss differs from the expected forward KL divergence "
@@ -217,13 +221,42 @@ def test_real_manuscript_prose_from_foundation_models_paper() -> None:
     eq_blocks_2 = [b for b in blocks_2 if isinstance(b, EquationBlockNode)]
     prose_blocks_2 = [b for b in blocks_2 if isinstance(b, ParagraphBlock)]
 
-    assert len(eq_blocks_2) == 2
-    assert "KL" in eq_blocks_2[0].latex
-    assert r"\nabla_\theta" in eq_blocks_2[1].latex
+    assert len(eq_blocks_2) == 1
+    assert r"\nabla_\theta" in eq_blocks_2[0].latex
 
-    assert len(prose_blocks_2) == 2
-    for pb in prose_blocks_2:
-        assert all(s.kind != "math" for s in pb.spans)
+    assert len(prose_blocks_2) == 1
+    kl_spans = [s for s in prose_blocks_2[0].spans if s.kind == "math"]
+    assert len(kl_spans) == 1
+    assert "KL" in kl_spans[0].content
+
+
+def test_sarkarsetu_inline_math_variables_do_not_create_new_lines() -> None:
+    text = (
+        r"Social category ($c$), disability status ($d$), and geographic state ($g$). "
+        r"Let $\mathcal{S}$ represent the universe of candidate welfare schemes, where each scheme "
+        r"$s \in \mathcal{S}$ is governed by a set of mandatory evaluation conditions $C_s$."
+    )
+    blocks = parse_markdown_blocks(text)
+    assert len(blocks) == 1
+    assert isinstance(blocks[0], ParagraphBlock)
+    math_spans = [s for s in blocks[0].spans if s.kind == "math"]
+    assert len(math_spans) == 6
+    assert math_spans[0].content == "c"
+    assert math_spans[1].content == "d"
+    assert math_spans[2].content == "g"
+    assert math_spans[3].content == r"\mathcal{S}"
+    assert math_spans[4].content == r"s \in \mathcal{S}"
+    assert math_spans[5].content == "C_s"
+
+    metrics_text = r"Precision ($P$), Recall ($R$), and Macro-$F_1$ score are defined as:"
+    m_blocks = parse_markdown_blocks(metrics_text)
+    assert len(m_blocks) == 1
+    assert isinstance(m_blocks[0], ParagraphBlock)
+    m_spans = [s for s in m_blocks[0].spans if s.kind == "math"]
+    assert len(m_spans) == 3
+    assert m_spans[0].content == "P"
+    assert m_spans[1].content == "R"
+    assert m_spans[2].content == "F_1"
 
 
 def test_docx_export_produces_native_omml_equations_in_standalone_paragraphs() -> None:

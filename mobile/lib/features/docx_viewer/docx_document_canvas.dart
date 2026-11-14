@@ -364,10 +364,34 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
   static final RegExp _inlineProseTokenRegex = RegExp(
     r'(`[^`\n]+`)|'
     r'(\\\$)|'
+    r'(\\\([\s\S]*?\\\))|'
+    r'((?<!\\)\$(?!\s)(?!\d+(?:[.,]\d+)?(?:\s|[.,;:!?]|$))(?:[^$\n\\]|\\.)+?(?<!\s)\$(?!\d))|'
     r'(\*\*\*[^*]+\*\*\*|___[^_]+___)|'
     r'(\*\*[^*]+\*\*|__[^_]+__)|'
     r'(\*[^*\n]+\*|(?<=\s)_[^_\n]+_(?=\s|[.,;:!?]|$))',
   );
+
+  static bool _isBigEquation(Match m, String fullText) {
+    if (m.group(3) != null) return true;
+    if (m.group(4) != null) return true;
+
+    final raw = m.group(0)!;
+    if (raw.contains(r'\\')) return true;
+
+    if (fullText.trim() == raw.trim()) {
+      final inner = _cleanMathSource(raw);
+      if (inner.contains('=') ||
+          inner.contains(r'\le') ||
+          inner.contains(r'\ge') ||
+          inner.contains(r'\sum') ||
+          inner.contains(r'\prod') ||
+          inner.contains(r'\int') ||
+          inner.contains(r'\frac')) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   static String _cleanPreEquationProse(String text) {
     var cleaned = text.trim();
@@ -383,8 +407,6 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
       if (!cleaned.endsWith(':')) {
         cleaned += ':';
       }
-    } else if (!RegExp(r'[.:!?]$').hasMatch(cleaned)) {
-      cleaned += ':';
     }
     return cleaned;
   }
@@ -397,15 +419,6 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
     cleaned = cleaned.replaceAll(RegExp(r'^[,\s;]+'), '').trim();
     if (cleaned.isEmpty || RegExp(r'^[.,;:!?]+$').hasMatch(cleaned)) {
       return '';
-    }
-    if (RegExp(r'^where\b', caseSensitive: false).hasMatch(cleaned)) {
-      cleaned = cleaned.replaceFirst(RegExp(r'^where\b\s*', caseSensitive: false), 'Here, ');
-    } else if (RegExp(r'^in which\b', caseSensitive: false).hasMatch(cleaned)) {
-      cleaned = cleaned.replaceFirst(RegExp(r'^in which\b\s*', caseSensitive: false), 'In which ');
-    } else if (RegExp(r'^with\b', caseSensitive: false).hasMatch(cleaned)) {
-      cleaned = cleaned.replaceFirst(RegExp(r'^with\b\s*', caseSensitive: false), 'With ');
-    } else if (cleaned.isNotEmpty && cleaned[0] == cleaned[0].toLowerCase()) {
-      cleaned = cleaned[0].toUpperCase() + cleaned.substring(1);
     }
     return cleaned;
   }
@@ -427,7 +440,7 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
   List<Widget> _splitAndRenderParagraphWithEquations(String text, double zoom) {
     final matches = _mathExtractRegex
         .allMatches(text)
-        .where((m) => m.group(1) == null && m.group(2) == null)
+        .where((m) => m.group(1) == null && m.group(2) == null && _isBigEquation(m, text))
         .toList();
 
     if (matches.isEmpty) {
@@ -439,19 +452,12 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
 
     for (var i = 0; i < matches.length; i++) {
       final m = matches[i];
-      final preText = text.substring(cursor, m.start);
-      String cleanedPre;
-      if (i > 0) {
-        cleanedPre = _cleanPostEquationProse(preText);
-        if (cleanedPre.isNotEmpty && !RegExp(r'[.:!?]$').hasMatch(cleanedPre)) {
-          cleanedPre = _cleanPreEquationProse(cleanedPre);
+      final preText = text.substring(cursor, m.start).trim();
+      if (preText.isNotEmpty) {
+        final cleanedPre = _cleanPreEquationProse(preText);
+        if (cleanedPre.isNotEmpty) {
+          widgets.add(_buildProseParagraph(cleanedPre, zoom));
         }
-      } else {
-        cleanedPre = _cleanPreEquationProse(preText);
-      }
-
-      if (cleanedPre.isNotEmpty) {
-        widgets.add(_buildProseParagraph(cleanedPre, zoom));
       }
 
       final mathSource = _cleanMathSource(m.group(0)!);
@@ -459,10 +465,12 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
       cursor = m.end;
     }
 
-    final postText = text.substring(cursor);
-    final cleanedPost = _cleanPostEquationProse(postText);
-    if (cleanedPost.isNotEmpty) {
-      widgets.add(_buildProseParagraph(cleanedPost, zoom));
+    final postText = text.substring(cursor).trim();
+    if (postText.isNotEmpty) {
+      final cleanedPost = _cleanPostEquationProse(postText);
+      if (cleanedPost.isNotEmpty) {
+        widgets.add(_buildProseParagraph(cleanedPost, zoom));
+      }
     }
 
     return widgets;
@@ -506,7 +514,7 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
       color: const Color(0xFF111111),
     );
 
-    if (!text.contains(r'$') && !text.contains('`') && !text.contains('*') && !text.contains('_')) {
+    if (!text.contains(r'$') && !text.contains(r'\(') && !text.contains('`') && !text.contains('*') && !text.contains('_')) {
       return Padding(
         padding: EdgeInsets.only(bottom: 8.0 * zoom),
         child: Text(
@@ -556,22 +564,38 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
       else if (match.group(2) != null) {
         spans.add(TextSpan(text: r'$', style: bodyStyle));
       }
-      // 3. Bold italic
-      else if (match.group(3) != null) {
+      // 3 & 4. Inline Math
+      else if (match.group(3) != null || match.group(4) != null) {
+        final cleanLatex = _cleanMathSource(rawToken);
+        spans.add(WidgetSpan(
+          alignment: PlaceholderAlignment.middle,
+          child: Math.tex(
+            cleanLatex,
+            mathStyle: MathStyle.text,
+            textStyle: bodyStyle,
+            onErrorFallback: (_) => Text(
+              cleanLatex,
+              style: bodyStyle.copyWith(fontStyle: FontStyle.italic),
+            ),
+          ),
+        ));
+      }
+      // 5. Bold italic
+      else if (match.group(5) != null) {
         spans.add(TextSpan(
           text: rawToken.substring(3, rawToken.length - 3),
           style: bodyStyle.copyWith(fontWeight: FontWeight.bold, fontStyle: FontStyle.italic),
         ));
       }
-      // 4. Bold
-      else if (match.group(4) != null) {
+      // 6. Bold
+      else if (match.group(6) != null) {
         spans.add(TextSpan(
           text: rawToken.substring(2, rawToken.length - 2),
           style: bodyStyle.copyWith(fontWeight: FontWeight.bold),
         ));
       }
-      // 5. Italic
-      else if (match.group(5) != null) {
+      // 7. Italic
+      else if (match.group(7) != null) {
         spans.add(TextSpan(
           text: rawToken.substring(1, rawToken.length - 1),
           style: bodyStyle.copyWith(fontStyle: FontStyle.italic),

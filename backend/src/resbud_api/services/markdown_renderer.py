@@ -269,8 +269,6 @@ def clean_pre_equation_prose(text: str) -> str:
     ):
         if not cleaned.endswith(":"):
             cleaned += ":"
-    elif not cleaned.endswith((".", ":", "!", "?")):
-        cleaned += ":"
     return cleaned
 
 
@@ -282,58 +280,71 @@ def clean_post_equation_prose(text: str) -> str:
     cleaned = re.sub(r"^[,\s;]+", "", cleaned).strip()
     if not cleaned or cleaned in (".", ",", ";", ":", "!", "?"):
         return ""
-    if re.match(r"^where\b", cleaned, re.IGNORECASE):
-        cleaned = re.sub(r"^where\b\s*", "Here, ", cleaned, flags=re.IGNORECASE)
-    elif re.match(r"^in which\b", cleaned, re.IGNORECASE):
-        cleaned = re.sub(r"^in which\b\s*", "In which ", cleaned, flags=re.IGNORECASE)
-    elif re.match(r"^with\b", cleaned, re.IGNORECASE):
-        cleaned = re.sub(r"^with\b\s*", "With ", cleaned, flags=re.IGNORECASE)
-    elif cleaned and cleaned[0].islower():
-        cleaned = cleaned[0].upper() + cleaned[1:]
     return cleaned
 
 
-def extract_equation_blocks_from_paragraph(text: str) -> list[MarkdownBlock]:
-    """Split paragraph text on all recognized mathematical expressions,
+def is_big_equation(m: re.Match[str], full_text: str) -> bool:
+    """Determine whether a regex math match represents a standalone/display equation
 
-    producing alternating ParagraphBlock (pure prose) and EquationBlockNode (display math).
-    Ensures zero inline math spans remain inside paragraphs.
+    or should remain inline within its paragraph prose.
     """
-    matches = [
-        m for m in MATH_EXTRACT_RE.finditer(text) if m.lastgroup not in ("code", "escaped_dollar")
+    if m.lastgroup in ("math_display", "math_env"):
+        return True
+
+    raw = m.group(0)
+    # Multiline math with LaTeX newline breaks or environments embedded within parens/dollars
+    if r"\\" in raw or re.search(r"\\begin\{[a-zA-Z0-9*]+\}", raw):
+        return True
+
+    # Standalone equation occupying the entire paragraph
+    if full_text.strip() == raw.strip():
+        inner = clean_math_source(raw)
+        if any(op in inner for op in ("=", r"\le", r"\ge", r"\sum", r"\prod", r"\int", r"\frac")):
+            return True
+
+    return False
+
+
+def extract_equation_blocks_from_paragraph(text: str) -> list[MarkdownBlock]:
+    """Split paragraph text ONLY on display/big mathematical expressions,
+
+    producing alternating ParagraphBlock (with preserved inline math spans)
+    and EquationBlockNode (for display math blocks).
+    Ensures inline math symbols remain within paragraph text without line breaks.
+    """
+    big_matches = [
+        m
+        for m in MATH_EXTRACT_RE.finditer(text)
+        if m.lastgroup not in ("code", "escaped_dollar") and is_big_equation(m, text)
     ]
 
-    if not matches:
+    if not big_matches:
         return [ParagraphBlock(spans=parse_inline_spans(text.strip()))]
 
     blocks: list[MarkdownBlock] = []
     cursor = 0
-    for i, m in enumerate(matches):
-        pre_text = text[cursor : m.start()]
-        if i > 0:
-            cleaned_pre = clean_post_equation_prose(pre_text)
-            if cleaned_pre and not cleaned_pre.endswith((".", ":", "!", "?")):
-                cleaned_pre = clean_pre_equation_prose(cleaned_pre)
-        else:
+    for m in big_matches:
+        pre_text = text[cursor : m.start()].strip()
+        if pre_text:
             cleaned_pre = clean_pre_equation_prose(pre_text)
-
-        if cleaned_pre:
-            blocks.append(ParagraphBlock(spans=parse_inline_spans(cleaned_pre)))
+            if cleaned_pre:
+                blocks.append(ParagraphBlock(spans=parse_inline_spans(cleaned_pre)))
 
         raw_math = m.group(0)
         display_type: Literal["display", "extracted_inline", "environment"] = (
             "environment"
-            if m.lastgroup == "math_env"
-            else ("display" if m.lastgroup == "math_display" else "extracted_inline")
+            if (m.lastgroup == "math_env" or re.search(r"\\begin\{[a-zA-Z0-9*]+\}", raw_math))
+            else "display"
         )
         eq_node = create_equation_block_node(raw_math, display_type=display_type)
         blocks.append(eq_node)
         cursor = m.end()
 
-    trailing_text = text[cursor:]
-    cleaned_post = clean_post_equation_prose(trailing_text)
-    if cleaned_post:
-        blocks.append(ParagraphBlock(spans=parse_inline_spans(cleaned_post)))
+    trailing_text = text[cursor:].strip()
+    if trailing_text:
+        cleaned_post = clean_post_equation_prose(trailing_text)
+        if cleaned_post:
+            blocks.append(ParagraphBlock(spans=parse_inline_spans(cleaned_post)))
 
     return blocks
 
@@ -938,6 +949,21 @@ _INLINE_MATH_CACHE: dict[str, str] = {}
 _INLINE_MATH_DIR: tempfile.TemporaryDirectory[str] | None = None
 
 
+def _sanitize_mathtext_str(clean: str) -> str:
+    """Preprocess LaTeX math string for Matplotlib mathtext compatibility."""
+    s = clean.strip()
+    s = re.sub(r"\\ge\b", r"\\geq", s)
+    s = re.sub(r"\\le\b", r"\\leq", s)
+    s = re.sub(r"\\ne\b", r"\\neq", s)
+    s = re.sub(r"\\text\{([^}]+)\}", r"\\rm{\1}", s)
+    s = s.replace(r"\text", r"\rm").replace(r"\parallel", r"\Vert")
+    if s.startswith(r"\begin{aligned}") and s.endswith(r"\end{aligned}"):
+        s = s.replace(r"\begin{aligned}", "").replace(r"\end{aligned}", "")
+    s = re.sub(r"&=", "=", s)
+    s = re.sub(r"&", " ", s)
+    return s
+
+
 def _get_inline_math_img_tag(latex: str) -> str:
     global _INLINE_MATH_DIR
     clean = latex.strip()
@@ -953,9 +979,10 @@ def _get_inline_math_img_tag(latex: str) -> str:
         _INLINE_MATH_DIR = tempfile.TemporaryDirectory(prefix="resbud_inline_math_")
 
     try:
-        mathtext_str = (
-            f"${clean}$" if not (clean.startswith("$") and clean.endswith("$")) else clean
-        )
+        mathtext_str = _sanitize_mathtext_str(clean)
+        if not (mathtext_str.startswith("$") and mathtext_str.endswith("$")):
+            mathtext_str = f"${mathtext_str}$"
+
         fig = plt.figure()
         fig.patch.set_alpha(0.0)
         fig.text(0.5, 0.5, mathtext_str, fontsize=10, ha="center", va="center")
@@ -969,6 +996,11 @@ def _get_inline_math_img_tag(latex: str) -> str:
             w_px, h_px = pil_img.size
             w_pt = (w_px / 300.0) * 72.0
             h_pt = (h_px / 300.0) * 72.0
+            max_w = 460.0
+            if w_pt > max_w:
+                scale = max_w / w_pt
+                w_pt = max_w
+                h_pt = h_pt * scale
 
         file_path = os.path.join(_INLINE_MATH_DIR.name, f"math_{abs(hash(clean))}.png")
         with open(file_path, "wb") as f:
@@ -1040,12 +1072,7 @@ def _render_math_to_pdf_flowable(
             return t
 
     # Mathtext preprocessing
-    mathtext_str = clean.replace(r"\text", r"\rm").replace(r"\parallel", r"\Vert")
-    if mathtext_str.startswith(r"\begin{aligned}") and mathtext_str.endswith(r"\end{aligned}"):
-        mathtext_str = mathtext_str.replace(r"\begin{aligned}", "").replace(r"\end{aligned}", "")
-    mathtext_str = re.sub(r"&=", "=", mathtext_str)
-    mathtext_str = re.sub(r"&", " ", mathtext_str)
-
+    mathtext_str = _sanitize_mathtext_str(clean)
     if not (mathtext_str.startswith("$") and mathtext_str.endswith("$")):
         mathtext_str = f"${mathtext_str}$"
 
