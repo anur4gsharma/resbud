@@ -114,7 +114,6 @@ def check_topic_and_evidence_coverage(
         else:
             missing.append(sub.title)
 
-    # Check key arguments
     for arg in section_plan.key_arguments:
         arg_keywords = [w.lower().strip(".,;:()") for w in arg.split() if len(w) > 4][:3]
         if any(w in content_lower for w in arg_keywords):

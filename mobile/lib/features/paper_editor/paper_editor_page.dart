@@ -511,7 +511,9 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
         Uint8List? bytes;
         try {
           bytes = await file.readAsBytes();
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('Failed to read image file ${file.name}: $e');
+        }
         if (bytes == null || bytes.isEmpty) continue;
 
         final ext = file.name.split('.').last.toLowerCase();

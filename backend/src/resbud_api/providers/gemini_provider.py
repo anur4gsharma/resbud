@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 from time import perf_counter
 from typing import Any, cast
 
@@ -25,6 +26,8 @@ from resbud_api.providers.base import (
     ProviderUnavailable,
     SectionRegenerationInput,
 )
+
+logger = logging.getLogger(__name__)
 
 GEMINI_PAPER_DRAFT_SCHEMA: dict[str, Any] = {
     "type": "OBJECT",
@@ -225,8 +228,8 @@ class GeminiProvider:
                     output_tokens=result.output_tokens,
                     request_id=result.request_id,
                 )
-        except Exception:
-            pass
+        except (json.JSONDecodeError, TypeError, KeyError) as exc:
+            logger.warning("Failed to inject authoritative references into paper result: %s", exc)
         return result
 
     async def regenerate_section(
@@ -348,8 +351,8 @@ class GeminiProvider:
                     await asyncio.sleep(2.5)
                     try:
                         response = await self._client.post(url, headers=headers, json=payload)
-                    except Exception:
-                        pass
+                    except httpx.HTTPError as exc:
+                        logger.warning("Retry request failed on rate limit backoff: %s", exc)
                     if response.status_code == 429:
                         raise ProviderRateLimited
 

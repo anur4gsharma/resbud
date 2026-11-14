@@ -1,6 +1,7 @@
 """Deterministic fake provider for local demos and tests."""
 
 import json
+import logging
 import re
 from enum import StrEnum
 from typing import Any
@@ -22,6 +23,8 @@ from resbud_api.providers.base import (
     ResearchBrief,
     SectionRegenerationInput,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class FakeOutcome(StrEnum):
@@ -153,8 +156,8 @@ class FakeProvider:
             target_id = target_spec.get("id", target_id)
             target_heading = target_spec.get("heading", target_heading)
             target_words = target_spec.get("allocated_target_words", target_words)
-        except Exception:
-            pass
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError, IndexError) as exc:
+            logger.debug("Failed to extract target section spec from prompt payload: %s", exc)
 
         content, state = _generate_academic_section_content(
             target_id=target_id,

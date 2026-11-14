@@ -27,7 +27,9 @@ external void _printPdfViewer(JSAny? containerOrId);
 void setPdfViewerPageWeb(String viewId, int pageNum) {
   try {
     _setPdfViewerPage('pdf-container-$viewId'.toJS, pageNum.toJS);
-  } catch (_) {}
+  } catch (e) {
+    debugPrint('Failed to set PDF viewer page: $e');
+  }
 }
 
 void printPdfWeb([String? viewId]) {
@@ -37,7 +39,9 @@ void printPdfWeb([String? viewId]) {
     } else {
       _printPdfViewer(null);
     }
-  } catch (_) {}
+  } catch (e) {
+    debugPrint('Failed to trigger web PDF print: $e');
+  }
 }
 
 Widget buildPdfWebEmbed({

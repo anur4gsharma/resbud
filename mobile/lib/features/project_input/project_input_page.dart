@@ -1916,7 +1916,9 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         Uint8List? bytes;
         try {
           bytes = await file.readAsBytes();
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('Failed to read file ${file.name} as bytes: $e');
+        }
         if (bytes == null || bytes.isEmpty) {
           continue;
         }
@@ -2911,7 +2913,9 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         Uint8List? bytes;
         try {
           bytes = await file.readAsBytes();
-        } catch (_) {}
+        } catch (e) {
+          debugPrint('Failed to read file ${file.name} as bytes: $e');
+        }
         if (bytes == null || bytes.isEmpty) continue;
 
         final ext = file.name.split('.').last.toLowerCase();
@@ -3006,14 +3010,18 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       try {
         bytes = Uint8List.fromList((fig['bytes'] as List).map((e) => (e as num).toInt()).toList());
         fig['bytes'] = bytes;
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Failed to decode figure bytes list: $e');
+      }
     }
     if (bytes == null && fig['base64'] is String) {
       try {
         final b64 = (fig['base64'] as String).split('base64,').last;
         bytes = base64Decode(b64);
         fig['bytes'] = bytes;
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Failed to decode figure base64 string: $e');
+      }
     }
     return Container(
       padding: const EdgeInsets.all(12),

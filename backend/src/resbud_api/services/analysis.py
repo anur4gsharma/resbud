@@ -395,7 +395,6 @@ def assess_research_quality(request: ResearchAnalysisRequest) -> ResearchAnalysi
             )
         )
 
-    # Check for references
     refs_found: list[ReferenceInput] = extract_bibliographic_references(text)
 
     if not refs_found:

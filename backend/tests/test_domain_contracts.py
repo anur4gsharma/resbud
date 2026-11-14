@@ -57,8 +57,11 @@ def test_multiline_nonblank_source_and_provided_details_are_valid() -> None:
     request["project"]["methodology_status"] = "provided"
     request["project"]["methodology"] = "\nLab\nmethod\n"
 
-    GenerationRequest.model_validate(request)
-    Draft202012Validator(GENERATION_SCHEMA).validate(request)
+    validated = GenerationRequest.model_validate(request)
+    assert validated.source_draft == "\nOriginal\ntext\n"
+    assert validated.project.methodology_status == "provided"
+    assert validated.project.methodology == "\nLab\nmethod\n"
+    assert Draft202012Validator(GENERATION_SCHEMA).is_valid(request)
 
 
 def test_paper_draft_matches_contract_and_serializes_deterministically() -> None:

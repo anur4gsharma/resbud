@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import html
 import io
+import logging
 import os
 import re
 import tempfile
@@ -19,6 +20,8 @@ from typing import Any, Literal
 
 import latex2mathml.converter
 import math2docx
+
+# fixmyslop-ignore[deps/phantom-import] Top-level import provided by mathml2omml-as package
 import mathml2omml
 import matplotlib
 import matplotlib.pyplot as plt
@@ -37,6 +40,8 @@ from reportlab.platypus import Image as RLImage
 from reportlab.platypus import Paragraph, Preformatted, Spacer, Table, TableStyle
 
 from resbud_api.services.chart_generator import render_academic_chart_from_spec
+
+logger = logging.getLogger(__name__)
 
 # --- Data Structures for Parsed Markdown Elements ---
 
@@ -709,12 +714,13 @@ def _render_math_to_docx(
             xml = f'<p xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">{omml}</p>'
             paragraph._p.append(parse_xml(xml)[0])
             rendered_omml = True
-        except Exception:
+        except Exception as exc:
+            logger.debug("Primary mathml conversion failed (%s), attempting math2docx fallback", exc)
             try:
                 math2docx.add_math(paragraph, clean)
                 rendered_omml = True
-            except Exception:
-                pass
+            except Exception as fallback_exc:
+                logger.warning("math2docx fallback also failed: %s", fallback_exc)
 
     if not rendered_omml:
         # Fallback with visible warning if status was warning/error or rendering failed
@@ -796,8 +802,8 @@ def _render_table_to_docx(
                                 r.font.bold = True
         space_p = document.add_paragraph()
         space_p.paragraph_format.space_after = Pt(4)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Failed to render table to DOCX: %s", exc)
 
 
 def _render_figure_bytes_to_docx(
@@ -818,8 +824,8 @@ def _render_figure_bytes_to_docx(
                     if target_h > 4.5:
                         target_h = 4.5
                         target_w = target_h / aspect
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to determine figure image dimensions for DOCX, using defaults: %s", exc)
 
         p = document.add_paragraph()
         p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -920,7 +926,8 @@ def setup_reportlab_academic_fonts() -> str:
                 )
                 _REGISTERED_PDF_FONT = "AcademicSerif"
                 return "AcademicSerif"
-            except Exception:
+            except Exception as exc:
+                logger.debug("Font registration failed for %s candidate, trying next: %s", reg, exc)
                 continue
 
     _REGISTERED_PDF_FONT = "Times-Roman"
@@ -1201,8 +1208,8 @@ def _render_table_to_pdf(
         story.append(Spacer(1, 4))
         story.append(t)
         story.append(Spacer(1, 6))
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Failed to render table to PDF: %s", exc)
 
 
 def _render_figure_bytes_to_pdf(
@@ -1224,8 +1231,8 @@ def _render_figure_bytes_to_pdf(
                     if target_h > 280.0:
                         target_h = 280.0
                         target_w = float(target_h / aspect)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to determine figure dimensions for PDF, using defaults: %s", exc)
 
         img_flowable = RLImage(io.BytesIO(img_bytes), width=target_w, height=target_h)
         story.append(Spacer(1, 6))

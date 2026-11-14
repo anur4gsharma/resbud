@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:xml/xml_events.dart';
 
 const maxSourceFileBytes = 10 * 1024 * 1024;
@@ -321,7 +322,9 @@ class SourceDocumentImporter {
           } catch (_) {
             try {
               decompressed = ZLibDecoder(raw: true).convert(streamBytes);
-            } catch (_) {}
+            } catch (e) {
+              debugPrint('Failed to decompress raw zlib stream in PDF: $e');
+            }
           }
         } else {
           decompressed = streamBytes;

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import logging
 import re
 import unicodedata
 from io import BytesIO
@@ -24,6 +25,8 @@ from resbud_api.services.markdown_renderer import (
     parse_markdown_blocks,
     render_blocks_to_docx,
 )
+
+logger = logging.getLogger(__name__)
 
 MAX_EXPORT_BYTES = 8 * 1024 * 1024
 DOCX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -288,8 +291,10 @@ def _insert_figure_from_bytes(document: Any, img_bytes: bytes, caption: str) -> 
                     if target_h > 4.5:
                         target_h = 4.5
                         target_w = target_h / aspect
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "Failed to determine chart image dimensions, using fallback dimensions: %s", exc
+            )
 
         p = document.add_paragraph()
         p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -335,8 +340,10 @@ def _insert_figure_from_src(document: Any, img_src: str, caption: str) -> None:
                     if target_h > 4.5:
                         target_h = 4.5
                         target_w = target_h / aspect
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(
+                "Failed to determine figure image dimensions, using fallback dimensions: %s", exc
+            )
 
         p = document.add_paragraph()
         p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -423,8 +430,10 @@ def _append_line_with_math(paragraph: Any, line: str) -> None:
             try:
                 math2docx.add_math(paragraph, clean_math)
                 continue
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "Failed to render mathematical formula into docx, falling back to raw text: %s", exc
+                )
         run = paragraph.add_run(token)
         run.font.name = "Times New Roman"
         run.font.color.rgb = RGBColor(0, 0, 0)

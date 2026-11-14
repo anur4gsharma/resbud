@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import html
 import io
+import logging
 import re
 import unicodedata
 from typing import Any
@@ -36,6 +37,8 @@ from resbud_api.services.markdown_renderer import (
     render_blocks_to_pdf,
     setup_reportlab_academic_fonts,
 )
+
+logger = logging.getLogger(__name__)
 
 MAX_EXPORT_BYTES = 8 * 1024 * 1024
 PDF_MEDIA_TYPE = "application/pdf"
@@ -464,7 +467,8 @@ def _render_latex_math_to_image(latex_code: str) -> RLImage | None:
         img = RLImage(buf, width=pt_w, height=pt_h)
         img.hAlign = "CENTER"
         return img
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to render chart image for PDF: %s", exc)
         return None
 
 
@@ -488,8 +492,8 @@ def _insert_figure_from_bytes_pdf(
                     if target_pt_h > 280.0:
                         target_pt_h = 280.0
                         target_pt_w = target_pt_h / aspect
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to determine figure dimensions from bytes for PDF, using defaults: %s", exc)
 
         buf.seek(0)
         rl_img = RLImage(buf, width=target_pt_w, height=target_pt_h)
@@ -527,8 +531,8 @@ def _insert_figure_pdf(
                     if target_pt_h > 300.0:
                         target_pt_h = 300.0
                         target_pt_w = target_pt_h / aspect
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Failed to determine figure dimensions from src for PDF, using defaults: %s", exc)
 
         buf.seek(0)
         rl_img = RLImage(buf, width=target_pt_w, height=target_pt_h)

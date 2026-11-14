@@ -117,13 +117,17 @@ class GenerationApiClient implements PaperGenerationApi {
           final scheme = Uri.base.scheme.isEmpty ? 'http' : Uri.base.scheme;
           return '$scheme://$host:8000';
         }
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Unable to inspect Uri.base for web URL: $e');
+      }
       return 'http://localhost:8000';
     }
     if (!kIsWeb) {
       try {
         if (Platform.isAndroid) return 'http://10.0.2.2:8000';
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('Unable to inspect Platform for platform-specific URL: $e');
+      }
     }
     return 'http://127.0.0.1:8000';
   }

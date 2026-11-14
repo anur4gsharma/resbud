@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import io
+import logging
 from typing import Any
 
 import matplotlib.pyplot as plt
+
+logger = logging.getLogger(__name__)
 
 # Colorblind-safe academic palette (Okabe-Ito / ColorBrewer)
 ACADEMIC_COLORS = [
@@ -90,7 +93,8 @@ def render_academic_chart_from_spec(spec_text: str) -> bytes | None:
         fig.savefig(buf, format="png", dpi=300, bbox_inches="tight")
         plt.close(fig)
         return buf.getvalue()
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to render academic chart from spec: %s", exc)
         return None
 
 

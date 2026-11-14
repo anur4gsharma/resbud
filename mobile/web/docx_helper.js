@@ -50,7 +50,7 @@
             bytes[i] = binaryString.charCodeAt(i);
           }
 
-          container.innerHTML = "";
+          container.textContent = "";
           var contentDiv = document.createElement("div");
           contentDiv.className = "docx-rendered-pages";
           contentDiv.style.display = "flex";
@@ -173,7 +173,7 @@
           var blob = new Blob([bytes], { type: "application/pdf" });
           var blobUrl = URL.createObjectURL(blob);
 
-          container.innerHTML = "";
+          container.textContent = "";
           var iframe = document.createElement("iframe");
           // Standard PDF open parameters to suppress browser's duplicate toolbar and sidebar
           iframe.src = blobUrl + "#toolbar=0&navpanes=0&scrollbar=1";
@@ -211,7 +211,9 @@
           iframe.contentWindow.focus();
           iframe.contentWindow.print();
           return true;
-        } catch(e) {}
+        } catch(e) {
+          console.warn("Unable to print via iframe contentWindow, falling back to window.print():", e);
+        }
       }
     }
     window.print();

@@ -126,7 +126,6 @@ void main() {
     await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
     await tester.pumpAndSettle();
 
-    // Check tooltips on icon buttons
     final readinessBtn = tester.widget<IconButton>(find.byKey(const ValueKey('button-readiness-review')));
     expect(readinessBtn.tooltip, 'Manuscript readiness review');
 

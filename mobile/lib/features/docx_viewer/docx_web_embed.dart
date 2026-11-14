@@ -139,7 +139,9 @@ class _DocxWebEmbedWidgetState extends State<_DocxWebEmbedWidget> {
           ? _containerElement! as JSObject
           : _containerDomId.toJS;
       _setDocxZoom(target, widget.zoom.toJS);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('Failed to set DOCX zoom: $e');
+    }
   }
 
   @override
