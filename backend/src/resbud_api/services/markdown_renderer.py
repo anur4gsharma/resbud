@@ -296,11 +296,32 @@ def is_big_equation(m: re.Match[str], full_text: str) -> bool:
     if r"\\" in raw or re.search(r"\\begin\{[a-zA-Z0-9*]+\}", raw):
         return True
 
+    inner = clean_math_source(raw)
+
+    # Large display operators with tall vertical bounds (limits, integrals, products, sums)
+    large_operators_pattern = re.compile(
+        r"\\(?:prod|sum|int|iint|iiint|oint|coprod|bigcup|bigcap|lim|max|min|inf|sup)\b"
+    )
+    if large_operators_pattern.search(inner):
+        return True
+
+    # Complex vertical structures: fractions with relations or compound terms
+    if re.search(r"\\(?:frac|dfrac|cfrac)\b", inner) and any(
+        rel in inner for rel in ("=", r"\le", r"\ge", r"\sim", r"\approx", r"\equiv")
+    ):
+        return True
+
     # Standalone equation occupying the entire paragraph
     if full_text.strip() == raw.strip():
-        inner = clean_math_source(raw)
-        if any(op in inner for op in ("=", r"\le", r"\ge", r"\sum", r"\prod", r"\int", r"\frac")):
+        if any(
+            op in inner
+            for op in ("=", r"\le", r"\ge", r"\sim", r"\approx", r"\equiv", r"\frac")
+        ):
             return True
+
+    # Equation definitions embedded in introductory prose with equality and substantial length
+    if re.search(r"(?:=|:=|\\equiv|\\approx)", inner) and len(inner) >= 20:
+        return True
 
     return False
 
@@ -1002,11 +1023,17 @@ def _get_inline_math_img_tag(latex: str) -> str:
                 w_pt = max_w
                 h_pt = h_pt * scale
 
+            max_h = 13.5
+            if h_pt > max_h:
+                scale = max_h / h_pt
+                h_pt = max_h
+                w_pt = w_pt * scale
+
         file_path = os.path.join(_INLINE_MATH_DIR.name, f"math_{abs(hash(clean))}.png")
         with open(file_path, "wb") as f:
             f.write(buf.getvalue())
 
-        valign = -2 if h_pt <= 16 else -4
+        valign = -2
         tag = f'<img src="{file_path}" width="{w_pt:.1f}" height="{h_pt:.1f}" valign="{valign}"/>'
         _INLINE_MATH_CACHE[clean] = tag
         return tag

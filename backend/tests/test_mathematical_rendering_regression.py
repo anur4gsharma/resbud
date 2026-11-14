@@ -259,6 +259,28 @@ def test_sarkarsetu_inline_math_variables_do_not_create_new_lines() -> None:
     assert m_spans[2].content == "F_1"
 
 
+def test_product_operator_equation_extracted_as_display_block() -> None:
+    text = (
+        r"The overall compatibility score is computed by analyzing the intersection of the user profile "
+        r"with candidate requirements is defined as $O(S) = \prod_{i=1}^n f(P_i, C_i)$, where $f$ represents "
+        r"the compatibility function."
+    )
+    blocks = parse_markdown_blocks(text)
+    assert len(blocks) == 3
+    assert isinstance(blocks[0], ParagraphBlock)
+    assert "is defined as follows:" in "".join(s.content for s in blocks[0].spans)
+
+    assert isinstance(blocks[1], EquationBlockNode)
+    assert r"\prod_{i=1}^n f(P_i, C_i)" in blocks[1].latex
+    assert blocks[1].display_type == "display"
+
+    assert isinstance(blocks[2], ParagraphBlock)
+    math_spans = [s for s in blocks[2].spans if s.kind == "math"]
+    assert len(math_spans) == 1
+    assert math_spans[0].content == "f"
+    assert "where" in "".join(s.content for s in blocks[2].spans)
+
+
 def test_docx_export_produces_native_omml_equations_in_standalone_paragraphs() -> None:
     draft = PaperDraft(
         title="Mathematical Foundations in Modern Computing",
