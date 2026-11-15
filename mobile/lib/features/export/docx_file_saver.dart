@@ -2,20 +2,20 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 /// Platform and OS considerations:
 ///
 /// On desktop and host operating systems (Linux, macOS, Windows):
-/// Files are saved directly to the designated filesystem directory (e.g., standard
-/// documents or system temp) and can be immediately opened in office applications.
+/// Files are saved directly to the user's standard Downloads directory
+/// and can be immediately opened in office applications or file managers.
 ///
 /// On mobile platforms (Android, iOS):
-/// Applications execute inside OS-enforced sandboxes. Files written to local app
-/// directories remain private to the application. To expose documents to external
-/// file managers or word processors on physical mobile devices, files must either
-/// be saved to public external storage (requiring scoped storage permissions on Android)
-/// or transferred via the system share sheet / document provider.
+/// Files are exported directly to the device's public Downloads directory
+/// (via Android MediaStore on Android 10+ so they are immediately accessible
+/// in the user's Files and Downloads apps without extra permissions).
 ///
 /// This [DocxFileSaver] interface isolates filesystem and platform-specific file
 /// saving and sharing logic from the core paper editor and project state.
@@ -44,8 +44,9 @@ class DocxFileSaverException implements Exception {
   String toString() => 'DocxFileSaverException: $message';
 }
 
-/// Local filesystem implementation of [DocxFileSaver] that performs safe filename
-/// sanitization and conflict resolution (e.g., `paper (1).docx`).
+/// Local filesystem and platform channel implementation of [DocxFileSaver]
+/// that ensures files are saved directly into the user's Downloads directory
+/// with safe filename sanitization and conflict resolution (e.g., `paper (1).docx`).
 class LocalDocxFileSaver implements DocxFileSaver {
   LocalDocxFileSaver({
     this.targetDirectory,
@@ -56,6 +57,8 @@ class LocalDocxFileSaver implements DocxFileSaver {
   final Directory? targetDirectory;
   final Future<Directory> Function()? directoryResolver;
   final Future<void> Function({required String fileName, required Uint8List bytes})? webSaveHandler;
+
+  static const MethodChannel _androidChannel = MethodChannel('org.resbud.mobile/file_saver');
 
   @override
   Future<String> saveDocx({
@@ -83,6 +86,23 @@ class LocalDocxFileSaver implements DocxFileSaver {
         return sanitized;
       } on Object catch (error) {
         throw DocxFileSaverException('Could not save exported DOCX: $error');
+      }
+    }
+
+    // On Android, use native MediaStore via platform channel to save directly to public Downloads
+    if (targetDirectory == null && directoryResolver == null && Platform.isAndroid) {
+      try {
+        final savedPath = await _androidChannel.invokeMethod<String>('saveToDownloads', {
+          'fileName': sanitized,
+          'bytes': bytes,
+          'mimeType':
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        });
+        if (savedPath != null && savedPath.isNotEmpty) {
+          return savedPath;
+        }
+      } catch (e) {
+        debugPrint('saveToDownloads channel fallback: $e');
       }
     }
 
@@ -135,6 +155,22 @@ class LocalDocxFileSaver implements DocxFileSaver {
       }
     }
 
+    // On Android, use native MediaStore via platform channel to save directly to public Downloads
+    if (targetDirectory == null && directoryResolver == null && Platform.isAndroid) {
+      try {
+        final savedPath = await _androidChannel.invokeMethod<String>('saveToDownloads', {
+          'fileName': sanitized,
+          'bytes': bytes,
+          'mimeType': 'application/pdf',
+        });
+        if (savedPath != null && savedPath.isNotEmpty) {
+          return savedPath;
+        }
+      } catch (e) {
+        debugPrint('saveToDownloads channel fallback: $e');
+      }
+    }
+
     try {
       final dir = targetDirectory ??
           (directoryResolver != null
@@ -157,6 +193,34 @@ class LocalDocxFileSaver implements DocxFileSaver {
   }
 
   static Future<Directory> _defaultExportDirectory() async {
+    if (!kIsWeb) {
+      // 1. Try system Downloads directory from path_provider (Desktop & platforms)
+      try {
+        final downloads = await getDownloadsDirectory();
+        if (downloads != null && await downloads.exists()) {
+          return downloads;
+        }
+      } catch (_) {}
+
+      // 2. Try Android public Downloads directory
+      if (Platform.isAndroid) {
+        final publicDownload = Directory('/storage/emulated/0/Download');
+        if (await publicDownload.exists()) {
+          return publicDownload;
+        }
+      }
+
+      // 3. Try standard user HOME Downloads folder
+      final home = Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+      if (home != null && home.isNotEmpty) {
+        final homeDownloads = Directory(p.join(home, 'Downloads'));
+        if (await homeDownloads.exists()) {
+          return homeDownloads;
+        }
+      }
+    }
+
+    // 4. Fallback to temp app directory if downloads cannot be resolved
     final baseDir = Directory(p.join(Directory.systemTemp.path, 'resbud_exports'));
     if (!await baseDir.exists()) {
       await baseDir.create(recursive: true);

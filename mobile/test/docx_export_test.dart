@@ -309,6 +309,29 @@ void main() {
       expect(p.basename(path), isNot(contains('?')));
       expect(p.extension(path), '.pdf');
     });
+
+    test('LocalDocxFileSaver defaults to user Downloads directory when targetDirectory is omitted', () async {
+      final fakeDownloads = await Directory.systemTemp.createTemp('resbud-fake-downloads-');
+      addTearDown(() => fakeDownloads.delete(recursive: true));
+
+      final saverWithDownloads = LocalDocxFileSaver(
+        directoryResolver: () async => fakeDownloads,
+      );
+      final bytes = Uint8List.fromList([1, 2, 3, 4]);
+      final savedDocx = await saverWithDownloads.saveDocx(
+        bytes: bytes,
+        suggestedFilename: 'exported_paper.docx',
+      );
+      expect(p.dirname(savedDocx), fakeDownloads.path);
+      expect(File(savedDocx).existsSync(), isTrue);
+
+      final savedPdf = await saverWithDownloads.savePdf(
+        bytes: bytes,
+        suggestedFilename: 'exported_paper.pdf',
+      );
+      expect(p.dirname(savedPdf), fakeDownloads.path);
+      expect(File(savedPdf).existsSync(), isTrue);
+    });
   });
 
   group('PDF Export API client', () {

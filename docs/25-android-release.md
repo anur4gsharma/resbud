@@ -20,8 +20,8 @@ Live runtime verification on an Android emulator (Android 17 API 37) confirmed s
 | Attribute | Verified Value |
 |---|---|
 | **Binary Path** | `releases/android/Resbud-release.apk` |
-| **Artifact Size** | `63,668,006 bytes` (~60.72 MiB) |
-| **SHA-256 Checksum** | `c120862ff1649b84fcf33b30c5a5f8cb382469ce1298546d88c717e4b6b1d66c` |
+| **Artifact Size** | `64,422,036 bytes` (~61.44 MiB) |
+| **SHA-256 Checksum** | `c664131bb909305808a6defb5e5961a9fdf66a3f28531a409f173d51895c7822` |
 | **Package Name** | `org.resbud.mobile` |
 | **Version Name** | `0.1.0` |
 | **Version Code** | `1` |
@@ -33,7 +33,7 @@ Live runtime verification on an Android emulator (Android 17 API 37) confirmed s
 ### Checksum Verification
 ```bash
 sha256sum releases/android/Resbud-release.apk
-# c120862ff1649b84fcf33b30c5a5f8cb382469ce1298546d88c717e4b6b1d66c  releases/android/Resbud-release.apk
+# c664131bb909305808a6defb5e5961a9fdf66a3f28531a409f173d51895c7822  releases/android/Resbud-release.apk
 ```
 
 ---
@@ -156,6 +156,8 @@ print("Generated Private Beta Token:\n", token)
 4. **Backend Connectivity:** In-app connection probe reached `https://resbud-api.onrender.com/health/ready` and verified `Status: Ready`.
 5. **Token Injection:** Private beta test token was pasted and stored into local SQLite. Dashboard AppBar updated cloud icon to `cloud_done` with green status badge.
 6. **Project Creation:** Modal opened smoothly and accepted project title input.
+7. **Public Downloads Export:** DOCX and PDF export direct integration using Android MediaStore (`org.resbud.mobile/file_saver` MethodChannel) saving files directly into `/storage/emulated/0/Download/` for instant access in the system Files and Downloads applications with explicit download feedback.
+8. **In-App Document & PDF Viewer Polish:** True multi-page visual layout (`docx-page-1`, `docx-page-2`...) with academic running headers, per-page footers, fluid bidirectional 2D scrolling, and responsive auto-scaling preventing mobile viewport clipping and RenderFlex overflows.
 
 ### Visual Evidence
 Screenshots captured during live device testing are stored in `releases/android/screenshots/`:

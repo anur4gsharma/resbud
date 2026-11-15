@@ -134,13 +134,13 @@ class _DocxViewerState extends State<DocxViewer> {
 
   void _zoomIn() {
     setState(() {
-      _zoom = (_zoom + 0.1).clamp(0.5, 2.0);
+      _zoom = (_zoom + 0.1).clamp(0.4, 2.0);
     });
   }
 
   void _zoomOut() {
     setState(() {
-      _zoom = (_zoom - 0.1).clamp(0.5, 2.0);
+      _zoom = (_zoom - 0.1).clamp(0.4, 2.0);
     });
   }
 
@@ -151,9 +151,14 @@ class _DocxViewerState extends State<DocxViewer> {
   }
 
   void _fitToWidth() {
+    final screenWidth = MediaQuery.maybeOf(context)?.size.width;
     setState(() {
-      // 1.15 is ideal fit for standard viewports
-      _zoom = 1.15;
+      if (screenWidth != null && screenWidth < 700) {
+        _zoom = ((screenWidth - 32) / 794.0).clamp(0.4, 2.0);
+      } else {
+        // 1.15 is ideal fit for standard viewports
+        _zoom = 1.15;
+      }
     });
   }
 
@@ -344,8 +349,9 @@ class _DocxViewerState extends State<DocxViewer> {
               onPressed: _currentPage > 1
                   ? () {
                       setState(() => _currentPage--);
+                      final pageHeight = (1123.0 + 24.0) * _zoom;
                       _scrollController.animateTo(
-                        (_currentPage - 1) * 800.0,
+                        (_currentPage - 1) * pageHeight,
                         duration: const Duration(milliseconds: 300),
                         curve: Curves.easeOut,
                       );
@@ -375,8 +381,9 @@ class _DocxViewerState extends State<DocxViewer> {
               onPressed: _currentPage < _totalPages
                   ? () {
                       setState(() => _currentPage++);
+                      final pageHeight = (1123.0 + 24.0) * _zoom;
                       _scrollController.animateTo(
-                        (_currentPage - 1) * 800.0,
+                        (_currentPage - 1) * pageHeight,
                         duration: const Duration(milliseconds: 300),
                         curve: Curves.easeOut,
                       );

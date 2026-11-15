@@ -83,7 +83,7 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
 
   @override
   Widget build(BuildContext context) {
-    final zoom = widget.zoom.clamp(0.5, 2.5);
+    final zoom = widget.zoom.clamp(0.4, 2.5);
     final pageWidth = _basePageWidth * zoom;
     final minPageHeight = _basePageMinHeight * zoom;
     final margin = _baseMargin * zoom;
@@ -95,46 +95,193 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
       child: SingleChildScrollView(
         key: const ValueKey('docx-document-canvas-scroll-view'),
         controller: _activeScrollController,
-        padding: EdgeInsets.symmetric(vertical: 24.0 * zoom, horizontal: 16.0),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Page 1: Title, Abstract, Introduction
-              _buildPageContainer(
-                pageNumber: 1,
-                totalPages: estimatedPages,
-                pageWidth: pageWidth,
-                minHeight: minPageHeight,
-                margin: margin,
-                zoom: zoom,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _buildTitleSection(zoom),
-                    if (widget.paper.abstractText.isNotEmpty) ...[
-                      SizedBox(height: 18 * zoom),
-                      _buildAbstractSection(zoom),
-                    ],
-                    SizedBox(height: 24 * zoom),
-                    if (widget.paper.pageLayout == 'two_column_academic')
-                      _buildTwoColumnBody(zoom)
-                    else ...[
-                      // Display initial sections on page 1 (standard single-column)
-                      for (var i = 0; i < widget.paper.sections.length; i++)
-                        _buildSectionBlock(widget.paper.sections[i], i + 1, zoom),
-                      if (widget.paper.references.isNotEmpty) ...[
-                        SizedBox(height: 24 * zoom),
-                        _buildReferencesSection(zoom),
-                      ],
-                    ],
-                  ],
-                ),
+        scrollDirection: Axis.vertical,
+        padding: EdgeInsets.symmetric(vertical: 24.0 * zoom),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: _buildAllPages(
+                estimatedPages,
+                pageWidth,
+                minPageHeight,
+                margin,
+                zoom,
               ),
-            ],
+            ),
           ),
         ),
       ),
+    );
+  }
+
+  List<Widget> _buildAllPages(
+    int totalPages,
+    double pageWidth,
+    double minPageHeight,
+    double margin,
+    double zoom,
+  ) {
+    if (totalPages <= 1) {
+      return [
+        _buildPageContainer(
+          pageNumber: 1,
+          totalPages: 1,
+          pageWidth: pageWidth,
+          minHeight: minPageHeight,
+          margin: margin,
+          zoom: zoom,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildTitleSection(zoom),
+              if (widget.paper.abstractText.isNotEmpty) ...[
+                SizedBox(height: 18 * zoom),
+                _buildAbstractSection(zoom),
+              ],
+              SizedBox(height: 24 * zoom),
+              if (widget.paper.pageLayout == 'two_column_academic')
+                _buildTwoColumnBody(widget.paper.sections, 1, zoom, includeReferences: true)
+              else ...[
+                for (var i = 0; i < widget.paper.sections.length; i++)
+                  _buildSectionBlock(widget.paper.sections[i], i + 1, zoom),
+                if (widget.paper.references.isNotEmpty) ...[
+                  SizedBox(height: 24 * zoom),
+                  _buildReferencesSection(zoom),
+                ],
+              ],
+            ],
+          ),
+        ),
+      ];
+    }
+
+    final sections = widget.paper.sections;
+    final totalSections = sections.length;
+    final isTwoColumn = widget.paper.pageLayout == 'two_column_academic';
+
+    // Partition sections across totalPages
+    final sectionChunks = <List<PaperSectionPayload>>[];
+    if (totalSections == 0) {
+      for (var i = 0; i < totalPages; i++) {
+        sectionChunks.add([]);
+      }
+    } else if (totalSections <= totalPages) {
+      for (var i = 0; i < totalPages; i++) {
+        if (i < totalSections) {
+          sectionChunks.add([sections[i]]);
+        } else {
+          sectionChunks.add([]);
+        }
+      }
+    } else {
+      final page1Count = (totalSections / totalPages).floor().clamp(1, totalSections);
+      sectionChunks.add(sections.take(page1Count).toList());
+      var remaining = sections.skip(page1Count).toList();
+      final remainingPages = totalPages - 1;
+
+      for (var p = 0; p < remainingPages; p++) {
+        final pagesLeft = remainingPages - p;
+        final count = (remaining.length / pagesLeft).ceil().clamp(1, remaining.length);
+        sectionChunks.add(remaining.take(count).toList());
+        remaining = remaining.skip(count).toList();
+      }
+    }
+
+    var globalSectionIndex = 1;
+    final pages = <Widget>[];
+
+    for (var pageIdx = 1; pageIdx <= totalPages; pageIdx++) {
+      final isFirstPage = pageIdx == 1;
+      final isLastPage = pageIdx == totalPages;
+      final currentChunk = sectionChunks[pageIdx - 1];
+      final chunkStartIndex = globalSectionIndex;
+      globalSectionIndex += currentChunk.length;
+
+      pages.add(
+        _buildPageContainer(
+          pageNumber: pageIdx,
+          totalPages: totalPages,
+          pageWidth: pageWidth,
+          minHeight: minPageHeight,
+          margin: margin,
+          zoom: zoom,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (isFirstPage) ...[
+                _buildTitleSection(zoom),
+                if (widget.paper.abstractText.isNotEmpty) ...[
+                  SizedBox(height: 18 * zoom),
+                  _buildAbstractSection(zoom),
+                ],
+                SizedBox(height: 24 * zoom),
+              ] else ...[
+                _buildRunningHeader(zoom),
+                SizedBox(height: 18 * zoom),
+              ],
+
+              if (isTwoColumn)
+                _buildTwoColumnBody(
+                  currentChunk,
+                  chunkStartIndex,
+                  zoom,
+                  includeReferences: isLastPage,
+                )
+              else ...[
+                for (var i = 0; i < currentChunk.length; i++)
+                  _buildSectionBlock(currentChunk[i], chunkStartIndex + i, zoom),
+                if (isLastPage && widget.paper.references.isNotEmpty) ...[
+                  SizedBox(height: 24 * zoom),
+                  _buildReferencesSection(zoom),
+                ],
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    return pages;
+  }
+
+  Widget _buildRunningHeader(double zoom) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                widget.paper.title.toUpperCase(),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontFamily: 'serif',
+                  fontSize: 8.0 * zoom,
+                  color: Colors.grey.shade600,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+            SizedBox(width: 12 * zoom),
+            Text(
+              'RESBUD RESEARCH MANUSCRIPT',
+              style: TextStyle(
+                fontFamily: 'serif',
+                fontSize: 7.5 * zoom,
+                color: Colors.grey.shade500,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 4.0 * zoom),
+        Divider(color: Colors.grey.shade300, thickness: 0.5 * zoom, height: 1),
+      ],
     );
   }
 
@@ -190,8 +337,12 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
     );
   }
 
-  Widget _buildTwoColumnBody(double zoom) {
-    final sections = widget.paper.sections;
+  Widget _buildTwoColumnBody(
+    List<PaperSectionPayload> sections,
+    int startIndex,
+    double zoom, {
+    bool includeReferences = false,
+  }) {
     final half = (sections.length / 2).ceil();
     final leftSections = sections.take(half).toList();
     final rightSections = sections.skip(half).toList();
@@ -209,7 +360,7 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   for (var i = 0; i < leftSections.length; i++)
-                    _buildSectionBlock(leftSections[i], i + 1, zoom, isTwoColumn: true),
+                    _buildSectionBlock(leftSections[i], startIndex + i, zoom, isTwoColumn: true),
                 ],
               ),
             ),
@@ -219,8 +370,8 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   for (var i = 0; i < rightSections.length; i++)
-                    _buildSectionBlock(rightSections[i], half + i + 1, zoom, isTwoColumn: true),
-                  if (widget.paper.references.isNotEmpty) ...[
+                    _buildSectionBlock(rightSections[i], startIndex + half + i, zoom, isTwoColumn: true),
+                  if (includeReferences && widget.paper.references.isNotEmpty) ...[
                     SizedBox(height: 14 * zoom),
                     _buildReferencesSection(zoom, isTwoColumn: true),
                   ],

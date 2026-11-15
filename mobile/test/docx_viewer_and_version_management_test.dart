@@ -561,5 +561,89 @@ void main() {
       expect(find.byKey(const ValueKey('pdf-viewer-toolbar')), findsOneWidget);
       expect(find.byKey(const ValueKey('button-pdf-viewer-download')), findsOneWidget);
     });
+
+    testWidgets('multi-page document renders distinct visual page containers with running headers', (tester) async {
+      final multiPagePaper = PaperDraftPayload(
+        schemaVersion: 1,
+        title: 'Scalable Distributed Architectures',
+        abstractText: 'An extensive survey of consensus algorithms and replicated state machines. ' * 5,
+        keywords: const ['distributed', 'consensus', 'raft', 'paxos'],
+        sections: [
+          for (var i = 1; i <= 6; i++)
+            PaperSectionPayload(
+              id: 'sec-$i',
+              heading: 'Section $i: Scalability Analysis',
+              content: 'Detailed analytical evaluation of network overhead and partition tolerance under Byzantine conditions. ' * 12,
+              state: 'draft',
+            ),
+        ],
+        references: const [
+          ReferencePayload(id: 'r1', text: 'Lamport, L. (1998). The Part-Time Parliament. ACM TOCS.'),
+          ReferencePayload(id: 'r2', text: 'Ongaro, D. (2014). In Search of an Understandable Consensus Algorithm. USENIX ATC.'),
+        ],
+        reviewWarnings: const [],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DocxViewer(
+              paper: multiPagePaper,
+              exportApi: fakeExportApi,
+              fileSaver: fakeSaver,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Expect at least Page 1 and Page 2 containers
+      expect(find.byKey(const ValueKey('docx-page-1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('docx-page-2')), findsOneWidget);
+
+      // Running header present on subsequent pages
+      expect(find.text('RESBUD RESEARCH MANUSCRIPT'), findsWidgets);
+
+      // Page indicator displays total pages > 1
+      expect(find.byKey(const ValueKey('docx-page-indicator')), findsOneWidget);
+      final indicatorText = tester.widget<Text>(find.byKey(const ValueKey('docx-page-indicator'))).data!;
+      expect(indicatorText, contains('Page 1 of'));
+    });
+
+    testWidgets('viewer renders with zero overflow on phone viewport (360x640) in single and two-column layouts', (tester) async {
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DocxViewer(
+              paper: samplePaper,
+              exportApi: fakeExportApi,
+              fileSaver: fakeSaver,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull, reason: 'RenderFlex overflow in single-column on 360x640');
+
+      // Scroll toolbar to make fit-to-width visible and tap
+      await tester.ensureVisible(find.byKey(const ValueKey('button-docx-fit-width')));
+      await tester.tap(find.byKey(const ValueKey('button-docx-fit-width')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: 'RenderFlex overflow after fit-to-width on 360x640');
+
+      // Scroll toolbar to make layout toggle visible and tap
+      await tester.ensureVisible(find.byKey(const ValueKey('button-docx-layout-toggle')));
+      await tester.tap(find.byKey(const ValueKey('button-docx-layout-toggle')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: 'RenderFlex overflow in two-column on 360x640');
+    });
   });
 }

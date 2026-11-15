@@ -146,8 +146,9 @@ class _PdfViewerState extends State<PdfViewer> {
     final page = targetPage.clamp(1, _totalPages);
     setState(() => _currentPage = page);
     if (_scrollController.hasClients) {
+      final pageHeight = (1123.0 + 24.0) * _zoom;
       _scrollController.animateTo(
-        (page - 1) * 800.0,
+        (page - 1) * pageHeight,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
@@ -157,10 +158,19 @@ class _PdfViewerState extends State<PdfViewer> {
     }
   }
 
-  void _zoomIn() => setState(() => _zoom = (_zoom + 0.1).clamp(0.5, 2.5));
-  void _zoomOut() => setState(() => _zoom = (_zoom - 0.1).clamp(0.5, 2.5));
+  void _zoomIn() => setState(() => _zoom = (_zoom + 0.1).clamp(0.4, 2.5));
+  void _zoomOut() => setState(() => _zoom = (_zoom - 0.1).clamp(0.4, 2.5));
   void _resetZoom() => setState(() => _zoom = 1.0);
-  void _fitToWidth() => setState(() => _zoom = 1.0);
+  void _fitToWidth() {
+    final screenWidth = MediaQuery.maybeOf(context)?.size.width;
+    setState(() {
+      if (screenWidth != null && screenWidth < 700) {
+        _zoom = ((screenWidth - 32) / 794.0).clamp(0.4, 2.5);
+      } else {
+        _zoom = 1.0;
+      }
+    });
+  }
   void _rotateClockwise() => setState(() => _rotationDegrees = (_rotationDegrees + 90) % 360);
 
   void _printPdf() {
@@ -182,10 +192,18 @@ class _PdfViewerState extends State<PdfViewer> {
     try {
       final paperToExport = widget.paper.copyWith(pageLayout: _currentLayout);
       final result = await widget.exportApi!.exportDocx(paperToExport, layout: _currentLayout);
-      await widget.fileSaver!.saveDocx(
+      final path = await widget.fileSaver!.saveDocx(
         bytes: result.bytes,
         suggestedFilename: result.suggestedFilename,
       );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Downloaded: $path'),
+            backgroundColor: Colors.green.shade800,
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -204,10 +222,18 @@ class _PdfViewerState extends State<PdfViewer> {
     try {
       final paperToExport = widget.paper.copyWith(pageLayout: _currentLayout);
       final result = await widget.exportApi!.exportPdf(paperToExport, layout: _currentLayout);
-      await widget.fileSaver!.savePdf(
+      final path = await widget.fileSaver!.savePdf(
         bytes: result.bytes,
         suggestedFilename: result.suggestedFilename,
       );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Downloaded PDF: $path'),
+            backgroundColor: Colors.green.shade800,
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
