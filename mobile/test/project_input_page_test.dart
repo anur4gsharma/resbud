@@ -547,4 +547,37 @@ Depolarizing noise only.
     await tester.pumpAndSettle();
     expect(find.text('Before generation'), findsNothing);
   });
+
+  testWidgets('page layout selector supports two-column academic format independently of citation style and preserves inputs', (
+    tester,
+  ) async {
+    await pumpInput(tester);
+    await populateValidInputs(tester);
+
+    // Verify initial layout selector in classic mode
+    final layoutSelector = find.byKey(const ValueKey('page-layout-selector-classic'));
+    await scrollTo(tester, layoutSelector);
+    expect(layoutSelector, findsOneWidget);
+
+    // Select Two-Column Academic (IEEE format)
+    await tester.tap(layoutSelector);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Two-Column Academic (IEEE format)').last);
+    await tester.pumpAndSettle();
+
+    // Save project
+    await tester.tap(find.text('Save project'));
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await tester.pumpAndSettle();
+
+    // Verify persisted project context
+    final saved = (await tester.runAsync(
+      () async => (await repository.getProject(project.id))!,
+    ))!;
+    final preferences = saved.projectContext['preferences'] as Map<String, dynamic>?;
+    expect(preferences?['page_layout'], 'two_column_academic');
+  });
 }

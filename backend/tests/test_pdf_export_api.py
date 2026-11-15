@@ -151,3 +151,84 @@ def test_pdf_renders_declarative_chart_block() -> None:
     assert response.content.startswith(b"%PDF-")
     reader = pypdf.PdfReader(BytesIO(response.content))
     assert len(reader.pages) >= 1
+
+
+def test_two_column_academic_pdf_export_structure() -> None:
+    paper = copy.deepcopy(PAPER)
+    paper["page_layout"] = "two_column_academic"
+    paper["author_info"] = "Dr. Jane Doe and Dr. John Smith"
+    paper["affiliation"] = "Department of Computer Science, University of Technology"
+    paper["keywords"] = ["Neural Networks", "Optimization", "High Performance Computing"]
+    paper["sections"].append(
+        {
+            "id": "methodology",
+            "heading": "Methodology",
+            "state": "draft",
+            "content": (
+                "We propose a novel framework for distributed processing.\n\n"
+                r"$$\mathcal{L}_{total} = \alpha \mathcal{L}_{MSE} + \beta \mathcal{L}_{KL}$$"
+                "\n\n"
+                "| Architecture | Parameter Count | Top-1 Accuracy |\n"
+                "| --- | --- | --- |\n"
+                "| ResNet-18 | 11.7M | 69.8% |\n"
+                "| ResNet-50 | 25.6M | 76.1% |\n\n"
+                "Concluding observation on convergence stability."
+            ),
+        }
+    )
+
+    response = _request(_app(), paper)
+    assert response.status_code == 200
+    assert response.content.startswith(b"%PDF-")
+
+    reader = pypdf.PdfReader(BytesIO(response.content))
+    assert len(reader.pages) >= 1
+    extracted_text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    assert "Example Study" in extracted_text
+    assert "Dr. Jane Doe and Dr. John Smith" in extracted_text
+    assert "University of Technology" in extracted_text
+    assert "Abstract" in extracted_text
+    assert "Index Terms" in extracted_text
+    assert "Neural Networks" in extracted_text
+    assert "ResNet-50" in extracted_text
+
+
+def test_two_column_academic_pdf_export_via_query_param() -> None:
+    async def request_with_query() -> httpx.Response:
+        transport = httpx.ASGITransport(app=_app(), raise_app_exceptions=False)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            return await client.post("/api/v1/exports/pdf?layout=two_column_academic", json=PAPER)
+
+    response = asyncio.run(request_with_query())
+    assert response.status_code == 200
+    assert response.content.startswith(b"%PDF-")
+    reader = pypdf.PdfReader(BytesIO(response.content))
+    assert len(reader.pages) >= 1
+
+
+@pytest.mark.parametrize("citation_style", ["apa_7", "ieee", "user_supplied", "other"])
+def test_two_column_academic_pdf_independent_of_citation_style(citation_style: str) -> None:
+    paper = copy.deepcopy(PAPER)
+    paper["page_layout"] = "two_column_academic"
+    paper["references"] = [
+        {
+            "id": "ref_1",
+            "text": f"Author, A. (2024). Foundational Study in {citation_style} format.",
+        }
+    ]
+    response = _request(_app(), paper)
+    assert response.status_code == 200
+    reader = pypdf.PdfReader(BytesIO(response.content))
+    extracted = "\n".join(page.extract_text() or "" for page in reader.pages)
+    assert "References" in extracted
+    assert "Foundational Study" in extracted
+
+
+def test_two_column_academic_pdf_with_no_references() -> None:
+    paper = copy.deepcopy(PAPER)
+    paper["page_layout"] = "two_column_academic"
+    paper["references"] = []
+    response = _request(_app(), paper)
+    assert response.status_code == 200
+    reader = pypdf.PdfReader(BytesIO(response.content))
+    assert len(reader.pages) >= 1

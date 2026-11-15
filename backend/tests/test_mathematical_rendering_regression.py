@@ -88,7 +88,9 @@ def test_fixture_4_inline_equations_remain_in_single_paragraph() -> None:
     assert len(math_spans) == 2
     assert math_spans[0].content == r"O(n \log n)"
     assert math_spans[1].content == r"k \ge 1"
-    assert "In asymptotic analysis, the algorithm runs in" in "".join(s.content for s in blocks[0].spans)
+    assert "In asymptotic analysis, the algorithm runs in" in "".join(
+        s.content for s in blocks[0].spans
+    )
 
 
 def test_fixture_5_greek_letters_and_subscripts_inline() -> None:

@@ -188,6 +188,28 @@
           }
         }
       }
+    },
+    "page_layout": {
+      "type": "string",
+      "enum": [
+        "single_column",
+        "two_column_academic"
+      ],
+      "default": "single_column"
+    },
+    "author_info": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 500
+    },
+    "affiliation": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 500
     }
   }
 }

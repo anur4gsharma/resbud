@@ -1751,6 +1751,36 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                 tooltip: 'Version history',
                 onPressed: _openVersionHistory,
               ),
+              if (MediaQuery.sizeOf(context).width > 420)
+                IconButton(
+                  key: const ValueKey('button-layout-toggle'),
+                  padding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  icon: Icon(
+                    _paper.pageLayout == 'two_column_academic'
+                        ? Icons.view_column_outlined
+                        : Icons.view_agenda_outlined,
+                    size: 19,
+                  ),
+                  tooltip: _paper.pageLayout == 'two_column_academic'
+                      ? 'Layout: Two-Column Academic (switch to Single-Column)'
+                      : 'Layout: Standard Single-Column (switch to Two-Column Academic)',
+                  onPressed: () {
+                    final newLayout = _paper.pageLayout == 'two_column_academic'
+                        ? 'single_column'
+                        : 'two_column_academic';
+                    setState(() {
+                      _paper = _paper.copyWith(pageLayout: newLayout);
+                      _isDirty = true;
+                    });
+                    _showFeedback(
+                      newLayout == 'two_column_academic'
+                          ? 'Switched layout to Two-Column Academic (IEEE format).'
+                          : 'Switched layout to Standard Single-Column.',
+                    );
+                  },
+                ),
               IconButton(
                 key: const ValueKey('button-export-docx'),
                 padding: EdgeInsets.zero,

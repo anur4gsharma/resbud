@@ -64,6 +64,7 @@ class _PdfViewerState extends State<PdfViewer> {
   bool _isFullscreen = false;
   bool _useCanvasFallback = false;
   final ScrollController _scrollController = ScrollController();
+  late String _currentLayout;
 
   String get _activeViewId =>
       'pdf-${widget.paper.title.hashCode}-${_pdfBytes?.length ?? 0}';
@@ -71,6 +72,7 @@ class _PdfViewerState extends State<PdfViewer> {
   @override
   void initState() {
     super.initState();
+    _currentLayout = widget.paper.pageLayout;
     _pdfBytes = widget.initialPdfBytes;
     if (_pdfBytes != null && _pdfBytes!.isNotEmpty) {
       _totalPages = extractPdfPageCount(_pdfBytes!);
@@ -83,6 +85,9 @@ class _PdfViewerState extends State<PdfViewer> {
   @override
   void didUpdateWidget(covariant PdfViewer oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.paper.pageLayout != widget.paper.pageLayout) {
+      _currentLayout = widget.paper.pageLayout;
+    }
     if (oldWidget.initialPdfBytes != widget.initialPdfBytes) {
       _pdfBytes = widget.initialPdfBytes;
       if (_pdfBytes != null && _pdfBytes!.isNotEmpty) {
@@ -100,6 +105,18 @@ class _PdfViewerState extends State<PdfViewer> {
     super.dispose();
   }
 
+  void _toggleLayout() {
+    setState(() {
+      _currentLayout = _currentLayout == 'two_column_academic'
+          ? 'single_column'
+          : 'two_column_academic';
+      _pdfBytes = null;
+    });
+    if (kIsWeb) {
+      _fetchPdfBinary();
+    }
+  }
+
   Future<void> _fetchPdfBinary() async {
     if (widget.exportApi == null) return;
     setState(() {
@@ -107,7 +124,8 @@ class _PdfViewerState extends State<PdfViewer> {
     });
 
     try {
-      final result = await widget.exportApi!.exportPdf(widget.paper);
+      final paperToExport = widget.paper.copyWith(pageLayout: _currentLayout);
+      final result = await widget.exportApi!.exportPdf(paperToExport, layout: _currentLayout);
       if (!mounted) return;
       setState(() {
         _pdfBytes = result.bytes;
@@ -162,7 +180,8 @@ class _PdfViewerState extends State<PdfViewer> {
     }
     if (widget.exportApi == null || widget.fileSaver == null) return;
     try {
-      final result = await widget.exportApi!.exportDocx(widget.paper);
+      final paperToExport = widget.paper.copyWith(pageLayout: _currentLayout);
+      final result = await widget.exportApi!.exportDocx(paperToExport, layout: _currentLayout);
       await widget.fileSaver!.saveDocx(
         bytes: result.bytes,
         suggestedFilename: result.suggestedFilename,
@@ -183,7 +202,8 @@ class _PdfViewerState extends State<PdfViewer> {
     }
     if (widget.exportApi == null || widget.fileSaver == null) return;
     try {
-      final result = await widget.exportApi!.exportPdf(widget.paper);
+      final paperToExport = widget.paper.copyWith(pageLayout: _currentLayout);
+      final result = await widget.exportApi!.exportPdf(paperToExport, layout: _currentLayout);
       await widget.fileSaver!.savePdf(
         bytes: result.bytes,
         suggestedFilename: result.suggestedFilename,
@@ -272,6 +292,23 @@ class _PdfViewerState extends State<PdfViewer> {
               ),
               const SizedBox(width: 4),
             ],
+
+            // Layout Toggle Button
+            IconButton(
+              key: const ValueKey('button-pdf-layout-toggle'),
+              tooltip: _currentLayout == 'two_column_academic'
+                  ? 'Layout: Two-Column Academic (click for Single-Column)'
+                  : 'Layout: Standard Single-Column (click for Two-Column Academic)',
+              icon: Icon(
+                _currentLayout == 'two_column_academic'
+                    ? Icons.view_column_outlined
+                    : Icons.view_agenda_outlined,
+                color: Colors.white70,
+                size: 20,
+              ),
+              onPressed: _toggleLayout,
+            ),
+            const SizedBox(width: 4),
 
             // Page Navigation
             IconButton(
@@ -446,9 +483,10 @@ class _PdfViewerState extends State<PdfViewer> {
       );
     } else {
       // High fidelity publication canvas fallback (desktop, mobile, headless tests)
+      final activePaper = widget.paper.copyWith(pageLayout: _currentLayout);
       content = DocxDocumentCanvas(
-        key: ValueKey('pdf-canvas-${widget.paper.hashCode}'),
-        paper: widget.paper,
+        key: ValueKey('pdf-canvas-${activePaper.hashCode}-$_currentLayout'),
+        paper: activePaper,
         zoom: _zoom,
         scrollController: _scrollController,
         onPageCountResolved: (count) {

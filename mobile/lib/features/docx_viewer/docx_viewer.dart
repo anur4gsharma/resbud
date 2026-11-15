@@ -62,6 +62,7 @@ class _DocxViewerState extends State<DocxViewer> {
   int _totalPages = 1;
   bool _isFullscreen = false;
   int _renderGenerationToken = 0;
+  late String _currentLayout;
 
   @override
   void initState() {
@@ -69,6 +70,7 @@ class _DocxViewerState extends State<DocxViewer> {
     _exportApi = widget.exportApi ?? DocxExportApiClient.fromEnvironment();
     _fileSaver = widget.fileSaver ?? LocalDocxFileSaver();
     _docxBytes = widget.initialDocxBytes;
+    _currentLayout = widget.paper.pageLayout;
 
     if (kIsWeb && _docxBytes == null) {
       _loadDocxBytes();
@@ -78,6 +80,9 @@ class _DocxViewerState extends State<DocxViewer> {
   @override
   void didUpdateWidget(covariant DocxViewer oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.paper.pageLayout != widget.paper.pageLayout) {
+      _currentLayout = widget.paper.pageLayout;
+    }
     if (kIsWeb && oldWidget.paper != widget.paper) {
       _renderGenerationToken++;
       _loadDocxBytes();
@@ -90,6 +95,18 @@ class _DocxViewerState extends State<DocxViewer> {
     super.dispose();
   }
 
+  void _toggleLayout() {
+    setState(() {
+      _currentLayout = _currentLayout == 'two_column_academic'
+          ? 'single_column'
+          : 'two_column_academic';
+      _docxBytes = null;
+    });
+    if (kIsWeb) {
+      _loadDocxBytes();
+    }
+  }
+
   Future<void> _loadDocxBytes() async {
     final token = ++_renderGenerationToken;
     setState(() {
@@ -98,7 +115,8 @@ class _DocxViewerState extends State<DocxViewer> {
     });
 
     try {
-      final result = await _exportApi.exportDocx(widget.paper);
+      final paperToExport = widget.paper.copyWith(pageLayout: _currentLayout);
+      final result = await _exportApi.exportDocx(paperToExport, layout: _currentLayout);
       if (token != _renderGenerationToken || !mounted) return;
       setState(() {
         _docxBytes = result.bytes;
@@ -146,9 +164,10 @@ class _DocxViewerState extends State<DocxViewer> {
     }
 
     try {
+      final paperToExport = widget.paper.copyWith(pageLayout: _currentLayout);
       Uint8List bytesToSave = _docxBytes ?? Uint8List(0);
       if (bytesToSave.isEmpty) {
-        final result = await _exportApi.exportDocx(widget.paper);
+        final result = await _exportApi.exportDocx(paperToExport, layout: _currentLayout);
         bytesToSave = result.bytes;
       }
 
@@ -185,7 +204,8 @@ class _DocxViewerState extends State<DocxViewer> {
     }
 
     try {
-      final result = await _exportApi.exportPdf(widget.paper);
+      final paperToExport = widget.paper.copyWith(pageLayout: _currentLayout);
+      final result = await _exportApi.exportPdf(paperToExport, layout: _currentLayout);
       final filename = '${widget.paper.title.replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '_')}.pdf';
       final path = await _fileSaver.savePdf(
         bytes: result.bytes,
@@ -298,6 +318,23 @@ class _DocxViewerState extends State<DocxViewer> {
               ),
               const SizedBox(width: 4),
             ],
+
+            // Layout Toggle Button
+            IconButton(
+              key: const ValueKey('button-docx-layout-toggle'),
+              tooltip: _currentLayout == 'two_column_academic'
+                  ? 'Layout: Two-Column Academic (click for Single-Column)'
+                  : 'Layout: Standard Single-Column (click for Two-Column Academic)',
+              icon: Icon(
+                _currentLayout == 'two_column_academic'
+                    ? Icons.view_column_outlined
+                    : Icons.view_agenda_outlined,
+                color: Colors.white70,
+                size: 20,
+              ),
+              onPressed: _toggleLayout,
+            ),
+            const SizedBox(width: 4),
 
             // Page Navigation: Prev, Page X of Y, Next
             IconButton(
@@ -470,9 +507,10 @@ class _DocxViewerState extends State<DocxViewer> {
     }
 
     // 2. Native high-fidelity Flutter paginated canvas (desktop, mobile, headless tests, or fallback)
+    final activePaper = widget.paper.copyWith(pageLayout: _currentLayout);
     return DocxDocumentCanvas(
-      key: ValueKey('docx-canvas-${widget.paper.hashCode}'),
-      paper: widget.paper,
+      key: ValueKey('docx-canvas-${activePaper.hashCode}-$_currentLayout'),
+      paper: activePaper,
       zoom: _zoom,
       scrollController: _scrollController,
       onPageCountResolved: _onPageCountResolved,

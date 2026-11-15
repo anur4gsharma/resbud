@@ -250,6 +250,7 @@ components:
           uniqueItems: true
           items: { type: string, pattern: '^[a-z][a-z0-9_]{1,39}$' }
         citation_style: { type: string, enum: [user_supplied, apa_7, ieee, other] }
+        page_layout: { type: string, enum: [single_column, two_column_academic], default: single_column }
     GenerationRequest:
       type: object
       additionalProperties: false
@@ -309,6 +310,9 @@ components:
           type: array
           maxItems: 100
           items: { $ref: '#/components/schemas/ReviewWarning' }
+        page_layout: { type: string, enum: [single_column, two_column_academic], default: single_column }
+        author_info: { type: string, maxLength: 500, nullable: true }
+        affiliation: { type: string, maxLength: 500, nullable: true }
     GenerationResponse:
       description: review_warnings must equal paper.review_warnings; both fields share the same typed warning contract.
       type: object
@@ -322,6 +326,9 @@ components:
           type: array
           maxItems: 100
           items: { $ref: '#/components/schemas/ReviewWarning' }
+        page_layout: { type: string, enum: [single_column, two_column_academic], default: single_column }
+        author_info: { type: string, maxLength: 500, nullable: true }
+        affiliation: { type: string, maxLength: 500, nullable: true }
         meta:
           type: object
           additionalProperties: false
@@ -367,6 +374,9 @@ components:
           type: array
           maxItems: 100
           items: { $ref: '#/components/schemas/ReviewWarning' }
+        page_layout: { type: string, enum: [single_column, two_column_academic], default: single_column }
+        author_info: { type: string, maxLength: 500, nullable: true }
+        affiliation: { type: string, maxLength: 500, nullable: true }
       allOf:
         - properties:
             section:

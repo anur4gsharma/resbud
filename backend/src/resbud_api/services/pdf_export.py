@@ -12,12 +12,18 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 from PIL import Image as PILImage
+from PIL import ImageFile
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
+from reportlab.lib.pagesizes import A4, letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.pdfgen import canvas
 from reportlab.platypus import (
+    BaseDocTemplate,
+    Frame,
+    FrameBreak,
     HRFlowable,
+    NextPageTemplate,
+    PageTemplate,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -37,6 +43,8 @@ from resbud_api.services.markdown_renderer import (
     render_blocks_to_pdf,
     setup_reportlab_academic_fonts,
 )
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 logger = logging.getLogger(__name__)
 
@@ -82,12 +90,17 @@ class _NumberedCanvas(canvas.Canvas):
         self.setFont("Times-Roman", 9)
         self.setFillColor(colors.HexColor("#555555"))
         page_text = f"{self._pageNumber}"
-        self.drawCentredString(letter[0] / 2.0, 40, page_text)
+        center_x = getattr(self, "_pagesize", letter)[0] / 2.0
+        self.drawCentredString(center_x, 32, page_text)
         self.restoreState()
 
 
-def export_paper_pdf(paper: PaperDraft) -> bytes:
+def export_paper_pdf(paper: PaperDraft, layout: str | None = None) -> bytes:
     """Render the submitted paper into a formal academic PDF and return binary bytes."""
+    effective_layout = layout or getattr(paper, "page_layout", "single_column")
+    if effective_layout == "two_column_academic":
+        return _export_two_column_academic_pdf(paper)
+
     try:
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(
@@ -101,6 +114,176 @@ def export_paper_pdf(paper: PaperDraft) -> bytes:
 
         styles = _create_academic_styles()
         story = _build_story(paper, styles)
+
+        doc.build(story, canvasmaker=_NumberedCanvas)
+        result = buffer.getvalue()
+    except Exception as exc:
+        raise ResbudError(500) from exc
+
+    if len(result) > MAX_EXPORT_BYTES:
+        raise ResbudError(413)
+
+    return result
+
+
+def _export_two_column_academic_pdf(paper: PaperDraft) -> bytes:
+    """Render a formal Two-Column Academic research paper PDF (IEEE style) with full-width front matter."""
+    try:
+        buffer = io.BytesIO()
+        page_w, page_h = A4
+        margin = 54.0  # ~19mm
+        gutter = 20.0  # ~7mm
+        printable_w = page_w - 2 * margin
+        printable_h = page_h - 2 * margin
+        col_w = (printable_w - gutter) / 2.0
+
+        styles = _create_two_column_academic_styles()
+
+        # Build full-width front matter elements
+        front_matter: list[Any] = []
+        front_matter.append(Paragraph(html.escape(paper.title), styles["Title"]))
+
+        if paper.author_info and paper.author_info.strip():
+            front_matter.append(Paragraph(html.escape(paper.author_info.strip()), styles["Author"]))
+        if paper.affiliation and paper.affiliation.strip():
+            front_matter.append(
+                Paragraph(html.escape(paper.affiliation.strip()), styles["Affiliation"])
+            )
+
+        if paper.abstract.strip():
+            front_matter.append(
+                Paragraph(
+                    f"<b>Abstract— </b>{html.escape(paper.abstract.strip())}",
+                    styles["AbstractBody"],
+                )
+            )
+
+        if paper.keywords:
+            kw_html = "<b><i>Index Terms— </i></b>" + html.escape(", ".join(paper.keywords))
+            front_matter.append(Paragraph(kw_html, styles["Keywords"]))
+
+        front_matter.append(Spacer(1, 4))
+        front_matter.append(
+            HRFlowable(width="100%", thickness=0.5, color=colors.HexColor("#CCCCCC"), spaceAfter=8)
+        )
+
+        # Dynamically measure front matter height including inter-element spacing
+        fm_h = 0.0
+        for item in front_matter:
+            _, h = item.wrap(printable_w, printable_h)
+            sb = getattr(item, "getSpaceBefore", lambda: 0)()
+            sa = getattr(item, "getSpaceAfter", lambda: 0)()
+            fm_h += h + sb + sa
+        fm_h += 14.0  # padding buffer for frame boundaries
+        max_fm_h = printable_h - 150.0
+        if fm_h > max_fm_h:
+            fm_h = max_fm_h
+
+        # Page 1 Frames: Top full-width + two bottom columns
+        frame_top = Frame(
+            margin,
+            page_h - margin - fm_h,
+            printable_w,
+            fm_h,
+            id="F_top",
+            leftPadding=0,
+            rightPadding=0,
+            topPadding=0,
+            bottomPadding=0,
+        )
+        frame_b1 = Frame(
+            margin,
+            margin,
+            col_w,
+            printable_h - fm_h - 8.0,
+            id="F_b1",
+            leftPadding=0,
+            rightPadding=0,
+            topPadding=0,
+            bottomPadding=0,
+        )
+        frame_b2 = Frame(
+            margin + col_w + gutter,
+            margin,
+            col_w,
+            printable_h - fm_h - 8.0,
+            id="F_b2",
+            leftPadding=0,
+            rightPadding=0,
+            topPadding=0,
+            bottomPadding=0,
+        )
+
+        # Later Pages: Two full-height columns
+        frame_c1 = Frame(
+            margin,
+            margin,
+            col_w,
+            printable_h,
+            id="F_c1",
+            leftPadding=0,
+            rightPadding=0,
+            topPadding=0,
+            bottomPadding=0,
+        )
+        frame_c2 = Frame(
+            margin + col_w + gutter,
+            margin,
+            col_w,
+            printable_h,
+            id="F_c2",
+            leftPadding=0,
+            rightPadding=0,
+            topPadding=0,
+            bottomPadding=0,
+        )
+
+        doc = BaseDocTemplate(
+            buffer,
+            pagesize=A4,
+            leftMargin=margin,
+            rightMargin=margin,
+            topMargin=margin,
+            bottomMargin=margin,
+        )
+        first_page_tpl = PageTemplate(id="FirstPage", frames=[frame_top, frame_b1, frame_b2])
+        later_pages_tpl = PageTemplate(id="LaterPages", frames=[frame_c1, frame_c2])
+        doc.addPageTemplates([first_page_tpl, later_pages_tpl])
+
+        story: list[Any] = []
+        story.extend(front_matter)
+        story.append(FrameBreak())
+        story.append(NextPageTemplate("LaterPages"))
+
+        body_sections = [
+            sec
+            for sec in paper.sections
+            if sec.id.lower() not in ("references", "bibliography")
+            and sec.heading.strip().lower() not in ("references", "bibliography", "6. references")
+        ]
+
+        for sec_idx, section in enumerate(body_sections, start=1):
+            clean_title = clean_heading_text(section.heading)
+            heading_text = f"{sec_idx}. {clean_title}"
+            story.append(Paragraph(html.escape(heading_text), styles["Heading1"]))
+            blocks = parse_markdown_blocks(section.content)
+            render_blocks_to_pdf(
+                story,
+                blocks,
+                styles,
+                section_index=sec_idx,
+                numbered=True,
+                max_width=col_w,
+                two_column=True,
+            )
+
+        if paper.references:
+            story.append(Paragraph("References", styles["Heading1"]))
+            for ref_idx, ref in enumerate(paper.references, start=1):
+                ref_text = ref.text.strip()
+                if not re.match(r"^\[\d+\]", ref_text) and not re.match(r"^\d+\.", ref_text):
+                    ref_text = f"[{ref_idx}] {ref_text}"
+                story.append(Paragraph(html.escape(ref_text), styles["Reference"]))
 
         doc.build(story, canvasmaker=_NumberedCanvas)
         result = buffer.getvalue()
@@ -131,6 +314,28 @@ def _create_academic_styles() -> dict[str, ParagraphStyle]:
             leading=22,
             alignment=1,  # Center
             spaceAfter=14,
+            textColor=colors.black,
+        ),
+        "Author": ParagraphStyle(
+            "AcademicAuthor",
+            parent=sample["Normal"],
+            fontName=bold_font,
+            fontSize=11,
+            leading=14,
+            alignment=1,  # Center
+            spaceBefore=2,
+            spaceAfter=2,
+            textColor=colors.black,
+        ),
+        "Affiliation": ParagraphStyle(
+            "AcademicAffiliation",
+            parent=sample["Normal"],
+            fontName=italic_font,
+            fontSize=9.5,
+            leading=13,
+            alignment=1,  # Center
+            spaceBefore=0,
+            spaceAfter=10,
             textColor=colors.black,
         ),
         "AbstractHeading": ParagraphStyle(
@@ -291,11 +496,224 @@ def _create_academic_styles() -> dict[str, ParagraphStyle]:
     return styles
 
 
+def _create_two_column_academic_styles() -> dict[str, ParagraphStyle]:
+    sample = getSampleStyleSheet()
+    font_name = setup_reportlab_academic_fonts()
+    bold_font = f"{font_name}-Bold" if font_name == "AcademicSerif" else "Times-Bold"
+    italic_font = f"{font_name}-Italic" if font_name == "AcademicSerif" else "Times-Italic"
+    bold_italic_font = (
+        f"{font_name}-BoldItalic" if font_name == "AcademicSerif" else "Times-BoldItalic"
+    )
+
+    styles = {
+        "Title": ParagraphStyle(
+            "AcademicTitle",
+            parent=sample["Normal"],
+            fontName=bold_font,
+            fontSize=18,
+            leading=22,
+            alignment=1,  # Center
+            spaceBefore=4,
+            spaceAfter=8,
+            textColor=colors.black,
+        ),
+        "Author": ParagraphStyle(
+            "AcademicAuthor",
+            parent=sample["Normal"],
+            fontName=bold_font,
+            fontSize=11,
+            leading=14,
+            alignment=1,  # Center
+            spaceBefore=2,
+            spaceAfter=2,
+            textColor=colors.black,
+        ),
+        "Affiliation": ParagraphStyle(
+            "AcademicAffiliation",
+            parent=sample["Normal"],
+            fontName=italic_font,
+            fontSize=9.5,
+            leading=13,
+            alignment=1,  # Center
+            spaceBefore=0,
+            spaceAfter=10,
+            textColor=colors.black,
+        ),
+        "AbstractHeading": ParagraphStyle(
+            "AcademicAbstractHeading",
+            parent=sample["Normal"],
+            fontName=bold_font,
+            fontSize=9.5,
+            leading=12,
+            alignment=1,  # Center
+            spaceBefore=8,
+            spaceAfter=4,
+            textColor=colors.black,
+        ),
+        "AbstractBody": ParagraphStyle(
+            "AcademicAbstractBody",
+            parent=sample["Normal"],
+            fontName=font_name,
+            fontSize=9.5,
+            leading=12.5,
+            alignment=4,  # Justified
+            leftIndent=14,
+            rightIndent=14,
+            spaceAfter=6,
+            textColor=colors.black,
+        ),
+        "Keywords": ParagraphStyle(
+            "AcademicKeywords",
+            parent=sample["Normal"],
+            fontName=font_name,
+            fontSize=9.0,
+            leading=12,
+            alignment=4,  # Justified
+            leftIndent=14,
+            rightIndent=14,
+            spaceAfter=12,
+            textColor=colors.black,
+        ),
+        "Heading1": ParagraphStyle(
+            "AcademicH1",
+            parent=sample["Normal"],
+            fontName=bold_font,
+            fontSize=11,
+            leading=14,
+            spaceBefore=10,
+            spaceAfter=3,
+            keepWithNext=True,
+            textColor=colors.black,
+        ),
+        "Heading2": ParagraphStyle(
+            "AcademicH2",
+            parent=sample["Normal"],
+            fontName=bold_font,
+            fontSize=10,
+            leading=13,
+            spaceBefore=7,
+            spaceAfter=2,
+            keepWithNext=True,
+            textColor=colors.black,
+        ),
+        "Heading3": ParagraphStyle(
+            "AcademicH3",
+            parent=sample["Normal"],
+            fontName=bold_italic_font,
+            fontSize=9.5,
+            leading=12.5,
+            spaceBefore=5,
+            spaceAfter=2,
+            keepWithNext=True,
+            textColor=colors.black,
+        ),
+        "Body": ParagraphStyle(
+            "AcademicBody",
+            parent=sample["Normal"],
+            fontName=font_name,
+            fontSize=9.5,
+            leading=12.5,
+            alignment=4,  # Justified
+            spaceAfter=4,
+            textColor=colors.black,
+        ),
+        "ListItem": ParagraphStyle(
+            "AcademicListItem",
+            parent=sample["Normal"],
+            fontName=font_name,
+            fontSize=9.5,
+            leading=12.5,
+            leftIndent=12,
+            spaceAfter=2,
+            spaceBefore=1,
+            textColor=colors.black,
+        ),
+        "Blockquote": ParagraphStyle(
+            "AcademicBlockquote",
+            parent=sample["Normal"],
+            fontName=italic_font,
+            fontSize=9.5,
+            leading=12.5,
+            leftIndent=14,
+            rightIndent=14,
+            spaceBefore=3,
+            spaceAfter=4,
+            textColor=colors.black,
+        ),
+        "CodeBlock": ParagraphStyle(
+            "AcademicCodeBlock",
+            parent=sample["Normal"],
+            fontName="Courier",
+            fontSize=8.5,
+            leading=11,
+            leftIndent=10,
+            spaceBefore=3,
+            spaceAfter=4,
+            textColor=colors.HexColor("#222222"),
+        ),
+        "TableCell": ParagraphStyle(
+            "AcademicTableCell",
+            parent=sample["Normal"],
+            fontName=font_name,
+            fontSize=8.5,
+            leading=11,
+            textColor=colors.black,
+        ),
+        "Caption": ParagraphStyle(
+            "AcademicCaption",
+            parent=sample["Normal"],
+            fontName=italic_font,
+            fontSize=8.5,
+            leading=11,
+            alignment=1,  # Center
+            spaceBefore=3,
+            spaceAfter=8,
+            textColor=colors.HexColor("#333333"),
+        ),
+        "Reference": ParagraphStyle(
+            "AcademicReference",
+            parent=sample["Normal"],
+            fontName=font_name,
+            fontSize=8.5,
+            leading=11,
+            alignment=4,  # Justified
+            leftIndent=16,
+            firstLineIndent=-16,
+            spaceAfter=3,
+            textColor=colors.black,
+        ),
+        "MathBlock": ParagraphStyle(
+            "AcademicMathBlock",
+            parent=sample["Normal"],
+            fontName=italic_font,
+            fontSize=9.5,
+            leading=13,
+            alignment=1,  # Center
+            spaceBefore=4,
+            spaceAfter=4,
+            textColor=colors.black,
+        ),
+    }
+    return styles
+
+
 def _build_story(paper: PaperDraft, styles: dict[str, ParagraphStyle]) -> list[Any]:
     story: list[Any] = []
 
     # Title
     story.append(Paragraph(html.escape(paper.title), styles["Title"]))
+
+    # Author and Affiliation (if supplied)
+    if paper.author_info and paper.author_info.strip():
+        story.append(
+            Paragraph(html.escape(paper.author_info.strip()), styles.get("Author", styles["Body"]))
+        )
+    if paper.affiliation and paper.affiliation.strip():
+        story.append(
+            Paragraph(
+                html.escape(paper.affiliation.strip()), styles.get("Affiliation", styles["Body"])
+            )
+        )
 
     # Abstract
     if paper.abstract.strip():
@@ -493,7 +911,9 @@ def _insert_figure_from_bytes_pdf(
                         target_pt_h = 280.0
                         target_pt_w = target_pt_h / aspect
         except Exception as exc:
-            logger.warning("Failed to determine figure dimensions from bytes for PDF, using defaults: %s", exc)
+            logger.warning(
+                "Failed to determine figure dimensions from bytes for PDF, using defaults: %s", exc
+            )
 
         buf.seek(0)
         rl_img = RLImage(buf, width=target_pt_w, height=target_pt_h)
@@ -532,7 +952,9 @@ def _insert_figure_pdf(
                         target_pt_h = 300.0
                         target_pt_w = target_pt_h / aspect
         except Exception as exc:
-            logger.warning("Failed to determine figure dimensions from src for PDF, using defaults: %s", exc)
+            logger.warning(
+                "Failed to determine figure dimensions from src for PDF, using defaults: %s", exc
+            )
 
         buf.seek(0)
         rl_img = RLImage(buf, width=target_pt_w, height=target_pt_h)

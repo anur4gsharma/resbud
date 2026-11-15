@@ -63,7 +63,10 @@
         "message": "Deterministic fake-provider demo output; it is not a research analysis.",
         "section_id": null
       }
-    ]
+    ],
+    "page_layout": "single_column",
+    "author_info": null,
+    "affiliation": null
   },
   "review_warnings": [
     {

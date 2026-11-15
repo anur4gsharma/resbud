@@ -85,7 +85,12 @@ async def generate_paper(
         raise ResbudError(502)
 
     warnings = run_integrity_checks(brief, paper, provider_result.provider_name)
-    paper = paper.model_copy(update={"review_warnings": warnings})
+    paper = paper.model_copy(
+        update={
+            "review_warnings": warnings,
+            "page_layout": request.preferences.page_layout,
+        }
+    )
     try:
         return GenerationResponse(
             schema_version=1,

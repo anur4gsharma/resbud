@@ -289,18 +289,25 @@ class PaperPreferencesPayload {
     required this.targetWordCount,
     required this.desiredSections,
     required this.citationStyle,
+    this.pageLayout = 'single_column',
   });
 
   final int targetWordCount;
   final List<String> desiredSections;
   final String citationStyle;
+  final String pageLayout;
 
   factory PaperPreferencesPayload.fromJson(Map<String, Object?> json) {
-    _requireKeys(json, const {
-      'target_word_count',
-      'desired_sections',
-      'citation_style',
-    }, 'preferences');
+    _requireKeys(
+      json,
+      const {
+        'target_word_count',
+        'desired_sections',
+        'citation_style',
+      },
+      'preferences',
+      optional: const {'page_layout'},
+    );
     final wordCount = _integer(json['target_word_count'], 'target_word_count');
     if (wordCount < 500 || wordCount > 8000) {
       throw const FormatException('Target word count must be between 500 and 8,000.');
@@ -318,6 +325,12 @@ class PaperPreferencesPayload {
       citationStyle: _enumValue(json['citation_style'], 'citation_style', const [
         'user_supplied', 'apa_7', 'ieee', 'other',
       ]),
+      pageLayout: json['page_layout'] != null
+          ? _enumValue(json['page_layout'], 'preferences.page_layout', const [
+              'single_column',
+              'two_column_academic',
+            ])
+          : 'single_column',
     );
   }
 
@@ -325,6 +338,7 @@ class PaperPreferencesPayload {
     'target_word_count': targetWordCount,
     'desired_sections': desiredSections,
     'citation_style': citationStyle,
+    'page_layout': pageLayout,
   };
 }
 
@@ -385,6 +399,9 @@ class PaperDraftPayload {
     required this.sections,
     required this.references,
     required this.reviewWarnings,
+    this.pageLayout = 'single_column',
+    this.authorInfo,
+    this.affiliation,
   });
 
   final int schemaVersion;
@@ -394,11 +411,25 @@ class PaperDraftPayload {
   final List<PaperSectionPayload> sections;
   final List<ReferencePayload> references;
   final List<ReviewWarningPayload> reviewWarnings;
+  final String pageLayout;
+  final String? authorInfo;
+  final String? affiliation;
 
   factory PaperDraftPayload.fromJson(Map<String, Object?> json) {
-    _requireKeys(json, const {
-      'schema_version', 'title', 'abstract', 'keywords', 'sections', 'references', 'review_warnings',
-    }, 'paper');
+    _requireKeys(
+      json,
+      const {
+        'schema_version',
+        'title',
+        'abstract',
+        'keywords',
+        'sections',
+        'references',
+        'review_warnings',
+      },
+      'paper',
+      optional: const {'page_layout', 'author_info', 'affiliation'},
+    );
     if (_integer(json['schema_version'], 'paper.schema_version') != 1) {
       throw const FormatException('Unsupported paper schema version.');
     }
@@ -427,6 +458,14 @@ class PaperDraftPayload {
       sections: sections,
       references: references,
       reviewWarnings: warnings,
+      pageLayout: json['page_layout'] != null
+          ? _enumValue(json['page_layout'], 'paper.page_layout', const [
+              'single_column',
+              'two_column_academic',
+            ])
+          : 'single_column',
+      authorInfo: _optionalBoundedString(json['author_info'], 'paper.author_info', 500),
+      affiliation: _optionalBoundedString(json['affiliation'], 'paper.affiliation', 500),
     );
   }
 
@@ -438,6 +477,9 @@ class PaperDraftPayload {
     'sections': sections.map((section) => section.toJson()).toList(),
     'references': references.map((reference) => reference.toJson()).toList(),
     'review_warnings': reviewWarnings.map((warning) => warning.toJson()).toList(),
+    'page_layout': pageLayout,
+    if (authorInfo != null) 'author_info': authorInfo,
+    if (affiliation != null) 'affiliation': affiliation,
   };
 
   PaperDraftPayload copyWith({
@@ -448,6 +490,9 @@ class PaperDraftPayload {
     List<PaperSectionPayload>? sections,
     List<ReferencePayload>? references,
     List<ReviewWarningPayload>? reviewWarnings,
+    String? pageLayout,
+    String? authorInfo,
+    String? affiliation,
   }) => PaperDraftPayload(
     schemaVersion: schemaVersion ?? this.schemaVersion,
     title: title ?? this.title,
@@ -456,6 +501,9 @@ class PaperDraftPayload {
     sections: sections ?? this.sections,
     references: references ?? this.references,
     reviewWarnings: reviewWarnings ?? this.reviewWarnings,
+    pageLayout: pageLayout ?? this.pageLayout,
+    authorInfo: authorInfo ?? this.authorInfo,
+    affiliation: affiliation ?? this.affiliation,
   );
 }
 

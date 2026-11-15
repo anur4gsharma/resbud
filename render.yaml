@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: resbud-api
+    runtime: docker
+    dockerContext: backend
+    dockerfilePath: backend/Dockerfile
+    plan: free
+    region: oregon
+    healthCheckPath: /health/live
+    envVars:
+      - key: RESBUD_ENV
+        value: production
+      - key: RESBUD_GENERATION_PROVIDER
+        value: gemini
+      - key: RESBUD_PROVIDER_MODEL
+        value: gemini-2.5-flash
+      - key: RESBUD_PROVIDER_API_KEY
+        sync: false
+      - key: RESBUD_AUTH_ISSUER
+        value: https://resbud-api.onrender.com/auth
+      - key: RESBUD_AUTH_AUDIENCE
+        value: resbud-production
+      - key: RESBUD_AUTH_SIGNING_KEY
+        generateValue: true
+      - key: RESBUD_RATE_LIMIT_PER_MINUTE
+        value: "60"
+      - key: RESBUD_CORS_ALLOWED_ORIGINS
+        value: "[]"
+      - key: RESBUD_MAX_REQUEST_BODY_BYTES
+        value: "4194304"

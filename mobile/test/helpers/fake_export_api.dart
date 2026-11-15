@@ -28,14 +28,16 @@ Uint8List createValidDocxBytes({
 class FakePaperExportApi implements PaperExportApi {
   int exportCallCount = 0;
   PaperDraftPayload? lastExportedPaper;
+  String? lastExportedLayout;
   DocxExportResult? resultToReturn;
   PdfExportResult? pdfResultToReturn;
   Object? errorToThrow;
 
   @override
-  Future<DocxExportResult> exportDocx(PaperDraftPayload paper) async {
+  Future<DocxExportResult> exportDocx(PaperDraftPayload paper, {String? layout}) async {
     exportCallCount++;
     lastExportedPaper = paper;
+    lastExportedLayout = layout ?? paper.pageLayout;
     if (errorToThrow != null) {
       throw errorToThrow!;
     }
@@ -53,9 +55,10 @@ class FakePaperExportApi implements PaperExportApi {
   }
 
   @override
-  Future<PdfExportResult> exportPdf(PaperDraftPayload paper) async {
+  Future<PdfExportResult> exportPdf(PaperDraftPayload paper, {String? layout}) async {
     exportCallCount++;
     lastExportedPaper = paper;
+    lastExportedLayout = layout ?? paper.pageLayout;
     if (errorToThrow != null) {
       throw errorToThrow!;
     }

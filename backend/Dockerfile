@@ -48,7 +48,7 @@ EXPOSE 8000
 
 # Bounded healthcheck verifying service liveness
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=4)" || exit 1
+    CMD python3 -c "import urllib.request, os; port = os.environ.get('PORT', '8000'); urllib.request.urlopen(f'http://127.0.0.1:{port}/health/live', timeout=4)" || exit 1
 
-# Start Uvicorn web server
-CMD ["uvicorn", "resbud_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start Uvicorn web server with dynamic port support and signal forwarding
+CMD ["sh", "-c", "exec uvicorn resbud_api.main:app --host 0.0.0.0 --port \"${PORT:-8000}\""]

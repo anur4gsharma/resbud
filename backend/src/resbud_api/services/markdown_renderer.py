@@ -25,12 +25,11 @@ import math2docx
 import mathml2omml
 import matplotlib
 import matplotlib.pyplot as plt
-
-matplotlib.use("Agg")
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import parse_xml
 from docx.shared import Inches, Pt, RGBColor
 from PIL import Image as PILImage
+from PIL import ImageFile
 from reportlab.lib import colors
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
@@ -40,6 +39,9 @@ from reportlab.platypus import Image as RLImage
 from reportlab.platypus import Paragraph, Preformatted, Spacer, Table, TableStyle
 
 from resbud_api.services.chart_generator import render_academic_chart_from_spec
+
+matplotlib.use("Agg")
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 logger = logging.getLogger(__name__)
 
@@ -314,8 +316,7 @@ def is_big_equation(m: re.Match[str], full_text: str) -> bool:
     # Standalone equation occupying the entire paragraph
     if full_text.strip() == raw.strip():
         if any(
-            op in inner
-            for op in ("=", r"\le", r"\ge", r"\sim", r"\approx", r"\equiv", r"\frac")
+            op in inner for op in ("=", r"\le", r"\ge", r"\sim", r"\approx", r"\equiv", r"\frac")
         ):
             return True
 
@@ -616,10 +617,16 @@ def render_blocks_to_docx(
     section_index: int,
     numbered: bool = True,
     academic_font: str = "Times New Roman",
+    two_column: bool = False,
 ) -> None:
     """Render structured Markdown blocks into a Word document with hierarchical numbering."""
     sub_index = 0
     subsub_index = 0
+    body_size_pt = 9.5 if two_column else 10.5
+    h2_size_pt = 10.0 if two_column else 11.0
+    h3_size_pt = 9.5 if two_column else 10.5
+    max_fig_width = 3.2 if two_column else 5.5
+    caption_size = 8.5 if two_column else 9.5
 
     for block in blocks:
         if isinstance(block, HeadingBlock):
@@ -630,10 +637,10 @@ def render_blocks_to_docx(
                     f"{section_index}.{sub_index} {block.title}" if numbered else block.title
                 )
                 h_para = document.add_heading(title_text, level=2)
-                h_para.paragraph_format.space_before = Pt(10)
-                h_para.paragraph_format.space_after = Pt(3)
+                h_para.paragraph_format.space_before = Pt(8 if two_column else 10)
+                h_para.paragraph_format.space_after = Pt(2 if two_column else 3)
                 h_para.paragraph_format.keep_with_next = True
-                _ensure_runs_font(h_para, academic_font, bold=True, size_pt=11)
+                _ensure_runs_font(h_para, academic_font, bold=True, size_pt=h2_size_pt)
             else:
                 subsub_index += 1
                 title_text = (
@@ -642,17 +649,17 @@ def render_blocks_to_docx(
                     else block.title
                 )
                 h_para = document.add_heading(title_text, level=3)
-                h_para.paragraph_format.space_before = Pt(8)
+                h_para.paragraph_format.space_before = Pt(6 if two_column else 8)
                 h_para.paragraph_format.space_after = Pt(2)
                 h_para.paragraph_format.keep_with_next = True
-                _ensure_runs_font(h_para, academic_font, bold=True, italic=True, size_pt=10.5)
+                _ensure_runs_font(h_para, academic_font, bold=True, italic=True, size_pt=h3_size_pt)
 
         elif isinstance(block, ParagraphBlock):
             p = document.add_paragraph()
             p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            p.paragraph_format.line_spacing = 1.15
-            p.paragraph_format.space_after = Pt(6)
-            _render_spans_to_docx_paragraph(p, block.spans, academic_font)
+            p.paragraph_format.line_spacing = 1.12 if two_column else 1.15
+            p.paragraph_format.space_after = Pt(4 if two_column else 6)
+            _render_spans_to_docx_paragraph(p, block.spans, academic_font, size_pt=body_size_pt)
 
         elif isinstance(block, ListBlock):
             style_name = "List Number" if block.ordered else "List Bullet"
@@ -661,32 +668,34 @@ def render_blocks_to_docx(
                 p.paragraph_format.space_after = Pt(2)
                 p.paragraph_format.space_before = Pt(1)
                 p.paragraph_format.line_spacing = 1.1
-                _render_spans_to_docx_paragraph(p, item_spans, academic_font)
+                _render_spans_to_docx_paragraph(p, item_spans, academic_font, size_pt=body_size_pt)
 
         elif isinstance(block, BlockquoteBlock):
             p = document.add_paragraph()
-            p.paragraph_format.left_indent = Inches(0.4)
-            p.paragraph_format.right_indent = Inches(0.4)
-            p.paragraph_format.line_spacing = 1.15
-            p.paragraph_format.space_before = Pt(4)
-            p.paragraph_format.space_after = Pt(6)
-            _render_spans_to_docx_paragraph(p, block.spans, academic_font, force_italic=True)
+            p.paragraph_format.left_indent = Inches(0.25 if two_column else 0.4)
+            p.paragraph_format.right_indent = Inches(0.25 if two_column else 0.4)
+            p.paragraph_format.line_spacing = 1.12 if two_column else 1.15
+            p.paragraph_format.space_before = Pt(3 if two_column else 4)
+            p.paragraph_format.space_after = Pt(4 if two_column else 6)
+            _render_spans_to_docx_paragraph(
+                p, block.spans, academic_font, force_italic=True, size_pt=body_size_pt
+            )
 
         elif isinstance(block, CodeBlock):
             p = document.add_paragraph()
-            p.paragraph_format.left_indent = Inches(0.25)
-            p.paragraph_format.space_before = Pt(4)
-            p.paragraph_format.space_after = Pt(6)
+            p.paragraph_format.left_indent = Inches(0.15 if two_column else 0.25)
+            p.paragraph_format.space_before = Pt(3 if two_column else 4)
+            p.paragraph_format.space_after = Pt(4 if two_column else 6)
             run = p.add_run(block.code)
             run.font.name = "Consolas"
-            run.font.size = Pt(9.0)
+            run.font.size = Pt(8.5 if two_column else 9.0)
             run.font.color.rgb = RGBColor(0x22, 0x22, 0x22)
 
         elif isinstance(block, (MathBlock, EquationBlockNode)):
             p = document.add_paragraph()
             p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p.paragraph_format.space_before = Pt(8)
-            p.paragraph_format.space_after = Pt(8)
+            p.paragraph_format.space_before = Pt(6 if two_column else 8)
+            p.paragraph_format.space_after = Pt(6 if two_column else 8)
             _render_math_to_docx(
                 p,
                 block.latex,
@@ -696,10 +705,24 @@ def render_blocks_to_docx(
             )
 
         elif isinstance(block, TableBlock):
-            _render_table_to_docx(document, block.headers, block.rows, academic_font)
+            _render_table_to_docx(
+                document,
+                block.headers,
+                block.rows,
+                academic_font,
+                max_width_in=3.2 if two_column else 6.0,
+                font_size_pt=8.5 if two_column else 9.5,
+            )
 
         elif isinstance(block, FigureBlock):
-            _render_figure_src_to_docx(document, block.src, block.caption, academic_font)
+            _render_figure_src_to_docx(
+                document,
+                block.src,
+                block.caption,
+                academic_font,
+                max_width_in=max_fig_width,
+                caption_size_pt=caption_size,
+            )
 
         elif isinstance(block, ChartBlock):
             chart_bytes = render_academic_chart_from_spec(block.spec)
@@ -709,7 +732,14 @@ def render_blocks_to_docx(
                     if c_line.strip().lower().startswith("title:"):
                         caption = f"Figure: {c_line.split(':', 1)[1].strip()}"
                         break
-                _render_figure_bytes_to_docx(document, chart_bytes, caption, academic_font)
+                _render_figure_bytes_to_docx(
+                    document,
+                    chart_bytes,
+                    caption,
+                    academic_font,
+                    max_width_in=max_fig_width,
+                    caption_size_pt=caption_size,
+                )
 
 
 def _render_math_to_docx(
@@ -747,7 +777,9 @@ def _render_math_to_docx(
             paragraph._p.append(parse_xml(xml)[0])
             rendered_omml = True
         except Exception as exc:
-            logger.debug("Primary mathml conversion failed (%s), attempting math2docx fallback", exc)
+            logger.debug(
+                "Primary mathml conversion failed (%s), attempting math2docx fallback", exc
+            )
             try:
                 math2docx.add_math(paragraph, clean)
                 rendered_omml = True
@@ -772,6 +804,7 @@ def _render_spans_to_docx_paragraph(
     spans: list[InlineSpan],
     font_name: str,
     force_italic: bool = False,
+    size_pt: float = 10.5,
 ) -> None:
     pure_black = RGBColor(0, 0, 0)
     for span in spans:
@@ -781,7 +814,8 @@ def _render_spans_to_docx_paragraph(
 
         run = paragraph.add_run(span.content)
         run.font.name = "Consolas" if span.kind == "code" else font_name
-        run.font.size = Pt(9.5) if span.kind == "code" else Pt(10.5)
+        code_size = max(8.0, size_pt - 1.0)
+        run.font.size = Pt(code_size) if span.kind == "code" else Pt(size_pt)
         run.font.color.rgb = pure_black
 
         if span.kind in ("bold", "bold_italic"):
@@ -811,24 +845,28 @@ def _render_table_to_docx(
     headers: list[str],
     rows: list[list[str]],
     font_name: str,
+    max_width_in: float = 6.0,
+    font_size_pt: float = 9.5,
 ) -> None:
     try:
         all_rows = [headers] + rows
         num_cols = max(len(r) for r in all_rows)
         table = document.add_table(rows=len(all_rows), cols=num_cols)
         table.style = "Table Grid"
+        col_w = Inches(max_width_in / max(num_cols, 1))
         for r_idx, row in enumerate(all_rows):
             for c_idx, cell_text in enumerate(row):
                 if c_idx < num_cols:
                     cell = table.cell(r_idx, c_idx)
                     cell.text = cell_text
+                    cell.width = col_w
                     for p in cell.paragraphs:
                         p.paragraph_format.space_before = Pt(2)
                         p.paragraph_format.space_after = Pt(2)
                         p.paragraph_format.line_spacing = 1.05
                         for r in p.runs:
                             r.font.name = font_name
-                            r.font.size = Pt(9.5)
+                            r.font.size = Pt(font_size_pt)
                             r.font.color.rgb = RGBColor(0, 0, 0)
                             if r_idx == 0:
                                 r.font.bold = True
@@ -843,39 +881,46 @@ def _render_figure_bytes_to_docx(
     img_bytes: bytes,
     caption: str,
     font_name: str,
+    max_width_in: float = 5.5,
+    caption_size_pt: float = 9.5,
 ) -> None:
     try:
-        target_w, target_h = 5.2, 3.0
+        target_w, target_h = min(max_width_in, 5.2), 3.0
         try:
             with PILImage.open(io.BytesIO(img_bytes)) as pil_img:
                 orig_w, orig_h = pil_img.size
                 if orig_w > 0:
                     aspect = orig_h / orig_w
-                    target_w = min(5.5, max(2.5, orig_w / 150.0))
+                    target_w = min(max_width_in, max(1.8, orig_w / 150.0))
                     target_h = target_w * aspect
-                    if target_h > 4.5:
-                        target_h = 4.5
+                    max_h = 4.5 if max_width_in > 4.0 else 3.2
+                    if target_h > max_h:
+                        target_h = max_h
                         target_w = target_h / aspect
         except Exception as exc:
-            logger.warning("Failed to determine figure image dimensions for DOCX, using defaults: %s", exc)
+            logger.warning(
+                "Failed to determine figure image dimensions for DOCX, using defaults: %s", exc
+            )
 
         p = document.add_paragraph()
         p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p.paragraph_format.space_before = Pt(8)
-        p.paragraph_format.space_after = Pt(4)
+        p.paragraph_format.space_before = Pt(6)
+        p.paragraph_format.space_after = Pt(2)
+        p.paragraph_format.keep_with_next = True
         run = p.add_run()
         run.add_picture(io.BytesIO(img_bytes), width=Inches(target_w), height=Inches(target_h))
 
         caption_p = document.add_paragraph()
         caption_p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
         caption_p.paragraph_format.space_before = Pt(2)
-        caption_p.paragraph_format.space_after = Pt(12)
+        caption_p.paragraph_format.space_after = Pt(8)
         c_run = caption_p.add_run(caption)
         c_run.font.name = font_name
-        c_run.font.size = Pt(9.5)
+        c_run.font.size = Pt(caption_size_pt)
         c_run.font.italic = True
         c_run.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
-    except Exception:
+    except Exception as exc:
+        logger.warning("Failed to render figure bytes to DOCX: %s", exc)
         p = document.add_paragraph()
         p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run = p.add_run(f"[{caption}]")
@@ -883,15 +928,30 @@ def _render_figure_bytes_to_docx(
         run.font.italic = True
 
 
-def _render_figure_src_to_docx(document: Any, img_src: str, caption: str, font_name: str) -> None:
+def _render_figure_src_to_docx(
+    document: Any,
+    img_src: str,
+    caption: str,
+    font_name: str,
+    max_width_in: float = 5.5,
+    caption_size_pt: float = 9.5,
+) -> None:
     try:
         raw_b64 = img_src.strip()
         if "base64," in raw_b64:
             raw_b64 = raw_b64.split("base64,", 1)[1]
         raw_b64 = re.sub(r"\s+", "", raw_b64)
         img_bytes = base64.b64decode(raw_b64)
-        _render_figure_bytes_to_docx(document, img_bytes, caption, font_name)
-    except Exception:
+        _render_figure_bytes_to_docx(
+            document,
+            img_bytes,
+            caption,
+            font_name,
+            max_width_in=max_width_in,
+            caption_size_pt=caption_size_pt,
+        )
+    except Exception as exc:
+        logger.warning("Failed to decode and render figure src to DOCX: %s", exc)
         p = document.add_paragraph()
         p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run = p.add_run(f"[{caption}]")
@@ -1048,6 +1108,7 @@ def _render_math_to_pdf_flowable(
     styles: dict[str, ParagraphStyle],
     status: Literal["ok", "warning", "error"] = "ok",
     error_msg: str | None = None,
+    max_width: float = 460.0,
 ) -> Any:
     """Render a LaTeX display equation into a centered high-DPI image flowable or table."""
     clean = latex.strip()
@@ -1117,10 +1178,9 @@ def _render_math_to_pdf_flowable(
             w_px, h_px = pil_img.size
             w_pt = (w_px / 300.0) * 72.0
             h_pt = (h_px / 300.0) * 72.0
-            max_w = 460.0
-            if w_pt > max_w:
-                scale = max_w / w_pt
-                w_pt = max_w
+            if w_pt > max_width:
+                scale = max_width / w_pt
+                w_pt = max_width
                 h_pt = h_pt * scale
         buf.seek(0)
         img = RLImage(buf, width=w_pt, height=h_pt)
@@ -1162,6 +1222,8 @@ def render_blocks_to_pdf(
     styles: dict[str, ParagraphStyle],
     section_index: int,
     numbered: bool = True,
+    max_width: float = 460.0,
+    two_column: bool = False,
 ) -> None:
     """Render structured Markdown blocks into a ReportLab PDF story with hierarchical numbering."""
     sub_index = 0
@@ -1208,16 +1270,17 @@ def render_blocks_to_pdf(
                 styles,
                 status=block.rendering_status,
                 error_msg=block.validation_error,
+                max_width=max_width,
             )
-            story.append(Spacer(1, 6))
+            story.append(Spacer(1, 4 if two_column else 6))
             story.append(flowable)
-            story.append(Spacer(1, 6))
+            story.append(Spacer(1, 4 if two_column else 6))
 
         elif isinstance(block, TableBlock):
-            _render_table_to_pdf(story, block.headers, block.rows, styles)
+            _render_table_to_pdf(story, block.headers, block.rows, styles, max_width=max_width)
 
         elif isinstance(block, FigureBlock):
-            _render_figure_src_to_pdf(story, block.src, block.caption, styles)
+            _render_figure_src_to_pdf(story, block.src, block.caption, styles, max_width=max_width)
 
         elif isinstance(block, ChartBlock):
             chart_bytes = render_academic_chart_from_spec(block.spec)
@@ -1227,7 +1290,9 @@ def render_blocks_to_pdf(
                     if c_line.strip().lower().startswith("title:"):
                         caption = f"Figure: {c_line.split(':', 1)[1].strip()}"
                         break
-                _render_figure_bytes_to_pdf(story, chart_bytes, caption, styles)
+                _render_figure_bytes_to_pdf(
+                    story, chart_bytes, caption, styles, max_width=max_width
+                )
 
 
 def _render_table_to_pdf(
@@ -1235,6 +1300,7 @@ def _render_table_to_pdf(
     headers: list[str],
     rows: list[list[str]],
     styles: dict[str, ParagraphStyle],
+    max_width: float = 460.0,
 ) -> None:
     try:
         all_rows = [headers] + rows
@@ -1248,7 +1314,9 @@ def _render_table_to_pdf(
             ]
             for r_idx, row in enumerate(all_rows)
         ]
-        t = Table(data, hAlign="CENTER")
+        num_cols = max(len(r) for r in all_rows)
+        col_w = max_width / max(num_cols, 1)
+        t = Table(data, colWidths=[col_w] * num_cols, hAlign="CENTER")
         t.setStyle(
             TableStyle(
                 [
@@ -1271,25 +1339,27 @@ def _render_figure_bytes_to_pdf(
     img_bytes: bytes,
     caption: str,
     styles: dict[str, ParagraphStyle],
+    max_width: float = 420.0,
 ) -> None:
     try:
-        target_w: float = 360.0
+        target_w: float = min(max_width, 360.0)
         target_h: float = 200.0
         try:
             with PILImage.open(io.BytesIO(img_bytes)) as pil_img:
                 w, h = pil_img.size
                 if w > 0:
                     aspect = h / w
-                    target_w = float(min(420.0, max(200.0, w * 0.5)))
+                    target_w = float(min(max_width, max(100.0, w * 0.5)))
                     target_h = float(target_w * aspect)
-                    if target_h > 280.0:
-                        target_h = 280.0
+                    max_h = 280.0 if max_width > 300.0 else 180.0
+                    if target_h > max_h:
+                        target_h = max_h
                         target_w = float(target_h / aspect)
         except Exception as exc:
             logger.warning("Failed to determine figure dimensions for PDF, using defaults: %s", exc)
 
         img_flowable = RLImage(io.BytesIO(img_bytes), width=target_w, height=target_h)
-        story.append(Spacer(1, 6))
+        story.append(Spacer(1, 4))
         story.append(img_flowable)
         story.append(Paragraph(html.escape(caption), styles["Caption"]))
         story.append(Spacer(1, 6))
@@ -1302,6 +1372,7 @@ def _render_figure_src_to_pdf(
     img_src: str,
     caption: str,
     styles: dict[str, ParagraphStyle],
+    max_width: float = 420.0,
 ) -> None:
     try:
         raw_b64 = img_src.strip()
@@ -1309,6 +1380,6 @@ def _render_figure_src_to_pdf(
             raw_b64 = raw_b64.split("base64,", 1)[1]
         raw_b64 = re.sub(r"\s+", "", raw_b64)
         img_bytes = base64.b64decode(raw_b64)
-        _render_figure_bytes_to_pdf(story, img_bytes, caption, styles)
+        _render_figure_bytes_to_pdf(story, img_bytes, caption, styles, max_width=max_width)
     except Exception:
         story.append(Paragraph(f"<i>[{html.escape(caption)}]</i>", styles["Caption"]))

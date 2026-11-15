@@ -12,9 +12,11 @@ from typing import Any
 
 import math2docx
 from docx import Document
+from docx.enum.section import WD_SECTION
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
+from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Inches, Pt, RGBColor
+from docx.shared import Inches, Mm, Pt, RGBColor
 from PIL import Image as PILImage
 
 from resbud_api.core.errors import ResbudError
@@ -55,10 +57,14 @@ def get_format_specifier_reference_path() -> Path | None:
     return None
 
 
-def export_paper_docx(paper: PaperDraft) -> bytes:
+def export_paper_docx(paper: PaperDraft, layout: str | None = None) -> bytes:
     """Render the submitted paper in its supplied order and return DOCX bytes."""
     try:
-        document = _create_document(paper)
+        effective_layout = layout or getattr(paper, "page_layout", "single_column")
+        if effective_layout == "two_column_academic":
+            document = _create_two_column_document(paper)
+        else:
+            document = _create_document(paper)
         output = BytesIO()
         document.save(output)
         result = output.getvalue()
@@ -67,6 +73,79 @@ def export_paper_docx(paper: PaperDraft) -> bytes:
     if len(result) > MAX_EXPORT_BYTES:
         raise ResbudError(413)
     return result
+
+
+def _add_page_number_to_footer(footer: Any) -> None:
+    """Add a clean, centered dynamic Word PAGE field code to the section footer."""
+    try:
+        p = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run()
+        fldChar1 = OxmlElement("w:fldChar")
+        fldChar1.set(qn("w:fldCharType"), "begin")
+        instrText = OxmlElement("w:instrText")
+        instrText.set(qn("xml:space"), "preserve")
+        instrText.text = "PAGE"
+        fldChar2 = OxmlElement("w:fldChar")
+        fldChar2.set(qn("w:fldCharType"), "separate")
+        fldChar3 = OxmlElement("w:fldChar")
+        fldChar3.set(qn("w:fldCharType"), "end")
+
+        r = run._r
+        r.append(fldChar1)
+        r.append(instrText)
+        r.append(fldChar2)
+        r.append(fldChar3)
+        run.font.name = "Times New Roman"
+        run.font.size = Pt(9.0)
+        run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
+    except Exception as exc:
+        logger.warning("Failed to inject page number into footer: %s", exc)
+
+
+def _configure_two_column_academic_styles(document: Any) -> None:
+    """Apply formal academic research paper styles for two-column academic layouts (IEEE style)."""
+    academic_font = "Times New Roman"
+    pure_black = RGBColor(0, 0, 0)
+
+    for style_name in ["Normal", "Title", "Heading 1", "Heading 2", "Heading 3"]:
+        if style_name in document.styles:
+            style = document.styles[style_name]
+            style.font.name = academic_font
+            style.font.color.rgb = pure_black
+            rPr = style.element.rPr
+            if rPr is not None and rPr.rFonts is not None:
+                rPr.rFonts.set(qn("w:ascii"), academic_font)
+                rPr.rFonts.set(qn("w:hAnsi"), academic_font)
+                rPr.rFonts.set(qn("w:cs"), academic_font)
+
+    normal = document.styles["Normal"]
+    normal.font.size = Pt(9.5)
+    normal.paragraph_format.line_spacing = 1.12
+    normal.paragraph_format.space_after = Pt(4)
+    normal.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+
+    title = document.styles["Title"]
+    title.font.size = Pt(18)
+    title.font.bold = True
+    title.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title.paragraph_format.space_before = Pt(10)
+    title.paragraph_format.space_after = Pt(8)
+
+    h1 = document.styles["Heading 1"]
+    h1.font.size = Pt(11)
+    h1.font.bold = True
+    h1.paragraph_format.space_before = Pt(10)
+    h1.paragraph_format.space_after = Pt(3)
+    h1.paragraph_format.keep_with_next = True
+
+    if "Heading 2" in document.styles:
+        h2 = document.styles["Heading 2"]
+        h2.font.size = Pt(10)
+        h2.font.bold = True
+        h2.paragraph_format.space_before = Pt(7)
+        h2.paragraph_format.space_after = Pt(2)
+        h2.paragraph_format.keep_with_next = True
 
 
 def _configure_academic_styles(document: Any) -> None:
@@ -148,6 +227,28 @@ def _create_document(paper: PaperDraft) -> Any:
     title_p = document.add_heading(paper.title, level=0)
     _ensure_run_style(title_p, bold=True)
 
+    if paper.author_info and paper.author_info.strip():
+        auth_p = document.add_paragraph()
+        auth_p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        auth_p.paragraph_format.space_before = Pt(2)
+        auth_p.paragraph_format.space_after = Pt(2)
+        r = auth_p.add_run(paper.author_info.strip())
+        r.font.name = "Times New Roman"
+        r.font.size = Pt(11)
+        r.font.bold = True
+        r.font.color.rgb = RGBColor(0, 0, 0)
+
+    if paper.affiliation and paper.affiliation.strip():
+        aff_p = document.add_paragraph()
+        aff_p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        aff_p.paragraph_format.space_before = Pt(0)
+        aff_p.paragraph_format.space_after = Pt(8)
+        r = aff_p.add_run(paper.affiliation.strip())
+        r.font.name = "Times New Roman"
+        r.font.size = Pt(9.5)
+        r.font.italic = True
+        r.font.color.rgb = RGBColor(0, 0, 0)
+
     abs_p = document.add_heading("Abstract", level=1)
     _ensure_run_style(abs_p, bold=True)
     _add_text_paragraph(document, paper.abstract)
@@ -193,6 +294,156 @@ def _create_document(paper: PaperDraft) -> Any:
             run = paragraph.add_run(ref_text)
             run.font.name = "Times New Roman"
             run.font.size = Pt(9.5)
+            run.font.color.rgb = RGBColor(0, 0, 0)
+
+    return document
+
+
+def _create_two_column_document(paper: PaperDraft) -> Any:
+    """Render a formal Two-Column Academic research paper with full-width front matter (IEEE style)."""
+    # Handle absence of format_specifier_papers gracefully without crashing
+    _ = get_format_specifier_reference_path()
+
+    document = Document()
+
+    # Section 1: Full-width Front Matter (Title, Authors, Affiliation, Abstract, Keywords)
+    sec1 = document.sections[0]
+    sec1.page_width = Mm(210)
+    sec1.page_height = Mm(297)
+    sec1.top_margin = Mm(19)
+    sec1.bottom_margin = Mm(19)
+    sec1.left_margin = Mm(19)
+    sec1.right_margin = Mm(19)
+
+    _add_page_number_to_footer(sec1.footer)
+    _configure_two_column_academic_styles(document)
+
+    document.core_properties.title = paper.title
+    title_p = document.add_heading(paper.title, level=0)
+    _ensure_run_style(title_p, bold=True)
+
+    # Author and Affiliation (only when supplied)
+    if paper.author_info and paper.author_info.strip():
+        auth_p = document.add_paragraph()
+        auth_p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        auth_p.paragraph_format.space_before = Pt(2)
+        auth_p.paragraph_format.space_after = Pt(2)
+        r = auth_p.add_run(paper.author_info.strip())
+        r.font.name = "Times New Roman"
+        r.font.size = Pt(11)
+        r.font.bold = True
+        r.font.color.rgb = RGBColor(0, 0, 0)
+
+    if paper.affiliation and paper.affiliation.strip():
+        aff_p = document.add_paragraph()
+        aff_p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        aff_p.paragraph_format.space_before = Pt(0)
+        aff_p.paragraph_format.space_after = Pt(10)
+        r = aff_p.add_run(paper.affiliation.strip())
+        r.font.name = "Times New Roman"
+        r.font.size = Pt(9.5)
+        r.font.italic = True
+        r.font.color.rgb = RGBColor(0, 0, 0)
+
+    # Full-width Abstract
+    if paper.abstract and paper.abstract.strip():
+        abs_p = document.add_paragraph()
+        abs_p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        abs_p.paragraph_format.line_spacing = 1.12
+        abs_p.paragraph_format.space_before = Pt(6)
+        abs_p.paragraph_format.space_after = Pt(6)
+        abs_p.paragraph_format.left_indent = Inches(0.2)
+        abs_p.paragraph_format.right_indent = Inches(0.2)
+        r_head = abs_p.add_run("Abstract—")
+        r_head.font.name = "Times New Roman"
+        r_head.font.size = Pt(9.5)
+        r_head.font.bold = True
+        r_head.font.color.rgb = RGBColor(0, 0, 0)
+        r_text = abs_p.add_run(" " + paper.abstract.strip())
+        r_text.font.name = "Times New Roman"
+        r_text.font.size = Pt(9.5)
+        r_text.font.color.rgb = RGBColor(0, 0, 0)
+
+    # Full-width Keywords
+    if paper.keywords:
+        kw_p = document.add_paragraph()
+        kw_p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        kw_p.paragraph_format.line_spacing = 1.12
+        kw_p.paragraph_format.space_after = Pt(12)
+        kw_p.paragraph_format.left_indent = Inches(0.2)
+        kw_p.paragraph_format.right_indent = Inches(0.2)
+        kw_head = kw_p.add_run("Index Terms—")
+        kw_head.font.name = "Times New Roman"
+        kw_head.font.size = Pt(9.5)
+        kw_head.font.bold = True
+        kw_head.font.italic = True
+        kw_head.font.color.rgb = RGBColor(0, 0, 0)
+        kw_text = kw_p.add_run(" " + ", ".join(paper.keywords))
+        kw_text.font.name = "Times New Roman"
+        kw_text.font.size = Pt(9.5)
+        kw_text.font.color.rgb = RGBColor(0, 0, 0)
+
+    # Section 2: Two vertical columns starting at the main body
+    sec2 = document.add_section(WD_SECTION.CONTINUOUS)
+    sec2.page_width = Mm(210)
+    sec2.page_height = Mm(297)
+    sec2.top_margin = Mm(19)
+    sec2.bottom_margin = Mm(19)
+    sec2.left_margin = Mm(19)
+    sec2.right_margin = Mm(19)
+
+    sectPr = sec2._sectPr
+    cols = sectPr.xpath("./w:cols")
+    if cols:
+        col_elem = cols[0]
+    else:
+        col_elem = OxmlElement("w:cols")
+        sectPr.append(col_elem)
+    col_elem.set(qn("w:num"), "2")
+    col_elem.set(qn("w:space"), "425")  # ~7.5mm inter-column space
+    col_elem.set(qn("w:equalWidth"), "1")
+
+    body_sections = [
+        sec
+        for sec in paper.sections
+        if sec.id.lower() not in ("references", "bibliography")
+        and sec.heading.strip().lower() not in ("references", "bibliography", "6. references")
+    ]
+
+    for sec_idx, section in enumerate(body_sections, start=1):
+        clean_title = clean_heading_text(section.heading)
+        heading_text = f"{sec_idx}. {clean_title}"
+        sec_p = document.add_heading(heading_text, level=1)
+        _ensure_run_style(sec_p, bold=True)
+        sec_p.paragraph_format.keep_with_next = True
+        blocks = parse_markdown_blocks(section.content)
+        render_blocks_to_docx(
+            document,
+            blocks,
+            section_index=sec_idx,
+            numbered=True,
+            academic_font="Times New Roman",
+            two_column=True,
+        )
+
+    # References in Section 2 (flows across the two columns)
+    if paper.references:
+        ref_heading = document.add_heading("References", level=1)
+        _ensure_run_style(ref_heading, bold=True)
+        ref_heading.paragraph_format.keep_with_next = True
+        for ref_idx, reference in enumerate(paper.references, start=1):
+            ref_text = reference.text.strip()
+            if not re.match(r"^\[\d+\]", ref_text) and not re.match(r"^\d+\.", ref_text):
+                ref_text = f"[{ref_idx}] {ref_text}"
+            paragraph = document.add_paragraph()
+            paragraph.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+            paragraph.paragraph_format.left_indent = Inches(0.22)
+            paragraph.paragraph_format.first_line_indent = Inches(-0.22)
+            paragraph.paragraph_format.space_after = Pt(3)
+            paragraph.paragraph_format.line_spacing = 1.05
+            run = paragraph.add_run(ref_text)
+            run.font.name = "Times New Roman"
+            run.font.size = Pt(8.5)
             run.font.color.rgb = RGBColor(0, 0, 0)
 
     return document
@@ -432,7 +683,8 @@ def _append_line_with_math(paragraph: Any, line: str) -> None:
                 continue
             except Exception as exc:
                 logger.warning(
-                    "Failed to render mathematical formula into docx, falling back to raw text: %s", exc
+                    "Failed to render mathematical formula into docx, falling back to raw text: %s",
+                    exc,
                 )
         run = paragraph.add_run(token)
         run.font.name = "Times New Roman"

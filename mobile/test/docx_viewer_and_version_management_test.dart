@@ -285,6 +285,43 @@ void main() {
       expect(find.textContaining('Einstein mass-energy equivalence'), findsOneWidget);
     });
 
+    testWidgets('layout toggle button toggles between single-column and two-column academic format and passes layout to export', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DocxViewer(
+              paper: samplePaper,
+              exportApi: fakeExportApi,
+              fileSaver: fakeSaver,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final toggleButton = find.byKey(const ValueKey('button-docx-layout-toggle'));
+      expect(toggleButton, findsOneWidget);
+
+      // Initially single column
+      await tester.tap(toggleButton);
+      await tester.pumpAndSettle();
+
+      // Trigger download to verify layout was passed
+      await tester.tap(find.byKey(const ValueKey('button-docx-viewer-download')));
+      await tester.pumpAndSettle();
+
+      expect(fakeExportApi.lastExportedLayout, 'two_column_academic');
+
+      // Toggle back to single column
+      await tester.tap(toggleButton);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('button-docx-viewer-download')));
+      await tester.pumpAndSettle();
+
+      expect(fakeExportApi.lastExportedLayout, 'single_column');
+    });
+
     testWidgets('fullscreen toggle toggles state and icon', (tester) async {
       await tester.pumpWidget(
         MaterialApp(

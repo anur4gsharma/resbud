@@ -175,3 +175,73 @@ def test_docx_renders_declarative_chart_block() -> None:
     doc = Document(BytesIO(response.content))
     paragraphs = [p.text for p in doc.paragraphs]
     assert any("Convergence Rate" in p for p in paragraphs)
+
+
+def test_two_column_academic_docx_export_structure() -> None:
+    import zipfile
+
+    paper = copy.deepcopy(PAPER)
+    paper["page_layout"] = "two_column_academic"
+    paper["author_info"] = "Dr. Jane Doe and Dr. John Smith"
+    paper["affiliation"] = "Department of Computer Science, University of Technology"
+    paper["keywords"] = ["Machine Learning", "Distributed Systems", "Parallel Computing"]
+    paper["sections"].append(
+        {
+            "id": "methodology",
+            "heading": "Methodology",
+            "state": "draft",
+            "content": (
+                "We propose a novel framework for distributed processing.\n\n"
+                r"$$\mathcal{L}_{total} = \alpha \mathcal{L}_{MSE} + \beta \mathcal{L}_{KL}$$"
+                "\n\n"
+                "| Node | Latency (ms) | Throughput (req/s) |\n"
+                "| --- | --- | --- |\n"
+                "| Worker-1 | 1.2 | 12500 |\n"
+                "| Worker-2 | 1.5 | 11800 |\n"
+            ),
+        }
+    )
+
+    response = _request(_app(), paper)
+    assert response.status_code == 200
+    assert response.content.startswith(b"PK")
+
+    # Verify OpenXML contains genuine two-column structure
+    with zipfile.ZipFile(BytesIO(response.content)) as z:
+        xml = z.read("word/document.xml").decode("utf-8")
+        assert 'w:num="2"' in xml
+        assert 'w:equalWidth="1"' in xml
+        assert 'w:type w:val="continuous"' in xml
+
+    # Verify document paragraphs
+    doc = Document(BytesIO(response.content))
+    texts = [p.text for p in doc.paragraphs]
+    assert any("Dr. Jane Doe and Dr. John Smith" in t for t in texts)
+    assert any("Department of Computer Science" in t for t in texts)
+    assert any("Index Terms" in t for t in texts)
+    assert any("Machine Learning" in t for t in texts)
+
+
+def test_two_column_academic_docx_export_via_query_param() -> None:
+    async def request_with_query() -> httpx.Response:
+        transport = httpx.ASGITransport(app=_app(), raise_app_exceptions=False)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            return await client.post("/api/v1/exports/docx?layout=two_column_academic", json=PAPER)
+
+    response = asyncio.run(request_with_query())
+    assert response.status_code == 200
+    import zipfile
+
+    with zipfile.ZipFile(BytesIO(response.content)) as z:
+        xml = z.read("word/document.xml").decode("utf-8")
+        assert 'w:num="2"' in xml
+
+
+def test_two_column_academic_docx_with_no_references() -> None:
+    paper = copy.deepcopy(PAPER)
+    paper["page_layout"] = "two_column_academic"
+    paper["references"] = []
+    response = _request(_app(), paper)
+    assert response.status_code == 200
+    doc = Document(BytesIO(response.content))
+    assert len(doc.paragraphs) > 0

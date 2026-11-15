@@ -42,8 +42,9 @@ EXPORT_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
         },
     },
 )
-async def export_docx(paper: PaperDraft) -> Response:
-    content = export_paper_docx(paper)
+async def export_docx(paper: PaperDraft, layout: str | None = None) -> Response:
+    effective_layout = layout or getattr(paper, "page_layout", "single_column")
+    content = export_paper_docx(paper, layout=effective_layout)
     filename = safe_docx_filename(paper.title)
     return Response(
         content=content,
@@ -70,8 +71,9 @@ async def export_docx(paper: PaperDraft) -> Response:
         },
     },
 )
-async def export_pdf(paper: PaperDraft) -> Response:
-    content = export_paper_pdf(paper)
+async def export_pdf(paper: PaperDraft, layout: str | None = None) -> Response:
+    effective_layout = layout or getattr(paper, "page_layout", "single_column")
+    content = export_paper_pdf(paper, layout=effective_layout)
     filename = safe_pdf_filename(paper.title)
     return Response(
         content=content,

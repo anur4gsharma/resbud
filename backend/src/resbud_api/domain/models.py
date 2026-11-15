@@ -26,6 +26,7 @@ LimitationsStatus = Literal[
 ]
 SectionState = Literal["draft", "needs_input", "not_applicable"]
 CitationStyle = Literal["user_supplied", "apa_7", "ieee", "other"]
+PageLayout = Literal["single_column", "two_column_academic"]
 WarningCode = Literal[
     "MISSING_METHOD",
     "MISSING_DATASET_DETAILS",
@@ -111,6 +112,7 @@ class PaperPreferences(ContractModel):
     target_word_count: TargetWordCount
     desired_sections: Annotated[list[SectionId], Field(max_length=15)]
     citation_style: CitationStyle
+    page_layout: PageLayout = "single_column"
 
     @model_validator(mode="after")
     def desired_section_ids_are_unique(self) -> "PaperPreferences":
@@ -162,6 +164,9 @@ class PaperDraft(ContractModel):
     ]
     references: Annotated[list[ReferenceInput], Field(max_length=50)]
     review_warnings: Annotated[list[ReviewWarning], Field(max_length=100)]
+    page_layout: PageLayout = "single_column"
+    author_info: Annotated[str, Field(max_length=500)] | None = None
+    affiliation: Annotated[str, Field(max_length=500)] | None = None
 
     @model_validator(mode="after")
     def section_ids_are_unique(self) -> "PaperDraft":

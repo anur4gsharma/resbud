@@ -107,6 +107,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   late final TextEditingController _customSectionsController;
   int _targetWordCount = 5000;
   String _citationStyle = 'user_supplied';
+  String _pageLayout = 'single_column';
   List<String> _desiredSections = List.of(_baseSections);
   bool _saving = false;
   bool _importing = false;
@@ -177,6 +178,11 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           ['user_supplied', 'apa_7', 'ieee', 'other'].contains(citation)) {
         _citationStyle = citation;
       }
+      final pageLayout = preferences['page_layout'];
+      if (pageLayout is String &&
+          ['single_column', 'two_column_academic'].contains(pageLayout)) {
+        _pageLayout = pageLayout;
+      }
       final sections = preferences['desired_sections'];
       if (sections is List && sections.every((value) => value is String)) {
         _desiredSections = List<String>.from(sections);
@@ -242,6 +248,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     for (final entry in _statuses.entries) '${entry.key}:${entry.value}',
     '$_targetWordCount',
     _citationStyle,
+    _pageLayout,
     _desiredSections.join(','),
     _customSectionsController.text,
   ].join('|');
@@ -311,6 +318,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         'target_word_count': _targetWordCount,
         'desired_sections': _requestedSections,
         'citation_style': _citationStyle,
+        'page_layout': _pageLayout,
       },
       if (_attachedFigures.isNotEmpty) 'figures': _attachedFigures,
     };
@@ -1728,6 +1736,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         result.response.paper.toJson(),
         _attachedFigures,
       );
+      enrichedPaper['page_layout'] = _pageLayout;
       await widget.repository.savePaperVersion(
         projectId: widget.project.id,
         schemaVersion: result.response.paper.schemaVersion,
@@ -2290,7 +2299,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    'Target: $_targetWordCount words · ${_citationStyle.replaceAll('_', ' ')} citations · ${_requestedSections.length} sections',
+                    'Target: $_targetWordCount words · ${_citationStyle.replaceAll('_', ' ')} citations · ${_pageLayout == 'two_column_academic' ? 'Two-Column Academic' : 'Single-Column'} · ${_requestedSections.length} sections',
                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                   ),
                 ),
@@ -2536,6 +2545,27 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
               ],
               onChanged: (value) {
                 if (value != null) setState(() => _citationStyle = value);
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              key: const ValueKey('page-layout-selector-classic'),
+              initialValue: _pageLayout,
+              decoration: const InputDecoration(
+                labelText: 'Document layout format',
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'single_column',
+                  child: Text('Standard Single-Column'),
+                ),
+                DropdownMenuItem(
+                  value: 'two_column_academic',
+                  child: Text('Two-Column Academic (IEEE format)'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) setState(() => _pageLayout = value);
               },
             ),
             const SizedBox(height: 12),
@@ -3341,6 +3371,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              key: const ValueKey('citation-style-selector'),
               initialValue: _citationStyle,
               decoration: const InputDecoration(labelText: 'Citation style'),
               items: const [
@@ -3352,6 +3383,59 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                 if (val != null) setState(() => _citationStyle = val);
               },
             ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              key: const ValueKey('page-layout-selector'),
+              initialValue: _pageLayout,
+              decoration: const InputDecoration(
+                labelText: 'Document page layout',
+                prefixIcon: Icon(Icons.dashboard_customize_outlined),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'single_column',
+                  child: Text('Standard Single-Column'),
+                ),
+                DropdownMenuItem(
+                  value: 'two_column_academic',
+                  child: Text('Two-Column Academic (IEEE format)'),
+                ),
+              ],
+              onChanged: (val) {
+                if (val != null) setState(() => _pageLayout = val);
+              },
+            ),
+            if (_pageLayout == 'two_column_academic') ...[
+              const SizedBox(height: 8),
+              Container(
+                key: const ValueKey('two-column-academic-info-banner'),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.view_column_outlined,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Two-Column Academic format arranges your paper with a full-width header (Title, Authors, Affiliation, Abstract, and Keywords) and a genuine two-column main body following standard IEEE academic publication standards. Tables, figures, and equations fit cleanly into single-column widths.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11.5),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

@@ -117,12 +117,16 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
                       _buildAbstractSection(zoom),
                     ],
                     SizedBox(height: 24 * zoom),
-                    // Display initial sections on page 1
-                    for (var i = 0; i < widget.paper.sections.length; i++)
-                      _buildSectionBlock(widget.paper.sections[i], i + 1, zoom),
-                    if (widget.paper.references.isNotEmpty) ...[
-                      SizedBox(height: 24 * zoom),
-                      _buildReferencesSection(zoom),
+                    if (widget.paper.pageLayout == 'two_column_academic')
+                      _buildTwoColumnBody(zoom)
+                    else ...[
+                      // Display initial sections on page 1 (standard single-column)
+                      for (var i = 0; i < widget.paper.sections.length; i++)
+                        _buildSectionBlock(widget.paper.sections[i], i + 1, zoom),
+                      if (widget.paper.references.isNotEmpty) ...[
+                        SizedBox(height: 24 * zoom),
+                        _buildReferencesSection(zoom),
+                      ],
                     ],
                   ],
                 ),
@@ -186,6 +190,49 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
     );
   }
 
+  Widget _buildTwoColumnBody(double zoom) {
+    final sections = widget.paper.sections;
+    final half = (sections.length / 2).ceil();
+    final leftSections = sections.take(half).toList();
+    final rightSections = sections.skip(half).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Divider(color: Colors.grey.shade400, thickness: 0.5 * zoom),
+        SizedBox(height: 14 * zoom),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < leftSections.length; i++)
+                    _buildSectionBlock(leftSections[i], i + 1, zoom, isTwoColumn: true),
+                ],
+              ),
+            ),
+            SizedBox(width: 20 * zoom), // 6-8mm inter-column spacing
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var i = 0; i < rightSections.length; i++)
+                    _buildSectionBlock(rightSections[i], half + i + 1, zoom, isTwoColumn: true),
+                  if (widget.paper.references.isNotEmpty) ...[
+                    SizedBox(height: 14 * zoom),
+                    _buildReferencesSection(zoom, isTwoColumn: true),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildTitleSection(double zoom) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -204,6 +251,36 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
             ),
           ),
         ),
+        if (widget.paper.authorInfo != null && widget.paper.authorInfo!.trim().isNotEmpty) ...[
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20.0 * zoom, vertical: 2.0 * zoom),
+            child: Text(
+              widget.paper.authorInfo!.trim(),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'serif',
+                fontSize: 11.0 * zoom,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ],
+        if (widget.paper.affiliation != null && widget.paper.affiliation!.trim().isNotEmpty) ...[
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20.0 * zoom, vertical: 1.0 * zoom),
+            child: Text(
+              widget.paper.affiliation!.trim(),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontFamily: 'serif',
+                fontSize: 9.5 * zoom,
+                fontStyle: FontStyle.italic,
+                color: Colors.black54,
+              ),
+            ),
+          ),
+        ],
         SizedBox(height: 14 * zoom),
       ],
     );
@@ -268,9 +345,14 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
     );
   }
 
-  Widget _buildSectionBlock(PaperSectionPayload section, int index, double zoom) {
+  Widget _buildSectionBlock(
+    PaperSectionPayload section,
+    int index,
+    double zoom, {
+    bool isTwoColumn = false,
+  }) {
     return Padding(
-      padding: EdgeInsets.only(bottom: 18.0 * zoom),
+      padding: EdgeInsets.only(bottom: (isTwoColumn ? 14.0 : 18.0) * zoom),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -281,21 +363,25 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
                 : '$index. ${section.heading}',
             style: TextStyle(
               fontFamily: 'serif',
-              fontSize: 12.5 * zoom,
+              fontSize: (isTwoColumn ? 11.0 : 12.5) * zoom,
               fontWeight: FontWeight.bold,
               color: Colors.black,
-              height: 1.3,
+              height: 1.25,
             ),
           ),
-          SizedBox(height: 6 * zoom),
+          SizedBox(height: (isTwoColumn ? 4 : 6) * zoom),
           // Section Content rendered as formatted paragraphs
-          _renderFormattedContent(section.content, zoom),
+          _renderFormattedContent(section.content, zoom, isTwoColumn: isTwoColumn),
         ],
       ),
     );
   }
 
-  Widget _renderFormattedContent(String content, double zoom) {
+  Widget _renderFormattedContent(
+    String content,
+    double zoom, {
+    bool isTwoColumn = false,
+  }) {
     if (content.trim().isEmpty) {
       return Text(
         '[Section content pending synthesis]',
@@ -945,26 +1031,26 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
     );
   }
 
-  Widget _buildReferencesSection(double zoom) {
+  Widget _buildReferencesSection(double zoom, {bool isTwoColumn = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Divider(color: Colors.grey.shade400, thickness: 0.75 * zoom),
-        SizedBox(height: 8 * zoom),
+        if (!isTwoColumn) Divider(color: Colors.grey.shade400, thickness: 0.75 * zoom),
+        SizedBox(height: (isTwoColumn ? 4 : 8) * zoom),
         Text(
           'REFERENCES',
           style: TextStyle(
             fontFamily: 'serif',
-            fontSize: 12.0 * zoom,
+            fontSize: (isTwoColumn ? 11.0 : 12.0) * zoom,
             fontWeight: FontWeight.bold,
             color: Colors.black,
             letterSpacing: 0.5,
           ),
         ),
-        SizedBox(height: 10 * zoom),
+        SizedBox(height: (isTwoColumn ? 6 : 10) * zoom),
         for (var i = 0; i < widget.paper.references.length; i++)
           Padding(
-            padding: EdgeInsets.only(bottom: 6.0 * zoom),
+            padding: EdgeInsets.only(bottom: (isTwoColumn ? 4.0 : 6.0) * zoom),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -972,7 +1058,7 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
                   '[${i + 1}] ',
                   style: TextStyle(
                     fontFamily: 'serif',
-                    fontSize: 9.5 * zoom,
+                    fontSize: (isTwoColumn ? 8.5 : 9.5) * zoom,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -981,8 +1067,8 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
                     widget.paper.references[i].text,
                     style: TextStyle(
                       fontFamily: 'serif',
-                      fontSize: 9.5 * zoom,
-                      height: 1.3,
+                      fontSize: (isTwoColumn ? 8.5 : 9.5) * zoom,
+                      height: 1.25,
                       color: const Color(0xFF222222),
                     ),
                   ),

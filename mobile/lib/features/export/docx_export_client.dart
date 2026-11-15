@@ -91,8 +91,8 @@ class PdfExportResult {
 }
 
 abstract interface class PaperExportApi {
-  Future<DocxExportResult> exportDocx(PaperDraftPayload paper);
-  Future<PdfExportResult> exportPdf(PaperDraftPayload paper);
+  Future<DocxExportResult> exportDocx(PaperDraftPayload paper, {String? layout});
+  Future<PdfExportResult> exportPdf(PaperDraftPayload paper, {String? layout});
 }
 
 class DocxExportApiClient implements PaperExportApi {
@@ -131,15 +131,20 @@ class DocxExportApiClient implements PaperExportApi {
   final BearerTokenProvider? tokenProvider;
   final Duration timeout;
 
-  Uri get _exportUri => baseUri.resolve('/api/v1/exports/docx');
-  Uri get _pdfExportUri => baseUri.resolve('/api/v1/exports/pdf');
+  Uri _buildExportUri(String path, {String? layout}) {
+    final uri = baseUri.resolve(path);
+    if (layout != null && layout.isNotEmpty) {
+      return uri.replace(queryParameters: {'layout': layout});
+    }
+    return uri;
+  }
 
   Future<void> close() async {
     if (_ownsClient) _client.close();
   }
 
   @override
-  Future<DocxExportResult> exportDocx(PaperDraftPayload paper) async {
+  Future<DocxExportResult> exportDocx(PaperDraftPayload paper, {String? layout}) async {
     final token = await tokenProvider?.call();
     final headers = <String, String>{
       'content-type': 'application/json',
@@ -150,12 +155,14 @@ class DocxExportApiClient implements PaperExportApi {
     }
 
     final payloadJson = jsonEncode(paper.toJson());
+    final effectiveLayout = layout ?? paper.pageLayout;
+    final exportUri = _buildExportUri('/api/v1/exports/docx', layout: effectiveLayout);
 
     late final http.Response response;
     try {
       response = await _client
           .post(
-            _exportUri,
+            exportUri,
             headers: headers,
             body: payloadJson,
           )
@@ -202,7 +209,7 @@ class DocxExportApiClient implements PaperExportApi {
   }
 
   @override
-  Future<PdfExportResult> exportPdf(PaperDraftPayload paper) async {
+  Future<PdfExportResult> exportPdf(PaperDraftPayload paper, {String? layout}) async {
     final token = await tokenProvider?.call();
     final headers = <String, String>{
       'content-type': 'application/json',
@@ -213,12 +220,14 @@ class DocxExportApiClient implements PaperExportApi {
     }
 
     final payloadJson = jsonEncode(paper.toJson());
+    final effectiveLayout = layout ?? paper.pageLayout;
+    final exportUri = _buildExportUri('/api/v1/exports/pdf', layout: effectiveLayout);
 
     late final http.Response response;
     try {
       response = await _client
           .post(
-            _pdfExportUri,
+            exportUri,
             headers: headers,
             body: payloadJson,
           )

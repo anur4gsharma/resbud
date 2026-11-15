@@ -375,5 +375,51 @@ void main() {
         )),
       );
     });
+
+    test('DocxExportApiClient passes layout query parameter and payload for two-column academic', () async {
+      final mockDocxBytes = Uint8List.fromList([
+        0x50, 0x4B, 0x03, 0x04,
+        0x14, 0x00, 0x06, 0x00,
+        0x08, 0x00, 0x00, 0x00,
+      ]);
+      final mockPdfBytes = Uint8List.fromList(utf8.encode('%PDF-1.4\ntest content'));
+      Uri? capturedDocxUri;
+      Map<String, dynamic>? capturedDocxBody;
+      Uri? capturedPdfUri;
+      Map<String, dynamic>? capturedPdfBody;
+
+      final mockClient = MockClient((request) async {
+        if (request.url.path.contains('docx')) {
+          capturedDocxUri = request.url;
+          capturedDocxBody = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response.bytes(mockDocxBytes, 200);
+        } else {
+          capturedPdfUri = request.url;
+          capturedPdfBody = jsonDecode(request.body) as Map<String, dynamic>;
+          return http.Response.bytes(mockPdfBytes, 200);
+        }
+      });
+
+      final client = DocxExportApiClient(
+        baseUri: Uri.parse('https://api.example.com'),
+        client: mockClient,
+      );
+
+      final twoColPaper = samplePaper.copyWith(
+        pageLayout: 'two_column_academic',
+        authorInfo: 'Alice Doe & Bob Smith',
+        affiliation: 'Tech Institute',
+      );
+
+      await client.exportDocx(twoColPaper, layout: 'two_column_academic');
+      expect(capturedDocxUri?.queryParameters['layout'], 'two_column_academic');
+      expect(capturedDocxBody?['page_layout'], 'two_column_academic');
+      expect(capturedDocxBody?['author_info'], 'Alice Doe & Bob Smith');
+
+      await client.exportPdf(twoColPaper, layout: 'two_column_academic');
+      expect(capturedPdfUri?.queryParameters['layout'], 'two_column_academic');
+      expect(capturedPdfBody?['page_layout'], 'two_column_academic');
+      expect(capturedPdfBody?['affiliation'], 'Tech Institute');
+    });
   });
 }
