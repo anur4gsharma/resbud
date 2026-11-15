@@ -110,6 +110,9 @@ class GenerationApiClient implements PaperGenerationApi {
   static String get defaultBaseUrl {
     const configured = String.fromEnvironment('RESBUD_API_BASE_URL');
     if (configured.isNotEmpty) return configured;
+    if (kReleaseMode) {
+      return 'https://resbud-api.onrender.com';
+    }
     if (kIsWeb) {
       try {
         final host = Uri.base.host;

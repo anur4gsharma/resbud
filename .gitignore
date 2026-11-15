@@ -53,3 +53,9 @@ launch.txt
 
 # Reference formatting papers
 /format_specifier_papers/
+
+# Keystores and Android signing properties
+key.properties
+*.jks
+*.keystore
+releases/

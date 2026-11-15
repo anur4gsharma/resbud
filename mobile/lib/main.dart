@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 
+import 'data/auth_session_manager.dart';
 import 'data/local_project_repository.dart';
+import 'features/auth/auth_session_dialog.dart';
 import 'features/export/docx_export_client.dart';
 import 'features/export/docx_file_saver.dart';
 import 'features/generation/generation_api_client.dart';
@@ -29,6 +31,7 @@ class ResbudBootstrap extends StatefulWidget {
 
 class _ResbudBootstrapState extends State<ResbudBootstrap> {
   late Future<LocalProjectRepository> _repository;
+  AuthSessionManager? _authManager;
 
   @override
   void initState() {
@@ -37,14 +40,24 @@ class _ResbudBootstrapState extends State<ResbudBootstrap> {
   }
 
   void _openRepository() {
-    _repository = LocalProjectRepository.open(factory: widget.databaseFactory);
+    _repository = LocalProjectRepository.open(factory: widget.databaseFactory).then((repo) async {
+      final manager = AuthSessionManager(repo);
+      await manager.initialize();
+      _authManager = manager;
+      return repo;
+    });
   }
 
   @override
   Widget build(BuildContext context) => FutureBuilder<LocalProjectRepository>(
     future: _repository,
     builder: (context, snapshot) {
-      if (snapshot.hasData) return ResbudApp(repository: snapshot.data!);
+      if (snapshot.hasData) {
+        return ResbudApp(
+          repository: snapshot.data!,
+          authManager: _authManager ?? AuthSessionManager(snapshot.data!),
+        );
+      }
       if (snapshot.hasError) {
         return MaterialApp(
           theme: ResbudDesignTokens.lightTheme(),
@@ -80,16 +93,25 @@ class ResbudApp extends StatefulWidget {
   ResbudApp({
     super.key,
     required this.repository,
+    AuthSessionManager? authManager,
     PaperGenerationApi? generationApi,
     PaperExportApi? exportApi,
     DocxFileSaver? fileSaver,
     this.sourcePicker,
     this.initialThemeMode = ThemeMode.system,
-  }) : generationApi = generationApi ?? GenerationApiClient.fromEnvironment(),
-       exportApi = exportApi ?? DocxExportApiClient.fromEnvironment(),
+  }) : authManager = authManager ?? AuthSessionManager(repository),
+       generationApi = generationApi ??
+           GenerationApiClient.fromEnvironment(
+             tokenProvider: (authManager ?? AuthSessionManager(repository)).getToken,
+           ),
+       exportApi = exportApi ??
+           DocxExportApiClient.fromEnvironment(
+             tokenProvider: (authManager ?? AuthSessionManager(repository)).getToken,
+           ),
        fileSaver = fileSaver ?? LocalDocxFileSaver();
 
   final LocalProjectRepository repository;
+  final AuthSessionManager authManager;
   final PaperGenerationApi generationApi;
   final PaperExportApi exportApi;
   final DocxFileSaver fileSaver;
@@ -129,6 +151,7 @@ class _ResbudAppState extends State<ResbudApp> {
     themeMode: _themeMode,
     home: ProjectListPage(
       repository: widget.repository,
+      authManager: widget.authManager,
       generationApi: widget.generationApi,
       exportApi: widget.exportApi,
       fileSaver: widget.fileSaver,
@@ -140,18 +163,20 @@ class _ResbudAppState extends State<ResbudApp> {
 }
 
 class ProjectListPage extends StatefulWidget {
-  const ProjectListPage({
+  ProjectListPage({
     super.key,
     required this.repository,
+    AuthSessionManager? authManager,
     required this.generationApi,
     required this.exportApi,
     required this.fileSaver,
     this.sourcePicker,
     this.currentThemeMode = ThemeMode.system,
     this.onToggleTheme,
-  });
+  }) : authManager = authManager ?? AuthSessionManager(repository);
 
   final LocalProjectRepository repository;
+  final AuthSessionManager authManager;
   final PaperGenerationApi generationApi;
   final PaperExportApi exportApi;
   final DocxFileSaver fileSaver;
@@ -328,6 +353,18 @@ class _ProjectListPageState extends State<ProjectListPage> {
           ],
         ),
         actions: [
+          IconButton(
+            key: const ValueKey('button-auth-settings'),
+            tooltip: 'Backend & Authentication',
+            icon: ListenableBuilder(
+              listenable: widget.authManager,
+              builder: (context, _) => Icon(
+                widget.authManager.isValid ? Icons.cloud_done : Icons.cloud_queue,
+                color: widget.authManager.isValid ? Colors.green : null,
+              ),
+            ),
+            onPressed: () => AuthSessionDialog.show(context, widget.authManager),
+          ),
           IconButton(
             key: const ValueKey('button-toggle-guide'),
             tooltip: _showGuide ? 'Hide guide' : 'Research guide',

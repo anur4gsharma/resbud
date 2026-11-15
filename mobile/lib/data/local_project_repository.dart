@@ -310,7 +310,52 @@ class LocalProjectRepository {
     );
   }
 
+  Future<String?> getSetting(String key) async {
+    try {
+      final rows = await _database.query(
+        'app_settings',
+        where: 'key = ?',
+        whereArgs: [key],
+        limit: 1,
+      );
+      if (rows.isNotEmpty) return rows.first['value'] as String?;
+    } catch (_) {
+      // Table might not exist yet
+    }
+    return null;
+  }
+
+  Future<void> setSetting(String key, String value) async {
+    await _database.execute('''
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY NOT NULL,
+        value TEXT NOT NULL
+      )
+    ''');
+    await _database.insert(
+      'app_settings',
+      {'key': key, 'value': value},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> deleteSetting(String key) async {
+    try {
+      await _database.delete(
+        'app_settings',
+        where: 'key = ?',
+        whereArgs: [key],
+      );
+    } catch (_) {}
+  }
+
   static Future<void> _createCurrentSchema(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY NOT NULL,
+        value TEXT NOT NULL
+      )
+    ''');
     await db.execute('''
       CREATE TABLE projects (
         id TEXT PRIMARY KEY NOT NULL,
