@@ -179,6 +179,10 @@ async def generate_long_form_manuscript(
         sections=assembled_sections,
         references=list(brief.references),
         review_warnings=[],
+        page_layout=brief.preferences.page_layout,
+        document_template=getattr(brief.preferences, "document_template", "default"),
+        authors=getattr(brief.preferences, "authors", None),
+        affiliations=getattr(brief.preferences, "affiliations", None),
     )
 
     if not has_meaningful_content(paper):

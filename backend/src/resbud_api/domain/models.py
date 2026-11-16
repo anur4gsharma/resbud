@@ -108,11 +108,37 @@ class ReferenceInput(ContractModel):
     verification_status: VerificationStatusType | None = None
 
 
+class AuthorAffiliation(ContractModel):
+    """Institutional affiliation for academic manuscript authors."""
+
+    id: Annotated[str, Field(min_length=1, max_length=50)]
+    department: Annotated[str, Field(max_length=300)] | None = None
+    institution: Annotated[str, Field(min_length=1, max_length=300)]
+    city: Annotated[str, Field(max_length=150)] | None = None
+    state: Annotated[str, Field(max_length=150)] | None = None
+    country: Annotated[str, Field(max_length=150)] | None = None
+
+
+class AuthorMetadata(ContractModel):
+    """Structured author record supporting IEEE conference and academic multi-author formats."""
+
+    name: Annotated[str, Field(min_length=1, max_length=150)]
+    order: StrictInt = Field(default=1, ge=1, le=50)
+    affiliation_ids: list[Annotated[str, Field(max_length=50)]] = Field(default_factory=list)
+    email: Annotated[str, Field(max_length=150)] | None = None
+    role_or_title: Annotated[str, Field(max_length=150)] | None = None
+    is_corresponding: bool = False
+    funding_acknowledgment: Annotated[str, Field(max_length=500)] | None = None
+
+
 class PaperPreferences(ContractModel):
     target_word_count: TargetWordCount
     desired_sections: Annotated[list[SectionId], Field(max_length=15)]
     citation_style: CitationStyle
     page_layout: PageLayout = "single_column"
+    document_template: Annotated[str, Field(max_length=50)] = "default"
+    authors: Annotated[list[AuthorMetadata], Field(max_length=50)] | None = None
+    affiliations: Annotated[list[AuthorAffiliation], Field(max_length=50)] | None = None
 
     @model_validator(mode="after")
     def desired_section_ids_are_unique(self) -> "PaperPreferences":
@@ -167,6 +193,9 @@ class PaperDraft(ContractModel):
     page_layout: PageLayout = "single_column"
     author_info: Annotated[str, Field(max_length=500)] | None = None
     affiliation: Annotated[str, Field(max_length=500)] | None = None
+    document_template: Annotated[str, Field(max_length=50)] = "default"
+    authors: Annotated[list[AuthorMetadata], Field(max_length=50)] | None = None
+    affiliations: Annotated[list[AuthorAffiliation], Field(max_length=50)] | None = None
 
     @model_validator(mode="after")
     def section_ids_are_unique(self) -> "PaperDraft":

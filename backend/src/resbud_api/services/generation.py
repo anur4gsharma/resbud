@@ -89,6 +89,9 @@ async def generate_paper(
         update={
             "review_warnings": warnings,
             "page_layout": request.preferences.page_layout,
+            "document_template": getattr(request.preferences, "document_template", "default"),
+            "authors": getattr(request.preferences, "authors", None),
+            "affiliations": getattr(request.preferences, "affiliations", None),
         }
     )
     try:

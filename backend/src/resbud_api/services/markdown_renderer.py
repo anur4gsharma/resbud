@@ -39,6 +39,10 @@ from resbud_api.services.image_processor import decode_image_source, process_ima
 from resbud_api.services.math_omml import (
     insert_omml_into_paragraph,
 )
+from resbud_api.templates.ieee_conference import (
+    format_ieee_heading_2,
+    format_ieee_heading_3,
+)
 
 matplotlib.use("Agg")
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -646,13 +650,15 @@ def render_blocks_to_docx(
     numbered: bool = True,
     academic_font: str = "Times New Roman",
     two_column: bool = False,
+    template_id: str = "default",
 ) -> None:
     """Render structured Markdown blocks into a Word document with hierarchical numbering."""
     sub_index = 0
     subsub_index = 0
-    body_size_pt = 9.5 if two_column else 10.5
+    is_ieee = template_id == "ieee_conference"
+    body_size_pt = 10.0 if is_ieee else (9.5 if two_column else 10.5)
     h2_size_pt = 10.0 if two_column else 11.0
-    h3_size_pt = 9.5 if two_column else 10.5
+    h3_size_pt = 10.0 if is_ieee else (9.5 if two_column else 10.5)
     max_fig_width = 3.2 if two_column else 5.5
     caption_size = 8.5 if two_column else 9.5
 
@@ -661,26 +667,50 @@ def render_blocks_to_docx(
             if block.level == 2:
                 sub_index += 1
                 subsub_index = 0
-                title_text = (
-                    f"{section_index}.{sub_index} {block.title}" if numbered else block.title
-                )
+                if is_ieee:
+                    title_text = (
+                        format_ieee_heading_2(sub_index, block.title) if numbered else block.title
+                    )
+                else:
+                    title_text = (
+                        f"{section_index}.{sub_index} {block.title}" if numbered else block.title
+                    )
                 h_para = document.add_heading(title_text, level=2)
                 h_para.paragraph_format.space_before = Pt(8 if two_column else 10)
                 h_para.paragraph_format.space_after = Pt(2 if two_column else 3)
                 h_para.paragraph_format.keep_with_next = True
-                _ensure_runs_font(h_para, academic_font, bold=True, size_pt=h2_size_pt)
+                _ensure_runs_font(
+                    h_para,
+                    academic_font,
+                    bold=not is_ieee,
+                    italic=is_ieee,
+                    size_pt=h2_size_pt,
+                )
             else:
                 subsub_index += 1
-                title_text = (
-                    f"{section_index}.{sub_index}.{subsub_index} {block.title}"
-                    if numbered
-                    else block.title
-                )
+                if is_ieee:
+                    title_text = (
+                        format_ieee_heading_3(subsub_index, block.title)
+                        if numbered
+                        else block.title
+                    )
+                else:
+                    title_text = (
+                        f"{section_index}.{sub_index}.{subsub_index} {block.title}"
+                        if numbered
+                        else block.title
+                    )
                 h_para = document.add_heading(title_text, level=3)
                 h_para.paragraph_format.space_before = Pt(6 if two_column else 8)
                 h_para.paragraph_format.space_after = Pt(2)
                 h_para.paragraph_format.keep_with_next = True
-                _ensure_runs_font(h_para, academic_font, bold=True, italic=True, size_pt=h3_size_pt)
+                _ensure_runs_font(
+                    h_para,
+                    academic_font,
+                    bold=not is_ieee,
+                    italic=True,
+                    size_pt=h3_size_pt,
+                )
 
         elif isinstance(block, ParagraphBlock):
             p = document.add_paragraph()

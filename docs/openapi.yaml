@@ -151,40 +151,6 @@ paths:
         '422': { $ref: '#/components/responses/ApiError' }
         '429': { $ref: '#/components/responses/ApiError' }
         '500': { $ref: '#/components/responses/ApiError' }
-  /api/v1/exports/pdf:
-    post:
-      operationId: exportPdf
-      summary: Export the submitted current draft as a PDF file
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PaperDraft'
-      responses:
-        '200':
-          description: Generated academic PDF document; not stored by the server.
-          headers:
-            Content-Disposition:
-              description: Sanitized attachment filename; the file is generated in memory and is not stored.
-              schema: { type: string, example: 'attachment; filename="resbud-research-paper.pdf"' }
-            X-Request-ID: { $ref: '#/components/headers/RequestId' }
-          content:
-            application/pdf:
-              schema:
-                type: string
-                format: binary
-        '400': { $ref: '#/components/responses/ApiError' }
-        '401': { $ref: '#/components/responses/ApiError' }
-        '403': { $ref: '#/components/responses/ApiError' }
-        '405': { $ref: '#/components/responses/ApiError' }
-        '413': { $ref: '#/components/responses/ApiError' }
-        '415': { $ref: '#/components/responses/ApiError' }
-        '422': { $ref: '#/components/responses/ApiError' }
-        '429': { $ref: '#/components/responses/ApiError' }
-        '500': { $ref: '#/components/responses/ApiError' }
 components:
   headers:
     RequestId:
@@ -272,6 +238,31 @@ components:
       properties:
         id: { type: string, pattern: '^[A-Za-z0-9_-]{1,40}$' }
         text: { type: string, minLength: 1, maxLength: 2000 }
+    AuthorAffiliation:
+      type: object
+      additionalProperties: false
+      required: [id, institution]
+      properties:
+        id: { type: string, minLength: 1, maxLength: 50 }
+        department: { type: [string, 'null'], maxLength: 300 }
+        institution: { type: string, minLength: 1, maxLength: 300 }
+        city: { type: [string, 'null'], maxLength: 150 }
+        state: { type: [string, 'null'], maxLength: 150 }
+        country: { type: [string, 'null'], maxLength: 150 }
+    AuthorMetadata:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 150 }
+        order: { type: integer, minimum: 1, maximum: 50, default: 1 }
+        affiliation_ids:
+          type: array
+          items: { type: string, maxLength: 50 }
+        email: { type: [string, 'null'], maxLength: 150 }
+        role_or_title: { type: [string, 'null'], maxLength: 150 }
+        is_corresponding: { type: boolean, default: false }
+        funding_acknowledgment: { type: [string, 'null'], maxLength: 500 }
     PaperPreferences:
       type: object
       additionalProperties: false
@@ -284,6 +275,16 @@ components:
           uniqueItems: true
           items: { type: string, pattern: '^[a-z][a-z0-9_]{1,39}$' }
         citation_style: { type: string, enum: [user_supplied, apa_7, ieee, other] }
+        page_layout: { type: string, enum: [single_column, two_column_academic], default: single_column }
+        document_template: { type: string, maxLength: 50, default: default }
+        authors:
+          type: [array, 'null']
+          maxItems: 50
+          items: { $ref: '#/components/schemas/AuthorMetadata' }
+        affiliations:
+          type: [array, 'null']
+          maxItems: 50
+          items: { $ref: '#/components/schemas/AuthorAffiliation' }
     GenerationRequest:
       type: object
       additionalProperties: false
@@ -343,6 +344,18 @@ components:
           type: array
           maxItems: 100
           items: { $ref: '#/components/schemas/ReviewWarning' }
+        page_layout: { type: string, enum: [single_column, two_column_academic], default: single_column }
+        author_info: { type: string, maxLength: 500, nullable: true }
+        affiliation: { type: string, maxLength: 500, nullable: true }
+        document_template: { type: string, maxLength: 50, default: default }
+        authors:
+          type: [array, 'null']
+          maxItems: 50
+          items: { $ref: '#/components/schemas/AuthorMetadata' }
+        affiliations:
+          type: [array, 'null']
+          maxItems: 50
+          items: { $ref: '#/components/schemas/AuthorAffiliation' }
     GenerationResponse:
       description: review_warnings must equal paper.review_warnings; both fields share the same typed warning contract.
       type: object
@@ -356,6 +369,18 @@ components:
           type: array
           maxItems: 100
           items: { $ref: '#/components/schemas/ReviewWarning' }
+        page_layout: { type: string, enum: [single_column, two_column_academic], default: single_column }
+        author_info: { type: string, maxLength: 500, nullable: true }
+        affiliation: { type: string, maxLength: 500, nullable: true }
+        document_template: { type: string, maxLength: 50, default: default }
+        authors:
+          type: [array, 'null']
+          maxItems: 50
+          items: { $ref: '#/components/schemas/AuthorMetadata' }
+        affiliations:
+          type: [array, 'null']
+          maxItems: 50
+          items: { $ref: '#/components/schemas/AuthorAffiliation' }
         meta:
           type: object
           additionalProperties: false
@@ -401,6 +426,18 @@ components:
           type: array
           maxItems: 100
           items: { $ref: '#/components/schemas/ReviewWarning' }
+        page_layout: { type: string, enum: [single_column, two_column_academic], default: single_column }
+        author_info: { type: string, maxLength: 500, nullable: true }
+        affiliation: { type: string, maxLength: 500, nullable: true }
+        document_template: { type: string, maxLength: 50, default: default }
+        authors:
+          type: [array, 'null']
+          maxItems: 50
+          items: { $ref: '#/components/schemas/AuthorMetadata' }
+        affiliations:
+          type: [array, 'null']
+          maxItems: 50
+          items: { $ref: '#/components/schemas/AuthorAffiliation' }
       allOf:
         - properties:
             section:

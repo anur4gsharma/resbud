@@ -46,8 +46,10 @@ async def export_docx(
     paper: PaperDraft,
     layout: str | None = None,
     include_review_notes_appendix: bool | None = None,
+    template: str | None = None,
 ) -> Response:
     effective_layout = layout or getattr(paper, "page_layout", "single_column")
+    effective_template = template or getattr(paper, "document_template", "default")
     effective_notes = (
         include_review_notes_appendix
         if include_review_notes_appendix is not None
@@ -57,6 +59,7 @@ async def export_docx(
         paper,
         layout=effective_layout,
         include_review_notes_appendix=effective_notes,
+        template_id=effective_template,
     )
     filename = safe_docx_filename(paper.title)
     return Response(
@@ -88,8 +91,10 @@ async def export_pdf(
     paper: PaperDraft,
     layout: str | None = None,
     include_review_notes_appendix: bool | None = None,
+    template: str | None = None,
 ) -> Response:
     effective_layout = layout or getattr(paper, "page_layout", "single_column")
+    effective_template = template or getattr(paper, "document_template", None)
     effective_notes = (
         include_review_notes_appendix
         if include_review_notes_appendix is not None
@@ -99,6 +104,7 @@ async def export_pdf(
         paper,
         layout=effective_layout,
         include_review_notes_appendix=effective_notes,
+        template_id=effective_template,
     )
     filename = safe_pdf_filename(paper.title)
     return Response(

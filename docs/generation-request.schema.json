@@ -276,6 +276,133 @@
             "ieee",
             "other"
           ]
+        },
+        "page_layout": {
+          "type": "string",
+          "enum": [
+            "single_column",
+            "two_column_academic"
+          ],
+          "default": "single_column"
+        },
+        "document_template": {
+          "type": "string",
+          "maxLength": 50,
+          "default": "default"
+        },
+        "authors": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 150
+              },
+              "order": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 50,
+                "default": 1
+              },
+              "affiliation_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 50
+                }
+              },
+              "email": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 150
+              },
+              "role_or_title": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 150
+              },
+              "is_corresponding": {
+                "type": "boolean",
+                "default": false
+              },
+              "funding_acknowledgment": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 500
+              }
+            }
+          }
+        },
+        "affiliations": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "institution"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 50
+              },
+              "department": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 300
+              },
+              "institution": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "city": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 150
+              },
+              "state": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 150
+              },
+              "country": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 150
+              }
+            }
+          }
         }
       }
     }

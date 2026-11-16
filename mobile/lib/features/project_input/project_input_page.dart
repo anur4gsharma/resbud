@@ -110,6 +110,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   int _targetWordCount = 5000;
   String _citationStyle = 'user_supplied';
   String _pageLayout = 'single_column';
+  String _documentTemplate = 'default';
   bool _includeReviewNotesAppendix = false;
   List<String> _desiredSections = List.of(_baseSections);
   bool _saving = false;
@@ -186,6 +187,11 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           ['single_column', 'two_column_academic'].contains(pageLayout)) {
         _pageLayout = pageLayout;
       }
+      final docTemplate = preferences['document_template'];
+      if (docTemplate is String &&
+          ['default', 'ieee_conference'].contains(docTemplate)) {
+        _documentTemplate = docTemplate;
+      }
       final includeReviewNotes = preferences['include_review_notes_appendix'];
       if (includeReviewNotes is bool) {
         _includeReviewNotesAppendix = includeReviewNotes;
@@ -256,6 +262,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     '$_targetWordCount',
     _citationStyle,
     _pageLayout,
+    _documentTemplate,
     _desiredSections.join(','),
     _customSectionsController.text,
     _attachedFigures.map((f) => '${f['id']}:${f['caption']}:${f['placement']}').join(','),
@@ -327,6 +334,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         'desired_sections': _requestedSections,
         'citation_style': _citationStyle,
         'page_layout': _pageLayout,
+        'document_template': _documentTemplate,
         'include_review_notes_appendix': _includeReviewNotesAppendix,
       },
       if (_attachedFigures.isNotEmpty)
@@ -1787,6 +1795,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         _attachedFigures,
       );
       enrichedPaper['page_layout'] = _pageLayout;
+      enrichedPaper['document_template'] = _documentTemplate;
       await widget.repository.savePaperVersion(
         projectId: widget.project.id,
         schemaVersion: result.response.paper.schemaVersion,
@@ -2699,6 +2708,35 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
               ],
               onChanged: (value) {
                 if (value != null) setState(() => _citationStyle = value);
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              key: const ValueKey('template-selector-classic'),
+              initialValue: _documentTemplate,
+              decoration: const InputDecoration(
+                labelText: 'Publication format / template',
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'default',
+                  child: Text('Default Manuscript (Standard Academic)'),
+                ),
+                DropdownMenuItem(
+                  value: 'ieee_conference',
+                  child: Text('IEEE Conference Paper'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _documentTemplate = value;
+                    if (value == 'ieee_conference') {
+                      _pageLayout = 'two_column_academic';
+                      _citationStyle = 'ieee';
+                    }
+                  });
+                }
               },
             ),
             const SizedBox(height: 12),
@@ -3634,6 +3672,36 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
               ],
               onChanged: (val) {
                 if (val != null) setState(() => _citationStyle = val);
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              key: const ValueKey('template-selector'),
+              initialValue: _documentTemplate,
+              decoration: const InputDecoration(
+                labelText: 'Publication format / template',
+                prefixIcon: Icon(Icons.article_outlined),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'default',
+                  child: Text('Default Manuscript (Standard Academic)'),
+                ),
+                DropdownMenuItem(
+                  value: 'ieee_conference',
+                  child: Text('IEEE Conference Paper'),
+                ),
+              ],
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() {
+                    _documentTemplate = val;
+                    if (val == 'ieee_conference') {
+                      _pageLayout = 'two_column_academic';
+                      _citationStyle = 'ieee';
+                    }
+                  });
+                }
               },
             ),
             const SizedBox(height: 12),

@@ -49,6 +49,9 @@ class GenerationRequest {
       'desired_sections',
       'citation_style',
       'page_layout',
+      'document_template',
+      'authors',
+      'affiliations',
     };
     final filteredPrefs = <String, Object?>{
       for (final entry in rawPrefs.entries)
@@ -293,18 +296,112 @@ class ReferencePayload {
   };
 }
 
+class AuthorAffiliationPayload {
+  const AuthorAffiliationPayload({
+    required this.id,
+    this.department,
+    required this.institution,
+    this.city,
+    this.state,
+    this.country,
+  });
+
+  final String id;
+  final String? department;
+  final String institution;
+  final String? city;
+  final String? state;
+  final String? country;
+
+  factory AuthorAffiliationPayload.fromJson(Map<String, Object?> json) {
+    return AuthorAffiliationPayload(
+      id: _boundedString(json['id'], 'affiliation.id', 1, 50),
+      department: _optionalBoundedString(json['department'], 'affiliation.department', 300),
+      institution: _boundedString(json['institution'], 'affiliation.institution', 1, 300),
+      city: _optionalBoundedString(json['city'], 'affiliation.city', 150),
+      state: _optionalBoundedString(json['state'], 'affiliation.state', 150),
+      country: _optionalBoundedString(json['country'], 'affiliation.country', 150),
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    if (department != null) 'department': department,
+    'institution': institution,
+    if (city != null) 'city': city,
+    if (state != null) 'state': state,
+    if (country != null) 'country': country,
+  };
+}
+
+class AuthorMetadataPayload {
+  const AuthorMetadataPayload({
+    required this.name,
+    this.order = 1,
+    this.affiliationIds = const [],
+    this.email,
+    this.roleOrTitle,
+    this.isCorresponding = false,
+    this.fundingAcknowledgment,
+  });
+
+  final String name;
+  final int order;
+  final List<String> affiliationIds;
+  final String? email;
+  final String? roleOrTitle;
+  final bool isCorresponding;
+  final String? fundingAcknowledgment;
+
+  factory AuthorMetadataPayload.fromJson(Map<String, Object?> json) {
+    return AuthorMetadataPayload(
+      name: _boundedString(json['name'], 'author.name', 1, 150),
+      order: json['order'] != null ? _integer(json['order'], 'author.order') : 1,
+      affiliationIds: json['affiliation_ids'] != null
+          ? _list(json['affiliation_ids'], 'author.affiliation_ids')
+              .map((e) => _boundedString(e, 'affiliation_id', 1, 50))
+              .toList(growable: false)
+          : const [],
+      email: _optionalBoundedString(json['email'], 'author.email', 150),
+      roleOrTitle: _optionalBoundedString(json['role_or_title'], 'author.role_or_title', 150),
+      isCorresponding: json['is_corresponding'] == true,
+      fundingAcknowledgment: _optionalBoundedString(
+        json['funding_acknowledgment'],
+        'author.funding_acknowledgment',
+        500,
+      ),
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'name': name,
+    'order': order,
+    'affiliation_ids': affiliationIds,
+    if (email != null) 'email': email,
+    if (roleOrTitle != null) 'role_or_title': roleOrTitle,
+    'is_corresponding': isCorresponding,
+    if (fundingAcknowledgment != null) 'funding_acknowledgment': fundingAcknowledgment,
+  };
+}
+
 class PaperPreferencesPayload {
   const PaperPreferencesPayload({
     required this.targetWordCount,
     required this.desiredSections,
     required this.citationStyle,
     this.pageLayout = 'single_column',
+    this.documentTemplate = 'default',
+    this.authors,
+    this.affiliations,
   });
 
   final int targetWordCount;
   final List<String> desiredSections;
   final String citationStyle;
   final String pageLayout;
+  final String documentTemplate;
+  final List<AuthorMetadataPayload>? authors;
+  final List<AuthorAffiliationPayload>? affiliations;
 
   factory PaperPreferencesPayload.fromJson(Map<String, Object?> json) {
     _requireKeys(
@@ -315,7 +412,7 @@ class PaperPreferencesPayload {
         'citation_style',
       },
       'preferences',
-      optional: const {'page_layout'},
+      optional: const {'page_layout', 'document_template', 'authors', 'affiliations'},
     );
     final wordCount = _integer(json['target_word_count'], 'target_word_count');
     if (wordCount < 500 || wordCount > 8000) {
@@ -328,6 +425,18 @@ class PaperPreferencesPayload {
         sections.any((section) => !_sectionIdPattern.hasMatch(section))) {
       throw const FormatException('Choose up to 15 unique valid section IDs.');
     }
+    final rawAuthors = json['authors'];
+    final authors = rawAuthors != null
+        ? _list(rawAuthors, 'preferences.authors')
+            .map((v) => AuthorMetadataPayload.fromJson(_map(v, 'author')))
+            .toList(growable: false)
+        : null;
+    final rawAffiliations = json['affiliations'];
+    final affiliations = rawAffiliations != null
+        ? _list(rawAffiliations, 'preferences.affiliations')
+            .map((v) => AuthorAffiliationPayload.fromJson(_map(v, 'affiliation')))
+            .toList(growable: false)
+        : null;
     return PaperPreferencesPayload(
       targetWordCount: wordCount,
       desiredSections: sections,
@@ -340,6 +449,11 @@ class PaperPreferencesPayload {
               'two_column_academic',
             ])
           : 'single_column',
+      documentTemplate: json['document_template'] is String
+          ? (json['document_template'] as String)
+          : 'default',
+      authors: authors,
+      affiliations: affiliations,
     );
   }
 
@@ -348,6 +462,9 @@ class PaperPreferencesPayload {
     'desired_sections': desiredSections,
     'citation_style': citationStyle,
     'page_layout': pageLayout,
+    'document_template': documentTemplate,
+    if (authors != null) 'authors': authors!.map((a) => a.toJson()).toList(),
+    if (affiliations != null) 'affiliations': affiliations!.map((a) => a.toJson()).toList(),
   };
 }
 
@@ -411,6 +528,9 @@ class PaperDraftPayload {
     this.pageLayout = 'single_column',
     this.authorInfo,
     this.affiliation,
+    this.documentTemplate = 'default',
+    this.authors,
+    this.affiliations,
   });
 
   final int schemaVersion;
@@ -423,6 +543,9 @@ class PaperDraftPayload {
   final String pageLayout;
   final String? authorInfo;
   final String? affiliation;
+  final String documentTemplate;
+  final List<AuthorMetadataPayload>? authors;
+  final List<AuthorAffiliationPayload>? affiliations;
 
   factory PaperDraftPayload.fromJson(Map<String, Object?> json) {
     _requireKeys(
@@ -437,7 +560,14 @@ class PaperDraftPayload {
         'review_warnings',
       },
       'paper',
-      optional: const {'page_layout', 'author_info', 'affiliation'},
+      optional: const {
+        'page_layout',
+        'author_info',
+        'affiliation',
+        'document_template',
+        'authors',
+        'affiliations',
+      },
     );
     if (_integer(json['schema_version'], 'paper.schema_version') != 1) {
       throw const FormatException('Unsupported paper schema version.');
@@ -459,6 +589,18 @@ class PaperDraftPayload {
         references.length > 50 || warnings.length > 100) {
       throw const FormatException('The generated paper exceeds schema limits.');
     }
+    final rawAuthors = json['authors'];
+    final authors = rawAuthors != null
+        ? _list(rawAuthors, 'paper.authors')
+            .map((v) => AuthorMetadataPayload.fromJson(_map(v, 'author')))
+            .toList(growable: false)
+        : null;
+    final rawAffiliations = json['affiliations'];
+    final affiliations = rawAffiliations != null
+        ? _list(rawAffiliations, 'paper.affiliations')
+            .map((v) => AuthorAffiliationPayload.fromJson(_map(v, 'affiliation')))
+            .toList(growable: false)
+        : null;
     return PaperDraftPayload(
       schemaVersion: 1,
       title: _boundedString(json['title'], 'paper.title', 1, 300),
@@ -475,6 +617,11 @@ class PaperDraftPayload {
           : 'single_column',
       authorInfo: _optionalBoundedString(json['author_info'], 'paper.author_info', 500),
       affiliation: _optionalBoundedString(json['affiliation'], 'paper.affiliation', 500),
+      documentTemplate: json['document_template'] is String
+          ? (json['document_template'] as String)
+          : 'default',
+      authors: authors,
+      affiliations: affiliations,
     );
   }
 
@@ -489,6 +636,9 @@ class PaperDraftPayload {
     'page_layout': pageLayout,
     if (authorInfo != null) 'author_info': authorInfo,
     if (affiliation != null) 'affiliation': affiliation,
+    'document_template': documentTemplate,
+    if (authors != null) 'authors': authors!.map((a) => a.toJson()).toList(),
+    if (affiliations != null) 'affiliations': affiliations!.map((a) => a.toJson()).toList(),
   };
 
   PaperDraftPayload copyWith({
@@ -502,6 +652,9 @@ class PaperDraftPayload {
     String? pageLayout,
     String? authorInfo,
     String? affiliation,
+    String? documentTemplate,
+    List<AuthorMetadataPayload>? authors,
+    List<AuthorAffiliationPayload>? affiliations,
   }) => PaperDraftPayload(
     schemaVersion: schemaVersion ?? this.schemaVersion,
     title: title ?? this.title,
@@ -513,6 +666,9 @@ class PaperDraftPayload {
     pageLayout: pageLayout ?? this.pageLayout,
     authorInfo: authorInfo ?? this.authorInfo,
     affiliation: affiliation ?? this.affiliation,
+    documentTemplate: documentTemplate ?? this.documentTemplate,
+    authors: authors ?? this.authors,
+    affiliations: affiliations ?? this.affiliations,
   );
 }
 

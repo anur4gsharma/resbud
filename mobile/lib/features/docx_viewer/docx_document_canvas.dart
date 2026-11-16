@@ -357,18 +357,23 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
       // Single section on this page (e.g. Introduction on page 1):
       // Flow content blocks across both columns symmetrically to prevent empty right column.
       final sec = sections.first;
+      final isIeee = widget.paper.documentTemplate == 'ieee_conference';
       final headingWidget = Padding(
         padding: EdgeInsets.only(bottom: 6.0 * zoom),
-        child: Text(
-          sec.heading.startsWith(RegExp(r'\d'))
-              ? sec.heading
-              : '$startIndex. ${sec.heading}',
-          style: TextStyle(
-            fontFamily: 'serif',
-            fontSize: 11.0 * zoom,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-            height: 1.25,
+        child: Container(
+          width: double.infinity,
+          alignment: isIeee ? Alignment.center : Alignment.centerLeft,
+          child: Text(
+            _formatSectionHeading(sec.heading, startIndex, isIeee),
+            textAlign: isIeee ? TextAlign.center : TextAlign.left,
+            style: TextStyle(
+              fontFamily: 'serif',
+              fontSize: 10.5 * zoom,
+              fontWeight: FontWeight.bold,
+              letterSpacing: isIeee ? 0.6 : 0.0,
+              color: Colors.black,
+              height: 1.25,
+            ),
           ),
         ),
       );
@@ -449,6 +454,209 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
     );
   }
 
+  static String _intToRoman(int n) {
+    const romanMap = [
+      (1000, 'M'), (900, 'CM'), (500, 'D'), (400, 'CD'),
+      (100, 'C'), (90, 'XC'), (50, 'L'), (40, 'XL'),
+      (10, 'X'), (9, 'IX'), (5, 'V'), (4, 'IV'), (1, 'I'),
+    ];
+    if (n <= 0) return 'I';
+    var num = n;
+    final sb = StringBuffer();
+    for (final pair in romanMap) {
+      while (num >= pair.$1) {
+        sb.write(pair.$2);
+        num -= pair.$1;
+      }
+    }
+    return sb.toString();
+  }
+
+  String _formatSectionHeading(String rawHeading, int index, bool isIeee) {
+    var clean = rawHeading.replaceFirst(RegExp(r'^\s*#+\s*'), '').trim();
+    if (!isIeee) {
+      return clean.startsWith(RegExp(r'\d')) ? clean : '$index. $clean';
+    }
+    final lower = clean.toLowerCase();
+    if (lower == 'references' || lower == 'reference') return 'REFERENCES';
+    if (lower == 'acknowledgment' || lower == 'acknowledgments') return 'ACKNOWLEDGMENT';
+    final match = RegExp(r'^(?:[IVXLCDM]+|\d+)(?:\.|\s)\s*(.+)$', caseSensitive: false).firstMatch(clean);
+    if (match != null) {
+      clean = match.group(1)!.trim();
+    }
+    return '${_intToRoman(index)}. ${clean.toUpperCase()}';
+  }
+
+  Widget _buildStructuredAuthors(double zoom) {
+    final authors = widget.paper.authors!;
+    final affiliations = widget.paper.affiliations ?? const [];
+    final affMap = {for (final aff in affiliations) aff.id: aff};
+    final multipleAffils = affiliations.length > 1;
+
+    final count = authors.length;
+    List<int> grid;
+    if (count == 1) {
+      grid = [1];
+    } else if (count == 2) {
+      grid = [2];
+    } else if (count == 3) {
+      grid = [3];
+    } else if (count == 4) {
+      grid = [2, 2];
+    } else if (count == 5) {
+      grid = [3, 2];
+    } else if (count == 6) {
+      grid = [3, 3];
+    } else if (count == 7) {
+      grid = [4, 3];
+    } else if (count == 8) {
+      grid = [4, 4];
+    } else if (count == 9) {
+      grid = [3, 3, 3];
+    } else if (count == 10) {
+      grid = [4, 3, 3];
+    } else {
+      grid = [];
+      var rem = count;
+      while (rem > 0) {
+        final c = rem > 3 ? 3 : rem;
+        grid.add(c);
+        rem -= c;
+      }
+    }
+
+    final rows = <Widget>[];
+    var currentIdx = 0;
+    for (final cols in grid) {
+      final rowAuthors = authors.skip(currentIdx).take(cols).toList();
+      currentIdx += cols;
+
+      rows.add(
+        Padding(
+          padding: EdgeInsets.symmetric(vertical: 4.0 * zoom),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final author in rowAuthors)
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 4.0 * zoom),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text.rich(
+                          TextSpan(
+                            text: author.name,
+                            style: TextStyle(
+                              fontFamily: 'serif',
+                              fontSize: 10.5 * zoom,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                            children: [
+                              if (multipleAffils && author.affiliationIds.isNotEmpty) ...[
+                                TextSpan(
+                                  text: author.affiliationIds.map((id) {
+                                    final affIndex = affiliations.indexWhere((a) => a.id == id);
+                                    return affIndex >= 0 ? '${affIndex + 1}' : '';
+                                  }).join(','),
+                                  style: TextStyle(
+                                    fontSize: 8.0 * zoom,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        if (author.roleOrTitle != null && author.roleOrTitle!.isNotEmpty) ...[
+                          SizedBox(height: 1 * zoom),
+                          Text(
+                            author.roleOrTitle!,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'serif',
+                              fontSize: 8.5 * zoom,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                        ],
+                        ...() {
+                          final authorAffs = author.affiliationIds
+                              .map((id) => affMap[id])
+                              .whereType<AuthorAffiliationPayload>()
+                              .toList();
+                          final effectiveAff = authorAffs.isNotEmpty
+                              ? authorAffs.first
+                              : (affiliations.length == 1 ? affiliations.first : null);
+                          if (effectiveAff == null) return <Widget>[];
+                          return [
+                            if (effectiveAff.department != null && effectiveAff.department!.isNotEmpty)
+                              Text(
+                                effectiveAff.department!,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: 'serif',
+                                  fontSize: 8.5 * zoom,
+                                  fontStyle: FontStyle.italic,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            if (effectiveAff.institution.isNotEmpty)
+                              Text(
+                                effectiveAff.institution,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: 'serif',
+                                  fontSize: 8.5 * zoom,
+                                  fontStyle: FontStyle.italic,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            if ((effectiveAff.city != null && effectiveAff.city!.isNotEmpty) ||
+                                (effectiveAff.country != null && effectiveAff.country!.isNotEmpty))
+                              Text(
+                                [effectiveAff.city, effectiveAff.country]
+                                    .whereType<String>()
+                                    .where((s) => s.isNotEmpty)
+                                    .join(', '),
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: 'serif',
+                                  fontSize: 8.5 * zoom,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                          ];
+                        }(),
+                        if (author.email != null && author.email!.isNotEmpty) ...[
+                          SizedBox(height: 1 * zoom),
+                          Text(
+                            author.email!,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'serif',
+                              fontSize: 8.5 * zoom,
+                              color: Colors.blue.shade900,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: rows,
+    );
+  }
+
   Widget _buildTitleSection(double zoom) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -467,35 +675,39 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
             ),
           ),
         ),
-        if (widget.paper.authorInfo != null && widget.paper.authorInfo!.trim().isNotEmpty) ...[
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20.0 * zoom, vertical: 2.0 * zoom),
-            child: Text(
-              widget.paper.authorInfo!.trim(),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'serif',
-                fontSize: 11.0 * zoom,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+        if (widget.paper.authors != null && widget.paper.authors!.isNotEmpty) ...[
+          _buildStructuredAuthors(zoom),
+        ] else ...[
+          if (widget.paper.authorInfo != null && widget.paper.authorInfo!.trim().isNotEmpty) ...[
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20.0 * zoom, vertical: 2.0 * zoom),
+              child: Text(
+                widget.paper.authorInfo!.trim(),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'serif',
+                  fontSize: 11.0 * zoom,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
               ),
             ),
-          ),
-        ],
-        if (widget.paper.affiliation != null && widget.paper.affiliation!.trim().isNotEmpty) ...[
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20.0 * zoom, vertical: 1.0 * zoom),
-            child: Text(
-              widget.paper.affiliation!.trim(),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'serif',
-                fontSize: 9.5 * zoom,
-                fontStyle: FontStyle.italic,
-                color: Colors.black54,
+          ],
+          if (widget.paper.affiliation != null && widget.paper.affiliation!.trim().isNotEmpty) ...[
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20.0 * zoom, vertical: 1.0 * zoom),
+              child: Text(
+                widget.paper.affiliation!.trim(),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'serif',
+                  fontSize: 9.5 * zoom,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.black54,
+                ),
               ),
             ),
-          ),
+          ],
         ],
         SizedBox(height: 14 * zoom),
       ],
@@ -504,6 +716,63 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
 
   Widget _buildAbstractSection(double zoom) {
     if (widget.paper.abstractText.trim().isEmpty) return const SizedBox.shrink();
+
+    final isIeee = widget.paper.documentTemplate == 'ieee_conference';
+    if (isIeee) {
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16.0 * zoom, vertical: 4.0 * zoom),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text.rich(
+              TextSpan(
+                style: TextStyle(
+                  fontFamily: 'serif',
+                  fontSize: 9.0 * zoom,
+                  height: 1.25,
+                  color: Colors.black,
+                ),
+                children: [
+                  const TextSpan(
+                    text: 'Abstract—',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontStyle: FontStyle.italic),
+                  ),
+                  TextSpan(
+                    text: ' ${widget.paper.abstractText.trim()}',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              textAlign: TextAlign.justify,
+            ),
+            if (widget.paper.keywords.isNotEmpty) ...[
+              SizedBox(height: 6.0 * zoom),
+              Text.rich(
+                TextSpan(
+                  style: TextStyle(
+                    fontFamily: 'serif',
+                    fontSize: 9.0 * zoom,
+                    height: 1.25,
+                    color: Colors.black,
+                  ),
+                  children: [
+                    const TextSpan(
+                      text: 'Index Terms—',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontStyle: FontStyle.italic),
+                    ),
+                    TextSpan(
+                      text: ' ${widget.paper.keywords.join(', ')}',
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            SizedBox(height: 8.0 * zoom),
+          ],
+        ),
+      );
+    }
+
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 20.0 * zoom, vertical: 6.0 * zoom),
       child: Column(
@@ -575,17 +844,22 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
           // Section Heading (H1 / H2) with clean markdown stripping
           Builder(
             builder: (context) {
-              final cleanHeading = section.heading.replaceFirst(RegExp(r'^\s*#+\s*'), '').trim();
-              return Text(
-                cleanHeading.startsWith(RegExp(r'\d'))
-                    ? cleanHeading
-                    : '$index. $cleanHeading',
-                style: TextStyle(
-                  fontFamily: 'serif',
-                  fontSize: (isTwoColumn ? 11.0 : 12.5) * zoom,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                  height: 1.25,
+              final isIeee = widget.paper.documentTemplate == 'ieee_conference';
+              final formattedHeading = _formatSectionHeading(section.heading, index, isIeee);
+              return Container(
+                width: double.infinity,
+                alignment: isIeee ? Alignment.center : Alignment.centerLeft,
+                child: Text(
+                  formattedHeading,
+                  textAlign: isIeee ? TextAlign.center : TextAlign.left,
+                  style: TextStyle(
+                    fontFamily: 'serif',
+                    fontSize: (isTwoColumn ? 10.5 : 12.0) * zoom,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: isIeee ? 0.6 : 0.0,
+                    color: Colors.black,
+                    height: 1.25,
+                  ),
                 ),
               );
             },
