@@ -756,42 +756,32 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
   );
 
   static bool _isBigEquation(Match m, String fullText) {
-    if (m.group(3) != null) return true;
-    if (m.group(4) != null) return true;
+    // 1. Explicit display environments or delimiters
+    if (m.group(3) != null) return true; // \begin{...} ... \end{...}
+    if (m.group(4) != null) return true; // $$...$$ or \[...\]
 
     final raw = m.group(0)!;
+    if (raw.startsWith(r'$$') || raw.startsWith(r'\[')) return true;
+
+    // 2. Multiline math with explicit LaTeX newline breaks
     if (raw.contains(r'\\')) return true;
+
+    // 3. Standalone equation occupying entire paragraph
+    if (fullText.trim() == raw.trim()) {
+      return true;
+    }
 
     final inner = _cleanMathSource(raw);
 
-    // Large display operators with tall vertical bounds (limits, integrals, products, sums)
-    final largeOps = RegExp(r'\\(?:prod|sum|int|iint|iiint|oint|coprod|bigcup|bigcap|lim|max|min|inf|sup)\b');
-    if (largeOps.hasMatch(inner)) return true;
-
-    // Complex vertical structures: fractions with relations or compound terms
-    if (RegExp(r'\\(?:frac|dfrac|cfrac)\b').hasMatch(inner) &&
-        (inner.contains('=') || inner.contains(r'\le') || inner.contains(r'\ge') || inner.contains(r'\sim') || inner.contains(r'\approx') || inner.contains(r'\equiv'))) {
+    // 4. Complete standalone equation definitions embedded in prose
+    // e.g. "... is defined as $O(S) = \prod_{i=1}^n f(P_i, C_i)$, where ..."
+    if ((inner.contains('=') || inner.contains(':=') || inner.contains(r'\equiv') || inner.contains(r'\approx')) &&
+        inner.length >= 15 &&
+        (inner.contains(r'\sum') || inner.contains(r'\prod') || inner.contains(r'\int') || inner.contains(r'\frac') || inner.contains(r'\sqrt'))) {
       return true;
     }
 
-    // Standalone equation occupying entire paragraph
-    if (fullText.trim() == raw.trim()) {
-      if (inner.contains('=') ||
-          inner.contains(r'\le') ||
-          inner.contains(r'\ge') ||
-          inner.contains(r'\sim') ||
-          inner.contains(r'\approx') ||
-          inner.contains(r'\equiv') ||
-          inner.contains(r'\frac')) {
-        return true;
-      }
-    }
-
-    // Equation definitions embedded in introductory prose with equality and substantial length
-    if (RegExp(r'(?:=|:=|\\equiv|\\approx)').hasMatch(inner) && inner.length >= 20) {
-      return true;
-    }
-
+    // 5. Explicit author inline delimiters ($...$ and \(...\)) strictly remain inline
     return false;
   }
 

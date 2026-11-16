@@ -150,7 +150,7 @@ The 9 required visual QA screenshots were generated at $2\times$ pixel ratio usi
 
 - **Binary Path**: [`releases/android/Resbud-release.apk`](file:///home/anur4gsharma/college/CP/FODS/releases/android/Resbud-release.apk)
 - **Artifact Size**: `83,358,411 bytes` (~79.49 MiB / 83.4 MB)
-- **SHA-256 Checksum**: `03fd147056fe0af8d1ee43869593229d6759a926ef19861873a88fc78ff25679`
+- **SHA-256 Checksum**: `b86513c0e40b10610e176941243ebdac038cb0e0f33bbbbbb39b9d43e0a8beb7`
 - **Application ID**: `org.resbud.mobile`
 - **Version**: `0.1.0` (Build `1`)
 - **SDK Targets**: Min SDK `24` (Android 7.0) | Target SDK `36` (Android 16) | Compile SDK `36`
