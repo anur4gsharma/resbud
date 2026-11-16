@@ -132,6 +132,8 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   bool _clarificationsConfirmed = false;
   final List<({String name, int size})> _attachedFiles = [];
   final List<Map<String, dynamic>> _attachedFigures = [];
+  final List<AuthorMetadataPayload> _authors = [];
+  final List<AuthorAffiliationPayload> _affiliations = [];
   late final PaperExportApi _exportApi;
   late final DocxFileSaver _fileSaver;
   bool _isExporting = false;
@@ -200,6 +202,44 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       if (sections is List && sections.every((value) => value is String)) {
         _desiredSections = List<String>.from(sections);
       }
+      final rawAuthors = preferences['authors'] ?? context['authors'];
+      if (rawAuthors is List) {
+        for (final item in rawAuthors) {
+          if (item is Map) {
+            try {
+              _authors.add(AuthorMetadataPayload.fromJson(Map<String, Object?>.from(item)));
+            } catch (_) {}
+          }
+        }
+      }
+      final rawAffils = preferences['affiliations'] ?? context['affiliations'];
+      if (rawAffils is List) {
+        for (final item in rawAffils) {
+          if (item is Map) {
+            try {
+              _affiliations.add(AuthorAffiliationPayload.fromJson(Map<String, Object?>.from(item)));
+            } catch (_) {}
+          }
+        }
+      }
+    }
+    if (_authors.isEmpty && context['authors'] is List) {
+      for (final item in context['authors'] as List) {
+        if (item is Map) {
+          try {
+            _authors.add(AuthorMetadataPayload.fromJson(Map<String, Object?>.from(item)));
+          } catch (_) {}
+        }
+      }
+    }
+    if (_affiliations.isEmpty && context['affiliations'] is List) {
+      for (final item in context['affiliations'] as List) {
+        if (item is Map) {
+          try {
+            _affiliations.add(AuthorAffiliationPayload.fromJson(Map<String, Object?>.from(item)));
+          } catch (_) {}
+        }
+      }
     }
     final savedFigures = context['figures'];
     if (savedFigures is List) {
@@ -265,6 +305,8 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     _documentTemplate,
     _desiredSections.join(','),
     _customSectionsController.text,
+    _authors.map((a) => '${a.name}:${a.email}:${a.order}:${a.affiliationIds.join(",")}').join(';'),
+    _affiliations.map((a) => '${a.id}:${a.institution}:${a.department}').join(';'),
     _attachedFigures.map((f) => '${f['id']}:${f['caption']}:${f['placement']}').join(','),
   ].join('|');
 
@@ -336,12 +378,20 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         'page_layout': _pageLayout,
         'document_template': _documentTemplate,
         'include_review_notes_appendix': _includeReviewNotesAppendix,
+        if (_authors.isNotEmpty)
+          'authors': _authors.map((a) => a.toJson()).toList(),
+        if (_affiliations.isNotEmpty)
+          'affiliations': _affiliations.map((a) => a.toJson()).toList(),
         if (_attachedFigures.isNotEmpty)
           'figures': _attachedFigures.map((fig) {
             final pf = ProjectFigure.fromMap(fig, projectId: widget.project.id);
             return pf.toStructuredFigureMap();
           }).toList(),
       },
+      if (_authors.isNotEmpty)
+        'authors': _authors.map((a) => a.toJson()).toList(),
+      if (_affiliations.isNotEmpty)
+        'affiliations': _affiliations.map((a) => a.toJson()).toList(),
       if (_attachedFigures.isNotEmpty)
         'figures': _attachedFigures.map((fig) {
           final pf = ProjectFigure.fromMap(fig, projectId: widget.project.id);
@@ -739,6 +789,8 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         helper: '(Optional) What is this paper about? Summarize the scope, problem, and focus.',
         hintText: 'e.g. This research develops equivariant neural graph decoders for surface code quantum error correction...',
       ),
+      const SizedBox(height: 16),
+      _buildAuthorsAndAffiliationsSection(),
       const SizedBox(height: 16),
       // 3. Conditional AI-Triggered Additional Information
       if (_analysisResponse != null || _showAdditionalInfoInterface) ...[
@@ -1891,6 +1943,12 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       );
       enrichedPaper['page_layout'] = _pageLayout;
       enrichedPaper['document_template'] = _documentTemplate;
+      if (_authors.isNotEmpty && (enrichedPaper['authors'] == null || (enrichedPaper['authors'] as List).isEmpty)) {
+        enrichedPaper['authors'] = _authors.map((a) => a.toJson()).toList();
+      }
+      if (_affiliations.isNotEmpty && (enrichedPaper['affiliations'] == null || (enrichedPaper['affiliations'] as List).isEmpty)) {
+        enrichedPaper['affiliations'] = _affiliations.map((a) => a.toJson()).toList();
+      }
       await widget.repository.savePaperVersion(
         projectId: widget.project.id,
         schemaVersion: result.response.paper.schemaVersion,
@@ -2695,6 +2753,8 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
               maxLength: 4000,
               minLines: 2,
             ),
+            _buildAuthorsAndAffiliationsSection(),
+            const SizedBox(height: 16),
             for (final key in _statusChoices.keys) _statusGroup(key),
             const SizedBox(height: 12),
             Text(
@@ -3335,11 +3395,25 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                FilledButton.tonalIcon(
-                  key: const ValueKey('button-upload-figure'),
-                  onPressed: _pickFigureImage,
-                  icon: const Icon(Icons.add_photo_alternate, size: 16),
-                  label: const Text('Add Figure'),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    FilledButton.tonalIcon(
+                      key: const ValueKey('button-upload-figure'),
+                      onPressed: _pickFigureImage,
+                      icon: const Icon(Icons.add_photo_alternate, size: 16),
+                      label: const Text('Add Figure'),
+                    ),
+                    if (_attachedFigures.isNotEmpty)
+                      OutlinedButton.icon(
+                        key: const ValueKey('button-plan-figures'),
+                        onPressed: _autoPlanFigurePlacements,
+                        icon: const Icon(Icons.alt_route, size: 16),
+                        label: const Text('Auto-Plan Placement'),
+                      ),
+                  ],
                 ),
               ],
             ),
@@ -3528,6 +3602,30 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                         ),
                       ],
                     ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        FilterChip(
+                          label: Text(
+                            (fig['placement_status'] == 'approved') ? 'Placement Approved' : 'Review Plan',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: (fig['placement_status'] == 'approved') ? Colors.green.shade900 : Colors.blue.shade900,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          selected: fig['placement_status'] == 'approved',
+                          selectedColor: Colors.green.shade100,
+                          backgroundColor: Colors.blue.shade50,
+                          checkmarkColor: Colors.green.shade900,
+                          onSelected: (selected) {
+                            setState(() {
+                              fig['placement_status'] = selected ? 'approved' : 'assigned';
+                            });
+                          },
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ],
@@ -3581,6 +3679,583 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         ],
       ),
     );
+  }
+
+  void _autoPlanFigurePlacements() {
+    if (_attachedFigures.isEmpty) {
+      _showMessage('No figures attached to plan.', isError: true);
+      return;
+    }
+    final sections = _requestedSections;
+    final methodSec = sections.firstWhere(
+      (s) => s.contains('method') || s.contains('system') || s.contains('approach'),
+      orElse: () => sections.isNotEmpty ? sections.first : 'methodology',
+    );
+    final resultsSec = sections.firstWhere(
+      (s) => s.contains('result') || s.contains('eval') || s.contains('experiment'),
+      orElse: () => sections.isNotEmpty ? sections.last : 'results',
+    );
+
+    setState(() {
+      for (var i = 0; i < _attachedFigures.length; i++) {
+        final fig = _attachedFigures[i];
+        final name = (fig['name'] as String? ?? '').toLowerCase();
+        final caption = (fig['caption'] as String? ?? '').toLowerCase();
+        final desc = (fig['description'] as String? ?? '').toLowerCase();
+        final combined = '$name $caption $desc';
+
+        String category;
+        String targetSec;
+        String placement;
+
+        if (combined.contains('flowchart') || combined.contains('pipeline') || combined.contains('workflow') || combined.contains('overview')) {
+          category = 'flowchart';
+          targetSec = methodSec;
+          placement = 'column_width';
+        } else if (combined.contains('arch') || combined.contains('model') || combined.contains('topology') || combined.contains('decoder') || combined.contains('network')) {
+          category = 'architecture_diagram';
+          targetSec = methodSec;
+          placement = 'full_width';
+        } else if (combined.contains('graph') || combined.contains('chart') || combined.contains('curve') || combined.contains('roc') || combined.contains('loss') || combined.contains('convergence') || combined.contains('speedup')) {
+          category = 'graph';
+          targetSec = resultsSec;
+          placement = 'column_width';
+        } else if (combined.contains('screen') || combined.contains('ui') || combined.contains('interface') || combined.contains('dashboard') || combined.contains('app')) {
+          category = 'screenshot';
+          targetSec = resultsSec;
+          placement = 'column_width';
+        } else if (combined.contains('result') || combined.contains('eval') || combined.contains('exp') || combined.contains('ablation') || combined.contains('benchmark')) {
+          category = 'experimental_result';
+          targetSec = resultsSec;
+          placement = 'column_width';
+        } else {
+          category = 'other';
+          targetSec = (i % 2 == 0) ? methodSec : resultsSec;
+          placement = 'column_width';
+        }
+
+        fig['category'] = category;
+        fig['section_id'] = targetSec;
+        fig['placement'] = placement;
+        fig['placement_status'] = 'assigned';
+        fig['rationale'] = 'Semantic mapping: classified as $category for ${targetSec.replaceAll('_', ' ')} with anti-bundling.';
+
+        final rawCap = fig['caption'] as String? ?? '';
+        final cleanCap = rawCap.replaceFirst(RegExp(r'^(?:Figure|Fig\.?)\s*\d+[\s.:\-–—]*', caseSensitive: false), '').trim();
+        final finalCap = cleanCap.isNotEmpty ? cleanCap : (fig['name'] as String? ?? 'Research Material');
+        fig['caption'] = 'Fig. ${i + 1}. $finalCap';
+      }
+    });
+
+    _showMessage('Generated semantic placement plan for ${_attachedFigures.length} figures.');
+  }
+
+  Widget _buildAuthorsAndAffiliationsSection() {
+    if (_documentTemplate != 'ieee_conference' && _authors.isEmpty && _affiliations.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.people_alt_outlined, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Authors & Institutional Affiliations',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.tonalIcon(
+                  key: const ValueKey('button-add-author'),
+                  onPressed: () => _showAddAuthorDialog(),
+                  icon: const Icon(Icons.person_add, size: 16),
+                  label: const Text('Add Author'),
+                ),
+                const SizedBox(width: 6),
+                OutlinedButton.icon(
+                  key: const ValueKey('button-add-affiliation'),
+                  onPressed: () => _showAddAffiliationDialog(),
+                  icon: const Icon(Icons.account_balance_outlined, size: 16),
+                  label: const Text('Add Affiliation'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Structure IEEE multi-column author blocks, affiliation superscripts, and email contacts.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+                TextButton.icon(
+                  key: const ValueKey('button-prefill-ieee-authors'),
+                  onPressed: _prefillSampleIeeeAuthors,
+                  icon: const Icon(Icons.playlist_add_check, size: 16),
+                  label: const Text('Pre-fill 5 Authors'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (_affiliations.isNotEmpty) ...[
+              Text(
+                'AFFILIATIONS (${_affiliations.length})',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.8,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (var i = 0; i < _affiliations.length; i++) ...[
+                    InputChip(
+                      label: Text(
+                        '[${_affiliations[i].id}] ${_affiliations[i].department != null ? '${_affiliations[i].department}, ' : ''}${_affiliations[i].institution}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      onDeleted: () {
+                        setState(() {
+                          final removed = _affiliations.removeAt(i);
+                          for (var a = 0; a < _authors.length; a++) {
+                            final auth = _authors[a];
+                            if (auth.affiliationIds.contains(removed.id)) {
+                              final updatedIds = auth.affiliationIds.where((id) => id != removed.id).toList();
+                              _authors[a] = AuthorMetadataPayload(
+                                name: auth.name,
+                                order: auth.order,
+                                affiliationIds: updatedIds,
+                                email: auth.email,
+                                roleOrTitle: auth.roleOrTitle,
+                                isCorresponding: auth.isCorresponding,
+                                fundingAcknowledgment: auth.fundingAcknowledgment,
+                              );
+                            }
+                          }
+                        });
+                      },
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 12),
+            ],
+            Text(
+              'AUTHORS (${_authors.length})',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.8,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            if (_authors.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 20, color: Colors.amber.shade800),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'No authors added yet. Add authors or click "Pre-fill 5 Authors" to configure IEEE conference attribution.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              for (var i = 0; i < _authors.length; i++) ...[
+                _buildAuthorItemRow(i),
+                if (i < _authors.length - 1) const SizedBox(height: 8),
+              ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAuthorItemRow(int index) {
+    final author = _authors[index];
+    final affTags = author.affiliationIds.isNotEmpty
+        ? author.affiliationIds.map((id) {
+            final affIdx = _affiliations.indexWhere((a) => a.id == id);
+            return affIdx >= 0 ? '${affIdx + 1}' : id;
+          }).join(',')
+        : null;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 14,
+            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+            child: Text(
+              '${index + 1}',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onPrimaryContainer,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      author.name,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    if (affTags != null) ...[
+                      Text(
+                        ' [$affTags]',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                    if (author.isCorresponding) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.blue.shade200),
+                        ),
+                        child: Text(
+                          '* Corresponding',
+                          style: TextStyle(fontSize: 10, color: Colors.blue.shade800, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  [
+                    if (author.roleOrTitle != null && author.roleOrTitle!.isNotEmpty) author.roleOrTitle!,
+                    if (author.email != null && author.email!.isNotEmpty) author.email!,
+                  ].join(' • '),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Edit Author',
+            icon: const Icon(Icons.edit_outlined, size: 18),
+            visualDensity: VisualDensity.compact,
+            onPressed: () => _showAddAuthorDialog(existing: author, index: index),
+          ),
+          IconButton(
+            tooltip: 'Remove Author',
+            icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+            visualDensity: VisualDensity.compact,
+            onPressed: () {
+              setState(() {
+                _authors.removeAt(index);
+                for (var i = 0; i < _authors.length; i++) {
+                  final a = _authors[i];
+                  _authors[i] = AuthorMetadataPayload(
+                    name: a.name,
+                    order: i + 1,
+                    affiliationIds: a.affiliationIds,
+                    email: a.email,
+                    roleOrTitle: a.roleOrTitle,
+                    isCorresponding: a.isCorresponding,
+                    fundingAcknowledgment: a.fundingAcknowledgment,
+                  );
+                }
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _prefillSampleIeeeAuthors() {
+    setState(() {
+      _affiliations.clear();
+      _affiliations.addAll([
+        const AuthorAffiliationPayload(
+          id: 'aff_1',
+          department: 'Department of Computer Science & Engineering',
+          institution: 'National Institute of Technology',
+          city: 'Rourkela',
+          state: 'Odisha',
+          country: 'India',
+        ),
+        const AuthorAffiliationPayload(
+          id: 'aff_2',
+          department: 'Department of Biomedical Engineering',
+          institution: 'School of Healthcare Sciences',
+          city: 'Bhubaneswar',
+          state: 'Odisha',
+          country: 'India',
+        ),
+      ]);
+
+      _authors.clear();
+      _authors.addAll([
+        const AuthorMetadataPayload(
+          name: 'Dr. Aris Thorne',
+          order: 1,
+          affiliationIds: ['aff_1'],
+          email: 'aris.thorne@nitrkl.ac.in',
+          roleOrTitle: 'Senior Member, IEEE',
+          isCorresponding: true,
+        ),
+        const AuthorMetadataPayload(
+          name: 'Elena Vance',
+          order: 2,
+          affiliationIds: ['aff_1'],
+          email: 'elena.vance@nitrkl.ac.in',
+          roleOrTitle: 'Graduate Student Member, IEEE',
+        ),
+        const AuthorMetadataPayload(
+          name: 'Marcus Zhao',
+          order: 3,
+          affiliationIds: ['aff_2'],
+          email: 'marcus.zhao@shs.ac.in',
+          roleOrTitle: 'Member, IEEE',
+        ),
+        const AuthorMetadataPayload(
+          name: 'Dr. Clara Oswald',
+          order: 4,
+          affiliationIds: ['aff_1'],
+          email: 'clara.oswald@nitrkl.ac.in',
+          roleOrTitle: 'Associate Professor',
+        ),
+        const AuthorMetadataPayload(
+          name: 'Robert Song',
+          order: 5,
+          affiliationIds: ['aff_2'],
+          email: 'robert.song@shs.ac.in',
+          roleOrTitle: 'Research Scholar',
+        ),
+      ]);
+    });
+    _showMessage('Pre-filled 5 IEEE authors across 2 affiliations.');
+  }
+
+  Future<void> _showAddAffiliationDialog() async {
+    final nextNum = _affiliations.length + 1;
+    final idController = TextEditingController(text: 'aff_$nextNum');
+    final deptController = TextEditingController();
+    final instController = TextEditingController();
+    final cityController = TextEditingController();
+    final stateController = TextEditingController();
+    final countryController = TextEditingController();
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add Institutional Affiliation'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: idController,
+                decoration: const InputDecoration(labelText: 'Affiliation ID *', hintText: 'aff_1'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: instController,
+                decoration: const InputDecoration(labelText: 'Institution / University *', hintText: 'e.g. Stanford University'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: deptController,
+                decoration: const InputDecoration(labelText: 'Department', hintText: 'e.g. Dept. of Computer Science'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: cityController,
+                decoration: const InputDecoration(labelText: 'City', hintText: 'e.g. Stanford'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: stateController,
+                decoration: const InputDecoration(labelText: 'State / Province', hintText: 'e.g. CA'),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: countryController,
+                decoration: const InputDecoration(labelText: 'Country', hintText: 'e.g. USA'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              if (instController.text.trim().isEmpty) return;
+              Navigator.pop(context, true);
+            },
+            child: const Text('Add Affiliation'),
+          ),
+        ],
+      ),
+    );
+
+    if (saved == true && instController.text.trim().isNotEmpty) {
+      final cleanId = idController.text.trim().isNotEmpty ? idController.text.trim() : 'aff_${_affiliations.length + 1}';
+      setState(() {
+        _affiliations.add(AuthorAffiliationPayload(
+          id: cleanId,
+          institution: instController.text.trim(),
+          department: deptController.text.trim().isNotEmpty ? deptController.text.trim() : null,
+          city: cityController.text.trim().isNotEmpty ? cityController.text.trim() : null,
+          state: stateController.text.trim().isNotEmpty ? stateController.text.trim() : null,
+          country: countryController.text.trim().isNotEmpty ? countryController.text.trim() : null,
+        ));
+      });
+    }
+  }
+
+  Future<void> _showAddAuthorDialog({AuthorMetadataPayload? existing, int? index}) async {
+    final nameController = TextEditingController(text: existing?.name ?? '');
+    final emailController = TextEditingController(text: existing?.email ?? '');
+    final roleController = TextEditingController(text: existing?.roleOrTitle ?? '');
+    final fundingController = TextEditingController(text: existing?.fundingAcknowledgment ?? '');
+    final selectedAffils = Set<String>.from(existing?.affiliationIds ?? []);
+    bool isCorresponding = existing?.isCorresponding ?? false;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          title: Text(existing != null ? 'Edit Author' : 'Add IEEE Author'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Full Name *', hintText: 'Dr. Jane Doe'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: emailController,
+                  decoration: const InputDecoration(labelText: 'Email Address', hintText: 'jane.doe@university.edu'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: roleController,
+                  decoration: const InputDecoration(labelText: 'Role / Academic Title', hintText: 'Member, IEEE'),
+                ),
+                const SizedBox(height: 12),
+                if (_affiliations.isNotEmpty) ...[
+                  const Text('Assign Institutional Affiliations:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                  const SizedBox(height: 4),
+                  for (final aff in _affiliations)
+                    CheckboxListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text('[${aff.id}] ${aff.institution}', style: const TextStyle(fontSize: 12)),
+                      value: selectedAffils.contains(aff.id),
+                      onChanged: (checked) {
+                        setDlgState(() {
+                          if (checked == true) {
+                            selectedAffils.add(aff.id);
+                          } else {
+                            selectedAffils.remove(aff.id);
+                          }
+                        });
+                      },
+                    ),
+                  const SizedBox(height: 8),
+                ],
+                SwitchListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Corresponding Author (*)', style: TextStyle(fontSize: 13)),
+                  value: isCorresponding,
+                  onChanged: (val) => setDlgState(() => isCorresponding = val),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: fundingController,
+                  decoration: const InputDecoration(labelText: 'Funding Acknowledgment (Optional)', hintText: 'Supported by Grant #...'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () {
+                if (nameController.text.trim().isEmpty) return;
+                Navigator.pop(context, true);
+              },
+              child: Text(existing != null ? 'Save Changes' : 'Add Author'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (saved == true && nameController.text.trim().isNotEmpty) {
+      final orderVal = existing?.order ?? (_authors.length + 1);
+      final authorPayload = AuthorMetadataPayload(
+        name: nameController.text.trim(),
+        order: orderVal,
+        affiliationIds: selectedAffils.toList(),
+        email: emailController.text.trim().isNotEmpty ? emailController.text.trim() : null,
+        roleOrTitle: roleController.text.trim().isNotEmpty ? roleController.text.trim() : null,
+        isCorresponding: isCorresponding,
+        fundingAcknowledgment: fundingController.text.trim().isNotEmpty ? fundingController.text.trim() : null,
+      );
+
+      setState(() {
+        if (existing != null && index != null) {
+          _authors[index] = authorPayload;
+        } else {
+          _authors.add(authorPayload);
+        }
+      });
+    }
   }
 
   Widget _buildManuscriptDepthSelector() {

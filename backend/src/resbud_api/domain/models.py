@@ -189,6 +189,7 @@ FigurePlacementPosition = Literal[
 ]
 FigurePlacementStatus = Literal[
     "assigned",
+    "approved",
     "suggested",
     "unplaced",
     "omitted",
