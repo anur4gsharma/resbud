@@ -1,6 +1,6 @@
 {
-  "run_id": "eval-run-20261116-152030",
-  "date": "2026-11-16T15:20:30.923791+00:00",
+  "run_id": "eval-run-20261116-184226",
+  "date": "2026-11-16T18:42:26.365455+00:00",
   "active_engine": "section-level-long-form",
   "active_model": "deterministic-demo",
   "comparator_engine": "single-pass-legacy",
@@ -12,11 +12,11 @@
       "engine_type": "section-level-long-form",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-16T15:20:30.825737+00:00",
+      "timestamp": "2026-11-16T18:42:26.214186+00:00",
       "requested_words": 5000,
-      "generated_words": 4823,
+      "generated_words": 4824,
       "word_count_ratio": 0.965,
-      "duration_ms": 5,
+      "duration_ms": 7,
       "input_tokens": null,
       "output_tokens": 6868,
       "estimated_cost_usd": 0.0,
@@ -71,13 +71,13 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "actual_words": 4823,
+            "actual_words": 4824,
             "target_words": 5000,
             "ratio": 0.965
           },
           "deficiencies": [],
           "strengths": [
-            "Optimal word-count adherence: 4823 words (96.5% of 5000 target)."
+            "Optimal word-count adherence: 4824 words (96.5% of 5000 target)."
           ]
         },
         "methodological_detail": {
@@ -141,9 +141,9 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "ttr": 0.159,
+            "ttr": 0.158,
             "platitudes_count": 0,
-            "total_tokens": 4823
+            "total_tokens": 4824
           },
           "deficiencies": [],
           "strengths": [
@@ -181,23 +181,26 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "bullet_ratio": 0.043,
-            "fkgl": 22.14,
-            "fre": -34.62,
+            "bullet_ratio": 0.042,
+            "fkgl": 22.12,
+            "fre": -34.51,
             "asl": 16.31
           },
           "deficiencies": [
-            "Prose register overly convoluted (FKGL 22.14 > 20.0)."
+            "Prose register overly convoluted (FKGL 22.12 > 20.0)."
           ],
           "strengths": [
-            "Continuous academic prose maintained (4.3% bullet lines, well under 15% threshold)."
+            "Continuous academic prose maintained (4.2% bullet lines, well under 15% threshold)."
           ]
         }
       },
       "review_warnings": [
         "GENERAL_REVIEW",
         "CLAIM_NEEDS_REVIEW",
-        "GENERAL_REVIEW"
+        "REFERENCE_INCOMPLETE",
+        "GENERAL_REVIEW",
+        "REFERENCE_INCOMPLETE",
+        "REFERENCE_INCOMPLETE"
       ],
       "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
     },
@@ -207,11 +210,11 @@
       "engine_type": "section-level-long-form",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-16T15:20:30.836676+00:00",
+      "timestamp": "2026-11-16T18:42:26.230628+00:00",
       "requested_words": 3000,
-      "generated_words": 2957,
+      "generated_words": 2958,
       "word_count_ratio": 0.986,
-      "duration_ms": 3,
+      "duration_ms": 5,
       "input_tokens": null,
       "output_tokens": 4232,
       "estimated_cost_usd": 0.0,
@@ -266,13 +269,13 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "actual_words": 2957,
+            "actual_words": 2958,
             "target_words": 3000,
             "ratio": 0.986
           },
           "deficiencies": [],
           "strengths": [
-            "Optimal word-count adherence: 2957 words (98.6% of 3000 target)."
+            "Optimal word-count adherence: 2958 words (98.6% of 3000 target)."
           ]
         },
         "methodological_detail": {
@@ -338,7 +341,7 @@
           "details": {
             "ttr": 0.258,
             "platitudes_count": 0,
-            "total_tokens": 2957
+            "total_tokens": 2958
           },
           "deficiencies": [],
           "strengths": [
@@ -376,23 +379,25 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "bullet_ratio": 0.072,
-            "fkgl": 22.35,
-            "fre": -34.61,
-            "asl": 17.14
+            "bullet_ratio": 0.071,
+            "fkgl": 22.31,
+            "fre": -34.33,
+            "asl": 17.15
           },
           "deficiencies": [
-            "Prose register overly convoluted (FKGL 22.35 > 20.0)."
+            "Prose register overly convoluted (FKGL 22.31 > 20.0)."
           ],
           "strengths": [
-            "Continuous academic prose maintained (7.2% bullet lines, well under 15% threshold)."
+            "Continuous academic prose maintained (7.1% bullet lines, well under 15% threshold)."
           ]
         }
       },
       "review_warnings": [
         "GENERAL_REVIEW",
         "CLAIM_NEEDS_REVIEW",
-        "GENERAL_REVIEW"
+        "REFERENCE_INCOMPLETE",
+        "GENERAL_REVIEW",
+        "REFERENCE_INCOMPLETE"
       ],
       "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
     },
@@ -402,11 +407,11 @@
       "engine_type": "section-level-long-form",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-16T15:20:30.847333+00:00",
+      "timestamp": "2026-11-16T18:42:26.246429+00:00",
       "requested_words": 3000,
-      "generated_words": 2952,
+      "generated_words": 2953,
       "word_count_ratio": 0.984,
-      "duration_ms": 3,
+      "duration_ms": 5,
       "input_tokens": null,
       "output_tokens": 4178,
       "estimated_cost_usd": 0.0,
@@ -461,13 +466,13 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "actual_words": 2952,
+            "actual_words": 2953,
             "target_words": 3000,
             "ratio": 0.984
           },
           "deficiencies": [],
           "strengths": [
-            "Optimal word-count adherence: 2952 words (98.4% of 3000 target)."
+            "Optimal word-count adherence: 2953 words (98.4% of 3000 target)."
           ]
         },
         "methodological_detail": {
@@ -533,7 +538,7 @@
           "details": {
             "ttr": 0.25,
             "platitudes_count": 0,
-            "total_tokens": 2952
+            "total_tokens": 2953
           },
           "deficiencies": [],
           "strengths": [
@@ -571,16 +576,16 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "bullet_ratio": 0.071,
-            "fkgl": 22.5,
-            "fre": -35.09,
-            "asl": 17.5
+            "bullet_ratio": 0.07,
+            "fkgl": 22.48,
+            "fre": -34.93,
+            "asl": 17.51
           },
           "deficiencies": [
-            "Prose register overly convoluted (FKGL 22.5 > 20.0)."
+            "Prose register overly convoluted (FKGL 22.48 > 20.0)."
           ],
           "strengths": [
-            "Continuous academic prose maintained (7.1% bullet lines, well under 15% threshold)."
+            "Continuous academic prose maintained (7.0% bullet lines, well under 15% threshold)."
           ]
         }
       },
@@ -588,7 +593,9 @@
         "GENERAL_REVIEW",
         "MISSING_RESULTS",
         "CLAIM_NEEDS_REVIEW",
-        "GENERAL_REVIEW"
+        "REFERENCE_INCOMPLETE",
+        "GENERAL_REVIEW",
+        "REFERENCE_INCOMPLETE"
       ],
       "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
     },
@@ -598,11 +605,11 @@
       "engine_type": "section-level-long-form",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-16T15:20:30.861687+00:00",
+      "timestamp": "2026-11-16T18:42:26.267496+00:00",
       "requested_words": 5000,
-      "generated_words": 4803,
+      "generated_words": 4804,
       "word_count_ratio": 0.961,
-      "duration_ms": 5,
+      "duration_ms": 8,
       "input_tokens": null,
       "output_tokens": 6744,
       "estimated_cost_usd": 0.0,
@@ -657,13 +664,13 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "actual_words": 4803,
+            "actual_words": 4804,
             "target_words": 5000,
             "ratio": 0.961
           },
           "deficiencies": [],
           "strengths": [
-            "Optimal word-count adherence: 4803 words (96.1% of 5000 target)."
+            "Optimal word-count adherence: 4804 words (96.1% of 5000 target)."
           ]
         },
         "methodological_detail": {
@@ -729,7 +736,7 @@
           "details": {
             "ttr": 0.16,
             "platitudes_count": 0,
-            "total_tokens": 4803
+            "total_tokens": 4804
           },
           "deficiencies": [],
           "strengths": [
@@ -768,12 +775,12 @@
           "weight": 1.0,
           "details": {
             "bullet_ratio": 0.042,
-            "fkgl": 22.4,
-            "fre": -35.89,
+            "fkgl": 22.39,
+            "fre": -35.79,
             "asl": 16.64
           },
           "deficiencies": [
-            "Prose register overly convoluted (FKGL 22.4 > 20.0)."
+            "Prose register overly convoluted (FKGL 22.39 > 20.0)."
           ],
           "strengths": [
             "Continuous academic prose maintained (4.2% bullet lines, well under 15% threshold)."
@@ -783,7 +790,10 @@
       "review_warnings": [
         "GENERAL_REVIEW",
         "CLAIM_NEEDS_REVIEW",
-        "GENERAL_REVIEW"
+        "REFERENCE_INCOMPLETE",
+        "GENERAL_REVIEW",
+        "REFERENCE_INCOMPLETE",
+        "REFERENCE_INCOMPLETE"
       ],
       "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
     },
@@ -793,11 +803,11 @@
       "engine_type": "section-level-long-form",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-16T15:20:30.875688+00:00",
+      "timestamp": "2026-11-16T18:42:26.288157+00:00",
       "requested_words": 5000,
-      "generated_words": 4822,
-      "word_count_ratio": 0.964,
-      "duration_ms": 4,
+      "generated_words": 4823,
+      "word_count_ratio": 0.965,
+      "duration_ms": 7,
       "input_tokens": null,
       "output_tokens": 6717,
       "estimated_cost_usd": 0.0,
@@ -852,13 +862,13 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "actual_words": 4822,
+            "actual_words": 4823,
             "target_words": 5000,
-            "ratio": 0.964
+            "ratio": 0.965
           },
           "deficiencies": [],
           "strengths": [
-            "Optimal word-count adherence: 4822 words (96.4% of 5000 target)."
+            "Optimal word-count adherence: 4823 words (96.5% of 5000 target)."
           ]
         },
         "methodological_detail": {
@@ -922,9 +932,9 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "ttr": 0.149,
+            "ttr": 0.148,
             "platitudes_count": 0,
-            "total_tokens": 4822
+            "total_tokens": 4823
           },
           "deficiencies": [],
           "strengths": [
@@ -961,12 +971,12 @@
           "weight": 1.0,
           "details": {
             "bullet_ratio": 0.041,
-            "fkgl": 22.67,
-            "fre": -37.61,
+            "fkgl": 22.66,
+            "fre": -37.53,
             "asl": 16.78
           },
           "deficiencies": [
-            "Prose register overly convoluted (FKGL 22.67 > 20.0)."
+            "Prose register overly convoluted (FKGL 22.66 > 20.0)."
           ],
           "strengths": [
             "Continuous academic prose maintained (4.1% bullet lines, well under 15% threshold)."
@@ -976,7 +986,20 @@
       "review_warnings": [
         "GENERAL_REVIEW",
         "CLAIM_NEEDS_REVIEW",
-        "GENERAL_REVIEW"
+        "REFERENCE_INCOMPLETE",
+        "GENERAL_REVIEW",
+        "REFERENCE_INCOMPLETE",
+        "REFERENCE_INCOMPLETE",
+        "REFERENCE_INCOMPLETE",
+        "REFERENCE_INCOMPLETE",
+        "REFERENCE_INCOMPLETE",
+        "REFERENCE_INCOMPLETE",
+        "REFERENCE_INCOMPLETE",
+        "REFERENCE_INCOMPLETE",
+        "REFERENCE_INCOMPLETE",
+        "REFERENCE_INCOMPLETE",
+        "REFERENCE_INCOMPLETE",
+        "REFERENCE_INCOMPLETE"
       ],
       "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
     },
@@ -986,11 +1009,11 @@
       "engine_type": "section-level-long-form",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-16T15:20:30.885601+00:00",
+      "timestamp": "2026-11-16T18:42:26.304511+00:00",
       "requested_words": 3000,
-      "generated_words": 2916,
+      "generated_words": 2917,
       "word_count_ratio": 0.972,
-      "duration_ms": 3,
+      "duration_ms": 5,
       "input_tokens": null,
       "output_tokens": 4091,
       "estimated_cost_usd": 0.0,
@@ -1045,13 +1068,13 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "actual_words": 2916,
+            "actual_words": 2917,
             "target_words": 3000,
             "ratio": 0.972
           },
           "deficiencies": [],
           "strengths": [
-            "Optimal word-count adherence: 2916 words (97.2% of 3000 target)."
+            "Optimal word-count adherence: 2917 words (97.2% of 3000 target)."
           ]
         },
         "methodological_detail": {
@@ -1115,9 +1138,9 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "ttr": 0.238,
+            "ttr": 0.239,
             "platitudes_count": 0,
-            "total_tokens": 2916
+            "total_tokens": 2917
           },
           "deficiencies": [],
           "strengths": [
@@ -1155,16 +1178,16 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "bullet_ratio": 0.07,
-            "fkgl": 22.42,
-            "fre": -35.25,
-            "asl": 17.07
+            "bullet_ratio": 0.069,
+            "fkgl": 22.41,
+            "fre": -35.2,
+            "asl": 17.08
           },
           "deficiencies": [
-            "Prose register overly convoluted (FKGL 22.42 > 20.0)."
+            "Prose register overly convoluted (FKGL 22.41 > 20.0)."
           ],
           "strengths": [
-            "Continuous academic prose maintained (7.0% bullet lines, well under 15% threshold)."
+            "Continuous academic prose maintained (6.9% bullet lines, well under 15% threshold)."
           ]
         }
       },
@@ -1172,7 +1195,10 @@
         "GENERAL_REVIEW",
         "INPUT_CONFLICT",
         "CLAIM_NEEDS_REVIEW",
-        "GENERAL_REVIEW"
+        "REFERENCE_INCOMPLETE",
+        "GENERAL_REVIEW",
+        "REFERENCE_INCOMPLETE",
+        "REFERENCE_INCOMPLETE"
       ],
       "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
     },
@@ -1182,11 +1208,11 @@
       "engine_type": "section-level-long-form",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-16T15:20:30.903263+00:00",
+      "timestamp": "2026-11-16T18:42:26.331444+00:00",
       "requested_words": 7000,
-      "generated_words": 6792,
+      "generated_words": 6793,
       "word_count_ratio": 0.97,
-      "duration_ms": 6,
+      "duration_ms": 11,
       "input_tokens": null,
       "output_tokens": 9437,
       "estimated_cost_usd": 0.0,
@@ -1241,13 +1267,13 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "actual_words": 6792,
+            "actual_words": 6793,
             "target_words": 7000,
             "ratio": 0.97
           },
           "deficiencies": [],
           "strengths": [
-            "Optimal word-count adherence: 6792 words (97.0% of 7000 target)."
+            "Optimal word-count adherence: 6793 words (97.0% of 7000 target)."
           ]
         },
         "methodological_detail": {
@@ -1313,7 +1339,7 @@
           "details": {
             "ttr": 0.112,
             "platitudes_count": 0,
-            "total_tokens": 6792
+            "total_tokens": 6793
           },
           "deficiencies": [
             "Low lexical diversity (TTR 0.11 < 0.12 indicates boilerplate repetition)."
@@ -1353,12 +1379,12 @@
           "weight": 1.0,
           "details": {
             "bullet_ratio": 0.029,
-            "fkgl": 22.26,
-            "fre": -35.95,
+            "fkgl": 22.25,
+            "fre": -35.88,
             "asl": 16.04
           },
           "deficiencies": [
-            "Prose register overly convoluted (FKGL 22.26 > 20.0)."
+            "Prose register overly convoluted (FKGL 22.25 > 20.0)."
           ],
           "strengths": [
             "Continuous academic prose maintained (2.9% bullet lines, well under 15% threshold)."
@@ -1368,7 +1394,9 @@
       "review_warnings": [
         "GENERAL_REVIEW",
         "CLAIM_NEEDS_REVIEW",
-        "GENERAL_REVIEW"
+        "REFERENCE_INCOMPLETE",
+        "GENERAL_REVIEW",
+        "REFERENCE_INCOMPLETE"
       ],
       "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
     },
@@ -1378,11 +1406,11 @@
       "engine_type": "section-level-long-form",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-16T15:20:30.910826+00:00",
+      "timestamp": "2026-11-16T18:42:26.343645+00:00",
       "requested_words": 1500,
-      "generated_words": 1439,
-      "word_count_ratio": 0.959,
-      "duration_ms": 1,
+      "generated_words": 1440,
+      "word_count_ratio": 0.96,
+      "duration_ms": 2,
       "input_tokens": null,
       "output_tokens": 2131,
       "estimated_cost_usd": 0.0,
@@ -1437,13 +1465,13 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "actual_words": 1439,
+            "actual_words": 1440,
             "target_words": 1500,
-            "ratio": 0.959
+            "ratio": 0.96
           },
           "deficiencies": [],
           "strengths": [
-            "Optimal word-count adherence: 1439 words (95.9% of 1500 target)."
+            "Optimal word-count adherence: 1440 words (96.0% of 1500 target)."
           ]
         },
         "methodological_detail": {
@@ -1506,9 +1534,9 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "ttr": 0.441,
+            "ttr": 0.442,
             "platitudes_count": 0,
-            "total_tokens": 1439
+            "total_tokens": 1440
           },
           "deficiencies": [],
           "strengths": [
@@ -1546,16 +1574,16 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "bullet_ratio": 0.077,
-            "fkgl": 22.65,
-            "fre": -34.49,
-            "asl": 18.45
+            "bullet_ratio": 0.075,
+            "fkgl": 22.64,
+            "fre": -34.41,
+            "asl": 18.46
           },
           "deficiencies": [
-            "Prose register overly convoluted (FKGL 22.65 > 20.0)."
+            "Prose register overly convoluted (FKGL 22.64 > 20.0)."
           ],
           "strengths": [
-            "Continuous academic prose maintained (7.7% bullet lines, well under 15% threshold)."
+            "Continuous academic prose maintained (7.5% bullet lines, well under 15% threshold)."
           ]
         }
       },
@@ -1563,7 +1591,10 @@
         "GENERAL_REVIEW",
         "MISSING_RESULTS",
         "CLAIM_NEEDS_REVIEW",
-        "GENERAL_REVIEW"
+        "REFERENCE_INCOMPLETE",
+        "GENERAL_REVIEW",
+        "REFERENCE_INCOMPLETE",
+        "REFERENCE_INCOMPLETE"
       ],
       "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
     },
@@ -1573,11 +1604,11 @@
       "engine_type": "section-level-long-form",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-16T15:20:30.920556+00:00",
+      "timestamp": "2026-11-16T18:42:26.358972+00:00",
       "requested_words": 3000,
-      "generated_words": 2956,
-      "word_count_ratio": 0.985,
-      "duration_ms": 3,
+      "generated_words": 2957,
+      "word_count_ratio": 0.986,
+      "duration_ms": 5,
       "input_tokens": null,
       "output_tokens": 4199,
       "estimated_cost_usd": 0.0,
@@ -1632,13 +1663,13 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "actual_words": 2956,
+            "actual_words": 2957,
             "target_words": 3000,
-            "ratio": 0.985
+            "ratio": 0.986
           },
           "deficiencies": [],
           "strengths": [
-            "Optimal word-count adherence: 2956 words (98.5% of 3000 target)."
+            "Optimal word-count adherence: 2957 words (98.6% of 3000 target)."
           ]
         },
         "methodological_detail": {
@@ -1704,7 +1735,7 @@
           "details": {
             "ttr": 0.239,
             "platitudes_count": 0,
-            "total_tokens": 2956
+            "total_tokens": 2957
           },
           "deficiencies": [],
           "strengths": [
@@ -1742,23 +1773,26 @@
           "passed": true,
           "weight": 1.0,
           "details": {
-            "bullet_ratio": 0.071,
-            "fkgl": 22.27,
-            "fre": -33.74,
+            "bullet_ratio": 0.07,
+            "fkgl": 22.26,
+            "fre": -33.7,
             "asl": 17.32
           },
           "deficiencies": [
-            "Prose register overly convoluted (FKGL 22.27 > 20.0)."
+            "Prose register overly convoluted (FKGL 22.26 > 20.0)."
           ],
           "strengths": [
-            "Continuous academic prose maintained (7.1% bullet lines, well under 15% threshold)."
+            "Continuous academic prose maintained (7.0% bullet lines, well under 15% threshold)."
           ]
         }
       },
       "review_warnings": [
         "GENERAL_REVIEW",
         "CLAIM_NEEDS_REVIEW",
-        "GENERAL_REVIEW"
+        "REFERENCE_INCOMPLETE",
+        "GENERAL_REVIEW",
+        "REFERENCE_INCOMPLETE",
+        "REFERENCE_INCOMPLETE"
       ],
       "scientific_disclaimer": "Automated evaluation scores are structural, factual, and linguistic heuristics. They must never be represented as objective scientific verification or proof of empirical truth."
     }
@@ -1770,7 +1804,7 @@
       "engine_type": "single-pass-legacy",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-16T15:20:30.829461+00:00",
+      "timestamp": "2026-11-16T18:42:26.220905+00:00",
       "requested_words": 5000,
       "generated_words": 999,
       "word_count_ratio": 0.2,
@@ -1966,7 +2000,7 @@
       "engine_type": "single-pass-legacy",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-16T15:20:30.840063+00:00",
+      "timestamp": "2026-11-16T18:42:26.237093+00:00",
       "requested_words": 3000,
       "generated_words": 892,
       "word_count_ratio": 0.297,
@@ -2163,7 +2197,7 @@
       "engine_type": "single-pass-legacy",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-16T15:20:30.850742+00:00",
+      "timestamp": "2026-11-16T18:42:26.252668+00:00",
       "requested_words": 3000,
       "generated_words": 846,
       "word_count_ratio": 0.282,
@@ -2361,7 +2395,7 @@
       "engine_type": "single-pass-legacy",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-16T15:20:30.865138+00:00",
+      "timestamp": "2026-11-16T18:42:26.274043+00:00",
       "requested_words": 5000,
       "generated_words": 908,
       "word_count_ratio": 0.182,
@@ -2558,7 +2592,7 @@
       "engine_type": "single-pass-legacy",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-16T15:20:30.878889+00:00",
+      "timestamp": "2026-11-16T18:42:26.294818+00:00",
       "requested_words": 5000,
       "generated_words": 690,
       "word_count_ratio": 0.138,
@@ -2753,7 +2787,7 @@
       "engine_type": "single-pass-legacy",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-16T15:20:30.888825+00:00",
+      "timestamp": "2026-11-16T18:42:26.310983+00:00",
       "requested_words": 3000,
       "generated_words": 765,
       "word_count_ratio": 0.255,
@@ -2949,7 +2983,7 @@
       "engine_type": "single-pass-legacy",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-16T15:20:30.906854+00:00",
+      "timestamp": "2026-11-16T18:42:26.338430+00:00",
       "requested_words": 7000,
       "generated_words": 977,
       "word_count_ratio": 0.14,
@@ -3145,7 +3179,7 @@
       "engine_type": "single-pass-legacy",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-16T15:20:30.913686+00:00",
+      "timestamp": "2026-11-16T18:42:26.349502+00:00",
       "requested_words": 1500,
       "generated_words": 610,
       "word_count_ratio": 0.407,
@@ -3340,7 +3374,7 @@
       "engine_type": "single-pass-legacy",
       "provider_name": "fake",
       "model_name": "deterministic-demo",
-      "timestamp": "2026-11-16T15:20:30.923729+00:00",
+      "timestamp": "2026-11-16T18:42:26.365385+00:00",
       "requested_words": 3000,
       "generated_words": 798,
       "word_count_ratio": 0.266,
@@ -3537,10 +3571,10 @@
       "model": "deterministic-demo",
       "passed_cases": 9,
       "pass_rate": 1.0,
-      "avg_generated_words": 3828.89,
+      "avg_generated_words": 3829.89,
       "avg_target_adherence_ratio": 0.97,
       "avg_overall_score": 96.42,
-      "avg_latency_ms": 3.67,
+      "avg_latency_ms": 6.11,
       "total_estimated_cost_usd": 0.0
     },
     "comparator_engine": {
@@ -3555,7 +3589,7 @@
       "total_estimated_cost_usd": 0.0
     },
     "comparative_deltas": {
-      "word_count_multiplier": 4.6,
+      "word_count_multiplier": 4.61,
       "score_delta": 21.55,
       "adherence_ratio_delta": 0.73
     }

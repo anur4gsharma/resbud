@@ -110,6 +110,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   int _targetWordCount = 5000;
   String _citationStyle = 'user_supplied';
   String _pageLayout = 'single_column';
+  String _documentTemplate = 'default';
   bool _includeReviewNotesAppendix = false;
   List<String> _desiredSections = List.of(_baseSections);
   bool _saving = false;
@@ -186,6 +187,11 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           ['single_column', 'two_column_academic'].contains(pageLayout)) {
         _pageLayout = pageLayout;
       }
+      final docTemplate = preferences['document_template'];
+      if (docTemplate is String &&
+          ['default', 'ieee_conference'].contains(docTemplate)) {
+        _documentTemplate = docTemplate;
+      }
       final includeReviewNotes = preferences['include_review_notes_appendix'];
       if (includeReviewNotes is bool) {
         _includeReviewNotesAppendix = includeReviewNotes;
@@ -256,6 +262,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     '$_targetWordCount',
     _citationStyle,
     _pageLayout,
+    _documentTemplate,
     _desiredSections.join(','),
     _customSectionsController.text,
     _attachedFigures.map((f) => '${f['id']}:${f['caption']}:${f['placement']}').join(','),
@@ -327,7 +334,13 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         'desired_sections': _requestedSections,
         'citation_style': _citationStyle,
         'page_layout': _pageLayout,
+        'document_template': _documentTemplate,
         'include_review_notes_appendix': _includeReviewNotesAppendix,
+        if (_attachedFigures.isNotEmpty)
+          'figures': _attachedFigures.map((fig) {
+            final pf = ProjectFigure.fromMap(fig, projectId: widget.project.id);
+            return pf.toStructuredFigureMap();
+          }).toList(),
       },
       if (_attachedFigures.isNotEmpty)
         'figures': _attachedFigures.map((fig) {
@@ -1743,39 +1756,129 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         .map((s) => Map<String, dynamic>.from(s as Map))
         .toList();
 
-    bool anyFigureFound = false;
+    // Map figure IDs to data URIs
+    final figDataUriMap = <String, String>{};
+    for (final fig in figures) {
+      final figId = fig['id'] as String? ?? '';
+      final b64 = fig['base64'] as String? ?? fig['data_uri'] as String? ?? '';
+      if (figId.isNotEmpty && b64.isNotEmpty) {
+        figDataUriMap[figId] = b64;
+      }
+    }
+
+    // Step 1: Detect which figures are already embedded in sections and replace references if needed
+    final placedFigureIds = <String>{};
     for (final s in sections) {
       String content = s['content'] as String? ?? '';
       for (final fig in figures) {
         final figId = fig['id'] as String? ?? '';
-        final b64 = fig['base64'] as String? ?? '';
-        if (figId.isNotEmpty && b64.isNotEmpty && content.contains('($figId)')) {
-          content = content.replaceAll('($figId)', '($b64)');
-          anyFigureFound = true;
+        final b64 = figDataUriMap[figId] ?? '';
+        if (figId.isNotEmpty && content.contains('($figId)')) {
+          placedFigureIds.add(figId);
+          if (b64.isNotEmpty) {
+            content = content.replaceAll('($figId)', '($b64)');
+          }
         }
       }
       s['content'] = content;
     }
 
-    if (!anyFigureFound && sections.isNotEmpty) {
-      final targetIdx = sections.indexWhere((s) {
+    // Step 2: Contextually inject any unplaced figures across target sections (ANTI-BUNDLING)
+    final unplacedFigures = figures.where((f) {
+      final figId = f['id'] as String? ?? '';
+      return !placedFigureIds.contains(figId);
+    }).toList();
+
+    if (unplacedFigures.isNotEmpty && sections.isNotEmpty) {
+      // Find candidate sections
+      final methodIdx = sections.indexWhere((s) {
         final sid = (s['id'] as String? ?? '').toLowerCase();
-        return sid.contains('method') || sid.contains('result') || sid.contains('approach');
+        return sid.contains('method') || sid.contains('approach') || sid.contains('system');
       });
-      final idx = targetIdx >= 0 ? targetIdx : 0;
-      final target = sections[idx];
-      final buf = StringBuffer(target['content'] as String? ?? '');
-      for (final fig in figures) {
-        final caption = fig['caption'] as String? ?? 'Figure';
-        final b64 = fig['base64'] as String? ?? '';
-        if (b64.isNotEmpty) {
-          buf.writeln('\n\n![$caption]($b64)\n');
+      final resultsIdx = sections.indexWhere((s) {
+        final sid = (s['id'] as String? ?? '').toLowerCase();
+        return sid.contains('result') || sid.contains('eval') || sid.contains('experiment');
+      });
+
+      final effectiveMethodIdx = methodIdx >= 0 ? methodIdx : 0;
+      final effectiveResultsIdx = resultsIdx >= 0 ? resultsIdx : (sections.length > 1 ? 1 : 0);
+
+      // Distribute unplaced figures across target sections
+      final sectionBuckets = <int, List<Map<String, dynamic>>>{};
+      for (final fig in unplacedFigures) {
+        final targetSectionId = fig['section_id'] as String? ?? fig['related_section'] as String?;
+        int targetIdx = -1;
+        if (targetSectionId != null && targetSectionId.isNotEmpty) {
+          targetIdx = sections.indexWhere((s) => s['id'] == targetSectionId);
         }
+        if (targetIdx < 0) {
+          final name = (fig['name'] as String? ?? fig['caption'] as String? ?? '').toLowerCase();
+          final category = (fig['category'] as String? ?? '').toLowerCase();
+          if (category == 'flowchart' || category == 'architecture_diagram' || name.contains('flowchart') || name.contains('architecture') || name.contains('method')) {
+            targetIdx = effectiveMethodIdx;
+          } else {
+            targetIdx = effectiveResultsIdx;
+          }
+        }
+        (sectionBuckets[targetIdx] ??= []).add(fig);
       }
-      target['content'] = buf.toString();
+
+      // Inject into each section without bundling
+      for (final entry in sectionBuckets.entries) {
+        final secIdx = entry.key;
+        final figsToInject = entry.value;
+        final target = sections[secIdx];
+        final rawContent = target['content'] as String? ?? '';
+        final paragraphs = rawContent.split('\n\n').where((p) => p.trim().isNotEmpty).toList();
+
+        final buf = StringBuffer();
+        final pCount = paragraphs.length;
+        final stride = (pCount / (figsToInject.length + 1)).clamp(1, 10).toInt();
+
+        for (var pIdx = 0; pIdx < pCount; pIdx++) {
+          buf.writeln(paragraphs[pIdx]);
+          buf.writeln();
+
+          // Check if a figure should be inserted after this paragraph
+          final figIdx = pIdx ~/ stride;
+          if (figIdx < figsToInject.length && (pIdx % stride == 0 || pIdx == pCount - 1)) {
+            final fig = figsToInject[figIdx];
+            final caption = fig['caption'] as String? ?? 'Figure';
+            final b64 = fig['base64'] as String? ?? fig['data_uri'] as String? ?? '';
+            final figId = fig['id'] as String? ?? 'fig_${figIdx + 1}';
+            final src = b64.isNotEmpty ? b64 : figId;
+
+            // In-text reference
+            buf.writeln('As illustrated in the following presentation, the structural characteristics are detailed below.\n');
+            buf.writeln('![$caption]($src)\n');
+            buf.writeln('The contextual components formalize operational interactions, providing structural grounding for subsequent technical evaluation.\n');
+          }
+        }
+
+        if (paragraphs.isEmpty) {
+          for (final fig in figsToInject) {
+            final caption = fig['caption'] as String? ?? 'Figure';
+            final b64 = fig['base64'] as String? ?? fig['data_uri'] as String? ?? '';
+            final figId = fig['id'] as String? ?? '';
+            final src = b64.isNotEmpty ? b64 : figId;
+            buf.writeln('![$caption]($src)\n');
+          }
+        }
+
+        target['content'] = buf.toString().trim();
+      }
     }
 
     copy['sections'] = sections;
+
+    // Attach structured figures to paper
+    final structuredList = <Map<String, dynamic>>[];
+    for (var i = 0; i < figures.length; i++) {
+      final pf = ProjectFigure.fromMap(figures[i], projectId: widget.project.id, defaultNumber: i + 1);
+      structuredList.add(pf.toStructuredFigureMap());
+    }
+    copy['figures'] = structuredList;
+
     return copy;
   }
 
@@ -1787,6 +1890,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         _attachedFigures,
       );
       enrichedPaper['page_layout'] = _pageLayout;
+      enrichedPaper['document_template'] = _documentTemplate;
       await widget.repository.savePaperVersion(
         projectId: widget.project.id,
         schemaVersion: result.response.paper.schemaVersion,
@@ -2703,6 +2807,35 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              key: const ValueKey('template-selector-classic'),
+              initialValue: _documentTemplate,
+              decoration: const InputDecoration(
+                labelText: 'Publication format / template',
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'default',
+                  child: Text('Default Manuscript (Standard Academic)'),
+                ),
+                DropdownMenuItem(
+                  value: 'ieee_conference',
+                  child: Text('IEEE Conference Paper'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value != null) {
+                  setState(() {
+                    _documentTemplate = value;
+                    if (value == 'ieee_conference') {
+                      _pageLayout = 'two_column_academic';
+                      _citationStyle = 'ieee';
+                    }
+                  });
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
               key: const ValueKey('page-layout-selector-classic'),
               initialValue: _pageLayout,
               decoration: const InputDecoration(
@@ -3327,52 +3460,123 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                   },
                 ),
                 const SizedBox(height: 6),
-                Row(
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Text(
-                      'Layout: ',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(width: 4),
-                    DropdownButton<String>(
-                      value: fig['placement'] as String? ?? 'column_width',
-                      isDense: true,
-                      style: Theme.of(context).textTheme.bodySmall,
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'column_width',
-                          child: Text('Column Width'),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Section: ',
+                          style: Theme.of(context).textTheme.bodySmall,
                         ),
-                        DropdownMenuItem(
-                          value: 'full_width',
-                          child: Text('Full Page Width'),
+                        const SizedBox(width: 4),
+                        DropdownButton<String>(
+                          value: (fig['section_id'] as String?) ?? 'auto',
+                          isDense: true,
+                          style: Theme.of(context).textTheme.bodySmall,
+                          items: [
+                            const DropdownMenuItem(
+                              value: 'auto',
+                              child: Text('Auto (AI planned)'),
+                            ),
+                            for (final s in _requestedSections)
+                              DropdownMenuItem(
+                                value: s,
+                                child: Text(s.replaceAll('_', ' ')),
+                              ),
+                          ],
+                          onChanged: (val) {
+                            setState(() {
+                              fig['section_id'] = val == 'auto' ? null : val;
+                            });
+                          },
                         ),
                       ],
-                      onChanged: (val) {
-                        if (val != null) {
-                          setState(() {
-                            fig['placement'] = val;
-                          });
-                        }
-                      },
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Layout: ',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        const SizedBox(width: 4),
+                        DropdownButton<String>(
+                          value: fig['placement'] as String? ?? 'column_width',
+                          isDense: true,
+                          style: Theme.of(context).textTheme.bodySmall,
+                          items: const [
+                            DropdownMenuItem(
+                              value: 'column_width',
+                              child: Text('Column Width'),
+                            ),
+                            DropdownMenuItem(
+                              value: 'full_width',
+                              child: Text('Full Page Width'),
+                            ),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                fig['placement'] = val;
+                              });
+                            }
+                          },
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          IconButton(
-            tooltip: 'Remove figure',
-            icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
-            onPressed: () {
-              final removed = _attachedFigures.removeAt(index);
-              final figId = removed['id'] as String?;
-              if (figId != null) {
-                widget.repository.deleteProjectFigure(widget.project.id, figId);
-              }
-              setState(() {});
-            },
+          const SizedBox(width: 4),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: 'Move Up',
+                icon: const Icon(Icons.arrow_upward, size: 18),
+                visualDensity: VisualDensity.compact,
+                onPressed: index > 0
+                    ? () {
+                        setState(() {
+                          final item = _attachedFigures.removeAt(index);
+                          _attachedFigures.insert(index - 1, item);
+                        });
+                      }
+                    : null,
+              ),
+              IconButton(
+                tooltip: 'Move Down',
+                icon: const Icon(Icons.arrow_downward, size: 18),
+                visualDensity: VisualDensity.compact,
+                onPressed: index < _attachedFigures.length - 1
+                    ? () {
+                        setState(() {
+                          final item = _attachedFigures.removeAt(index);
+                          _attachedFigures.insert(index + 1, item);
+                        });
+                      }
+                    : null,
+              ),
+              IconButton(
+                tooltip: 'Remove figure',
+                icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                visualDensity: VisualDensity.compact,
+                onPressed: () {
+                  final removed = _attachedFigures.removeAt(index);
+                  final figId = removed['id'] as String?;
+                  if (figId != null) {
+                    widget.repository.deleteProjectFigure(widget.project.id, figId);
+                  }
+                  setState(() {});
+                },
+              ),
+            ],
           ),
         ],
       ),
@@ -3634,6 +3838,36 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
               ],
               onChanged: (val) {
                 if (val != null) setState(() => _citationStyle = val);
+              },
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              key: const ValueKey('template-selector'),
+              initialValue: _documentTemplate,
+              decoration: const InputDecoration(
+                labelText: 'Publication format / template',
+                prefixIcon: Icon(Icons.article_outlined),
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: 'default',
+                  child: Text('Default Manuscript (Standard Academic)'),
+                ),
+                DropdownMenuItem(
+                  value: 'ieee_conference',
+                  child: Text('IEEE Conference Paper'),
+                ),
+              ],
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() {
+                    _documentTemplate = val;
+                    if (val == 'ieee_conference') {
+                      _pageLayout = 'two_column_academic';
+                      _citationStyle = 'ieee';
+                    }
+                  });
+                }
               },
             ),
             const SizedBox(height: 12),

@@ -38,12 +38,18 @@ from resbud_api.core.errors import ResbudError
 from resbud_api.domain.models import PaperDraft
 from resbud_api.services.chart_generator import render_academic_chart_from_spec
 from resbud_api.services.editorial_notes import prepare_paper_for_export
+from resbud_api.services.equation_engine import process_manuscript_equations
 from resbud_api.services.image_processor import decode_image_source, process_image_for_document
 from resbud_api.services.markdown_renderer import (
     clean_heading_text,
     parse_markdown_blocks,
     render_blocks_to_pdf,
     setup_reportlab_academic_fonts,
+)
+from resbud_api.services.reference_engine import format_ieee_reference
+from resbud_api.templates.ieee_conference import (
+    calculate_ieee_author_grid,
+    format_ieee_heading_1,
 )
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -101,9 +107,15 @@ def export_paper_pdf(
     paper: PaperDraft,
     layout: str | None = None,
     include_review_notes_appendix: bool | None = None,
+    template_id: str | None = None,
 ) -> bytes:
     """Render the submitted paper into a formal academic PDF and return binary bytes."""
     effective_layout = layout or getattr(paper, "page_layout", "single_column")
+    effective_template = (
+        template_id
+        or getattr(paper, "document_template", None)
+        or ("ieee_conference" if effective_layout == "two_column_academic" else "default")
+    )
     effective_notes = (
         include_review_notes_appendix
         if include_review_notes_appendix is not None
@@ -112,9 +124,12 @@ def export_paper_pdf(
     sanitized_paper, review_notes = prepare_paper_for_export(
         paper, include_review_notes_appendix=effective_notes
     )
+    sanitized_paper, _ = process_manuscript_equations(sanitized_paper)
 
-    if effective_layout == "two_column_academic":
-        return _export_two_column_academic_pdf(sanitized_paper, review_notes=review_notes)
+    if effective_template == "ieee_conference" or effective_layout == "two_column_academic":
+        return _export_two_column_academic_pdf(
+            sanitized_paper, review_notes=review_notes, template_id=effective_template
+        )
 
     try:
         buffer = io.BytesIO()
@@ -142,7 +157,9 @@ def export_paper_pdf(
 
 
 def _export_two_column_academic_pdf(
-    paper: PaperDraft, review_notes: list[dict[str, str]] | None = None
+    paper: PaperDraft,
+    review_notes: list[dict[str, str]] | None = None,
+    template_id: str = "ieee_conference",
 ) -> bytes:
     """Render a formal Two-Column Academic research paper PDF (IEEE style) with full-width front matter."""
     try:
@@ -160,12 +177,64 @@ def _export_two_column_academic_pdf(
         front_matter: list[Any] = []
         front_matter.append(Paragraph(html.escape(paper.title), styles["Title"]))
 
-        if paper.author_info and paper.author_info.strip():
+        authors = getattr(paper, "authors", None)
+        if authors:
+            sorted_authors = sorted(authors, key=lambda a: getattr(a, "order", 1))
+            grid = calculate_ieee_author_grid(len(sorted_authors))
+            aff_map = {aff.id: aff for aff in (getattr(paper, "affiliations", None) or [])}
+            a_idx = 0
+            for num_cols in grid:
+                row_authors = sorted_authors[a_idx : a_idx + num_cols]
+                a_idx += num_cols
+                cell_data: list[Any] = []
+                for author in row_authors:
+                    lines = [f"<b>{html.escape(author.name)}</b>"]
+                    if author.role_or_title:
+                        lines.append(html.escape(author.role_or_title))
+                    author_affs = [aff_map[aid] for aid in author.affiliation_ids if aid in aff_map]
+                    paper_affs = getattr(paper, "affiliations", None) or []
+                    aff_obj = (
+                        author_affs[0]
+                        if author_affs
+                        else (paper_affs[0] if len(paper_affs) == 1 else None)
+                    )
+                    if aff_obj and aff_obj.department:
+                        lines.append(f"<i>{html.escape(aff_obj.department)}</i>")
+                    if aff_obj and aff_obj.institution:
+                        lines.append(f"<i>{html.escape(aff_obj.institution)}</i>")
+                    loc = ", ".join(
+                        filter(
+                            None,
+                            [
+                                aff_obj.city if aff_obj else None,
+                                aff_obj.country if aff_obj else None,
+                            ],
+                        )
+                    )
+                    if loc:
+                        lines.append(html.escape(loc))
+                    if author.email:
+                        lines.append(html.escape(author.email))
+                    cell_html = "<br/>".join(lines)
+                    cell_data.append(Paragraph(cell_html, styles["Author"]))
+                t = Table([cell_data], colWidths=[printable_w / num_cols] * num_cols)
+                t.setStyle(
+                    TableStyle(
+                        [
+                            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                            ("TOPPADDING", (0, 0), (-1, -1), 2),
+                        ]
+                    )
+                )
+                front_matter.append(t)
+        elif paper.author_info and paper.author_info.strip():
             front_matter.append(Paragraph(html.escape(paper.author_info.strip()), styles["Author"]))
-        if paper.affiliation and paper.affiliation.strip():
-            front_matter.append(
-                Paragraph(html.escape(paper.affiliation.strip()), styles["Affiliation"])
-            )
+            if paper.affiliation and paper.affiliation.strip():
+                front_matter.append(
+                    Paragraph(html.escape(paper.affiliation.strip()), styles["Affiliation"])
+                )
 
         if paper.abstract.strip():
             front_matter.append(
@@ -279,9 +348,20 @@ def _export_two_column_academic_pdf(
             and sec.heading.strip().lower() not in ("references", "bibliography", "6. references")
         ]
 
+        is_ieee = template_id == "ieee_conference"
+        figure_lookup: dict[str, Any] = {}
+        if paper.figures:
+            for fig in paper.figures:
+                figure_lookup[fig.id] = fig
+                figure_lookup[fig.filename] = fig
+
         for sec_idx, section in enumerate(body_sections, start=1):
             clean_title = clean_heading_text(section.heading)
-            heading_text = f"{sec_idx}. {clean_title}"
+            heading_text = (
+                format_ieee_heading_1(sec_idx, clean_title)
+                if is_ieee
+                else f"{sec_idx}. {clean_title}"
+            )
             story.append(Paragraph(html.escape(heading_text), styles["Heading1"]))
             blocks = parse_markdown_blocks(section.content)
             render_blocks_to_pdf(
@@ -292,14 +372,19 @@ def _export_two_column_academic_pdf(
                 numbered=True,
                 max_width=col_w,
                 two_column=True,
+                figure_lookup=figure_lookup,
             )
 
         if paper.references:
             story.append(Paragraph("References", styles["Heading1"]))
             for ref_idx, ref in enumerate(paper.references, start=1):
-                ref_text = ref.text.strip()
-                if not re.match(r"^\[\d+\]", ref_text) and not re.match(r"^\d+\.", ref_text):
-                    ref_text = f"[{ref_idx}] {ref_text}"
+                ref_num = ref.citation_number or ref_idx
+                if ref.title and ref.publication_type:
+                    ref_text = format_ieee_reference(ref, ref_num)
+                else:
+                    ref_text = ref.text.strip()
+                    if not re.match(r"^\[\d+\]", ref_text) and not re.match(r"^\d+\.", ref_text):
+                        ref_text = f"[{ref_num}] {ref_text}"
                 story.append(Paragraph(html.escape(ref_text), styles["Reference"]))
 
         if review_notes:
@@ -773,21 +858,38 @@ def _build_story(
         and sec.heading.strip().lower() not in ("references", "bibliography", "6. references")
     ]
 
+    figure_lookup: dict[str, Any] = {}
+    if paper.figures:
+        for fig in paper.figures:
+            figure_lookup[fig.id] = fig
+            figure_lookup[fig.filename] = fig
+
     # Sections with Markdown interpretation and hierarchical numbering
     for section_idx, section in enumerate(body_sections, start=1):
         clean_title = clean_heading_text(section.heading)
         heading_text = f"{section_idx}. {clean_title}"
         story.append(Paragraph(html.escape(heading_text), styles["Heading1"]))
         blocks = parse_markdown_blocks(section.content)
-        render_blocks_to_pdf(story, blocks, styles, section_index=section_idx, numbered=True)
+        render_blocks_to_pdf(
+            story,
+            blocks,
+            styles,
+            section_index=section_idx,
+            numbered=True,
+            figure_lookup=figure_lookup,
+        )
 
     # References (only bibliographic entries)
     if paper.references:
         story.append(Paragraph("References", styles["Heading1"]))
         for ref_idx, ref in enumerate(paper.references, start=1):
-            ref_text = ref.text.strip()
-            if not re.match(r"^\[\d+\]", ref_text) and not re.match(r"^\d+\.", ref_text):
-                ref_text = f"[{ref_idx}] {ref_text}"
+            ref_num = ref.citation_number or ref_idx
+            if ref.title and ref.publication_type:
+                ref_text = format_ieee_reference(ref, ref_num)
+            else:
+                ref_text = ref.text.strip()
+                if not re.match(r"^\[\d+\]", ref_text) and not re.match(r"^\d+\.", ref_text):
+                    ref_text = f"[{ref_num}] {ref_text}"
             story.append(Paragraph(html.escape(ref_text), styles["Reference"]))
 
     if review_notes:

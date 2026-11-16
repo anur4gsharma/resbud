@@ -34,6 +34,13 @@ class ProjectFigure {
     this.altText = '',
     this.placement = FigurePlacement.columnWidth,
     this.sectionId,
+    this.category = 'other',
+    this.title,
+    this.targetAnchor,
+    this.placementRationale,
+    this.preferredPlacement = 'after_paragraph',
+    this.referencedInText = false,
+    this.placementStatus = 'unplaced',
     DateTime? createdAt,
     this.cachedBytes,
   }) : createdAt = createdAt ?? DateTime.now();
@@ -51,6 +58,13 @@ class ProjectFigure {
   final FigurePlacement placement;
   final String? sectionId;
   final String storageKey;
+  final String category;
+  final String? title;
+  final String? targetAnchor;
+  final String? placementRationale;
+  final String preferredPlacement;
+  final bool referencedInText;
+  final String placementStatus;
   final DateTime createdAt;
   final Uint8List? cachedBytes;
 
@@ -90,9 +104,39 @@ class ProjectFigure {
     altText: row['alt_text'] as String? ?? '',
     placement: FigurePlacement.fromString(row['placement'] as String?),
     sectionId: row['section_id'] as String?,
+    category: row['category'] as String? ?? 'other',
+    title: row['title'] as String?,
+    targetAnchor: row['target_anchor'] as String?,
+    placementRationale: row['placement_rationale'] as String?,
+    preferredPlacement: row['preferred_placement'] as String? ?? 'after_paragraph',
+    referencedInText: (row['referenced_in_text'] as num?)?.toInt() == 1,
+    placementStatus: row['placement_status'] as String? ?? 'unplaced',
     storageKey: row['storage_key'] as String? ?? '',
     createdAt: DateTime.tryParse(row['created_at'] as String? ?? '') ?? DateTime.now(),
   );
+
+  /// Structured Figure representation matching backend wire contract.
+  Map<String, Object?> toStructuredFigureMap() => {
+    'id': id,
+    'filename': filename,
+    'caption': caption,
+    if (storageKey.isNotEmpty) 'storage_key': storageKey,
+    if (cachedBytes != null) 'data_uri': formatDataUri(mimeType, cachedBytes!),
+    'width': width,
+    'height': height,
+    'mime_type': mimeType,
+    if (title != null) 'title': title,
+    if (altText.isNotEmpty) 'description': altText,
+    'category': category,
+    if (sectionId != null) 'related_section': sectionId,
+    if (targetAnchor != null) 'target_anchor': targetAnchor,
+    if (placementRationale != null) 'placement_rationale': placementRationale,
+    'preferred_placement': preferredPlacement,
+    'column_span': placement.value,
+    'figure_order': figureNumber,
+    'referenced_in_text': referencedInText,
+    'placement_status': placementStatus,
+  };
 
   /// Lightweight metadata representation safe for `project_context_json` without giant byte arrays.
   Map<String, Object?> toMetadataMap() => {
@@ -106,7 +150,14 @@ class ProjectFigure {
     'file_size': fileSize,
     'width': width,
     'height': height,
+    'category': category,
+    if (title != null) 'title': title,
     if (sectionId != null) 'section_id': sectionId,
+    if (targetAnchor != null) 'target_anchor': targetAnchor,
+    if (placementRationale != null) 'placement_rationale': placementRationale,
+    'preferred_placement': preferredPlacement,
+    'referenced_in_text': referencedInText,
+    'placement_status': placementStatus,
   };
 
   /// Reconstitute from a project context map (handling both new and legacy formats).
@@ -124,6 +175,13 @@ class ProjectFigure {
     final storageKey = map['storage_key']?.toString() ?? '$projectId/${id}_$name';
     final width = (map['width'] as num?)?.toInt() ?? 0;
     final height = (map['height'] as num?)?.toInt() ?? 0;
+    final category = map['category']?.toString() ?? 'other';
+    final title = map['title']?.toString();
+    final targetAnchor = map['target_anchor']?.toString();
+    final placementRationale = map['placement_rationale']?.toString();
+    final preferredPlacement = map['preferred_placement']?.toString() ?? 'after_paragraph';
+    final referencedInText = map['referenced_in_text'] == true || map['referenced_in_text'] == 1;
+    final placementStatus = map['placement_status']?.toString() ?? 'unplaced';
 
     Uint8List? bytes;
     if (map['bytes'] is Uint8List) {
@@ -134,6 +192,13 @@ class ProjectFigure {
       final b64 = map['base64'] as String;
       final commaIdx = b64.indexOf(',');
       final cleanB64 = commaIdx >= 0 ? b64.substring(commaIdx + 1) : b64;
+      try {
+        bytes = base64Decode(cleanB64.trim());
+      } catch (_) {}
+    } else if (map['data_uri'] is String && (map['data_uri'] as String).isNotEmpty) {
+      final du = map['data_uri'] as String;
+      final commaIdx = du.indexOf(',');
+      final cleanB64 = commaIdx >= 0 ? du.substring(commaIdx + 1) : du;
       try {
         bytes = base64Decode(cleanB64.trim());
       } catch (_) {}
@@ -153,7 +218,14 @@ class ProjectFigure {
       caption: caption,
       altText: altText,
       placement: FigurePlacement.fromString(rawPlacement),
-      sectionId: map['section_id']?.toString(),
+      sectionId: map['section_id']?.toString() ?? map['related_section']?.toString(),
+      category: category,
+      title: title,
+      targetAnchor: targetAnchor,
+      placementRationale: placementRationale,
+      preferredPlacement: preferredPlacement,
+      referencedInText: referencedInText,
+      placementStatus: placementStatus,
       storageKey: storageKey,
       cachedBytes: bytes,
     );
@@ -172,6 +244,13 @@ class ProjectFigure {
     String? altText,
     FigurePlacement? placement,
     String? sectionId,
+    String? category,
+    String? title,
+    String? targetAnchor,
+    String? placementRationale,
+    String? preferredPlacement,
+    bool? referencedInText,
+    String? placementStatus,
     String? storageKey,
     DateTime? createdAt,
     Uint8List? cachedBytes,
@@ -188,6 +267,13 @@ class ProjectFigure {
     altText: altText ?? this.altText,
     placement: placement ?? this.placement,
     sectionId: sectionId ?? this.sectionId,
+    category: category ?? this.category,
+    title: title ?? this.title,
+    targetAnchor: targetAnchor ?? this.targetAnchor,
+    placementRationale: placementRationale ?? this.placementRationale,
+    preferredPlacement: preferredPlacement ?? this.preferredPlacement,
+    referencedInText: referencedInText ?? this.referencedInText,
+    placementStatus: placementStatus ?? this.placementStatus,
     storageKey: storageKey ?? this.storageKey,
     createdAt: createdAt ?? this.createdAt,
     cachedBytes: cachedBytes ?? this.cachedBytes,

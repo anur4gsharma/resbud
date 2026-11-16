@@ -100,5 +100,14 @@ void main() {
       final res = OmmlParser.parseOmml(xml);
       expect(res.latex, r'\left(x+y\right)');
     });
+
+    test('DocxDisplayEquationBlock preserves equation number for IEEE layout', () {
+      final eq = DocxDisplayEquationBlock(
+        latex: r'\mathbf{E} = mc^2',
+        equationNumber: '1',
+      );
+      expect(eq.latex, r'\mathbf{E} = mc^2');
+      expect(eq.equationNumber, '1');
+    });
   });
 }

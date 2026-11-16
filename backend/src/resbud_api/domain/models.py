@@ -86,8 +86,37 @@ class ProjectContext(ContractModel):
         return self
 
 
-ProvenanceType = Literal["user_supplied", "extracted", "verified", "placeholder"]
-VerificationStatusType = Literal["unverified", "verified", "incomplete", "disputed"]
+ProvenanceType = Literal[
+    "user_supplied",
+    "extracted",
+    "verified",
+    "placeholder",
+    "crossref",
+    "openalex",
+    "semantic_scholar",
+    "doi_org",
+]
+VerificationStatusType = Literal[
+    "unverified",
+    "verified",
+    "incomplete",
+    "disputed",
+    "user_provided",
+    "flagged_missing_metadata",
+]
+PublicationType = Literal[
+    "journal_article",
+    "conference_paper",
+    "book",
+    "book_chapter",
+    "thesis",
+    "technical_report",
+    "standard",
+    "patent",
+    "website",
+    "software_documentation",
+    "preprint",
+]
 
 
 class ReferenceInput(ContractModel):
@@ -104,8 +133,90 @@ class ReferenceInput(ContractModel):
     publisher: Annotated[str, Field(max_length=300)] | None = None
     doi: Annotated[str, Field(max_length=200)] | None = None
     url: Annotated[str, Field(max_length=1000)] | None = None
+    isbn_or_issn: Annotated[str, Field(max_length=50)] | None = None
+    access_date: Annotated[str, Field(max_length=50)] | None = None
+    publication_type: PublicationType | None = None
     provenance: ProvenanceType | None = None
     verification_status: VerificationStatusType | None = None
+    citation_number: int | None = None
+    citation_locations: list[Annotated[str, Field(max_length=100)]] | None = None
+    is_cited: bool | None = None
+    review_warning: Annotated[str, Field(max_length=500)] | None = None
+
+
+class AuthorAffiliation(ContractModel):
+    """Institutional affiliation for academic manuscript authors."""
+
+    id: Annotated[str, Field(min_length=1, max_length=50)]
+    department: Annotated[str, Field(max_length=300)] | None = None
+    institution: Annotated[str, Field(min_length=1, max_length=300)]
+    city: Annotated[str, Field(max_length=150)] | None = None
+    state: Annotated[str, Field(max_length=150)] | None = None
+    country: Annotated[str, Field(max_length=150)] | None = None
+
+
+class AuthorMetadata(ContractModel):
+    """Structured author record supporting IEEE conference and academic multi-author formats."""
+
+    name: Annotated[str, Field(min_length=1, max_length=150)]
+    order: StrictInt = Field(default=1, ge=1, le=50)
+    affiliation_ids: list[Annotated[str, Field(max_length=50)]] = Field(default_factory=list)
+    email: Annotated[str, Field(max_length=150)] | None = None
+    role_or_title: Annotated[str, Field(max_length=150)] | None = None
+    is_corresponding: bool = False
+    funding_acknowledgment: Annotated[str, Field(max_length=500)] | None = None
+
+
+FigureCategory = Literal[
+    "flowchart",
+    "architecture_diagram",
+    "screenshot",
+    "graph",
+    "photograph",
+    "experimental_result",
+    "table_image",
+    "other",
+]
+FigurePlacementMode = Literal[
+    "column_width",
+    "full_width",
+]
+FigurePlacementPosition = Literal[
+    "after_paragraph",
+    "top_of_column",
+    "bottom_of_column",
+    "inline",
+]
+FigurePlacementStatus = Literal[
+    "assigned",
+    "suggested",
+    "unplaced",
+    "omitted",
+]
+
+
+class StructuredFigure(ContractModel):
+    """Structured figure object with semantic metadata, dimensions, and contextual placement."""
+
+    id: Annotated[str, Field(min_length=1, max_length=50)]
+    filename: Annotated[str, Field(min_length=1, max_length=255)]
+    caption: Annotated[str, Field(min_length=1, max_length=1000)]
+    storage_key: Annotated[str, Field(max_length=500)] | None = None
+    data_uri: Annotated[str, Field(max_length=15000000)] | None = None
+    width: StrictInt = Field(default=0, ge=0)
+    height: StrictInt = Field(default=0, ge=0)
+    mime_type: Annotated[str, Field(max_length=100)] = "image/png"
+    title: Annotated[str, Field(max_length=200)] | None = None
+    description: Annotated[str, Field(max_length=2000)] | None = None
+    category: FigureCategory = "other"
+    related_section: Annotated[str, Field(max_length=100)] | None = None
+    target_anchor: Annotated[str, Field(max_length=300)] | None = None
+    placement_rationale: Annotated[str, Field(max_length=1000)] | None = None
+    preferred_placement: FigurePlacementPosition = "after_paragraph"
+    column_span: FigurePlacementMode = "column_width"
+    figure_order: StrictInt = Field(default=1, ge=1, le=50)
+    referenced_in_text: bool = False
+    placement_status: FigurePlacementStatus = "unplaced"
 
 
 class PaperPreferences(ContractModel):
@@ -113,6 +224,10 @@ class PaperPreferences(ContractModel):
     desired_sections: Annotated[list[SectionId], Field(max_length=15)]
     citation_style: CitationStyle
     page_layout: PageLayout = "single_column"
+    document_template: Annotated[str, Field(max_length=50)] = "default"
+    authors: Annotated[list[AuthorMetadata], Field(max_length=50)] | None = None
+    affiliations: Annotated[list[AuthorAffiliation], Field(max_length=50)] | None = None
+    figures: Annotated[list[StructuredFigure], Field(max_length=50)] | None = None
 
     @model_validator(mode="after")
     def desired_section_ids_are_unique(self) -> "PaperPreferences":
@@ -167,6 +282,10 @@ class PaperDraft(ContractModel):
     page_layout: PageLayout = "single_column"
     author_info: Annotated[str, Field(max_length=500)] | None = None
     affiliation: Annotated[str, Field(max_length=500)] | None = None
+    document_template: Annotated[str, Field(max_length=50)] = "default"
+    authors: Annotated[list[AuthorMetadata], Field(max_length=50)] | None = None
+    affiliations: Annotated[list[AuthorAffiliation], Field(max_length=50)] | None = None
+    figures: Annotated[list[StructuredFigure], Field(max_length=50)] | None = None
 
     @model_validator(mode="after")
     def section_ids_are_unique(self) -> "PaperDraft":

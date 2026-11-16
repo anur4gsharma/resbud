@@ -35,7 +35,14 @@
         "doi": null,
         "url": null,
         "provenance": null,
-        "verification_status": null
+        "verification_status": null,
+        "isbn_or_issn": null,
+        "access_date": null,
+        "publication_type": null,
+        "citation_number": null,
+        "citation_locations": null,
+        "is_cited": null,
+        "review_warning": null
       }
     ],
     "review_warnings": [
@@ -66,7 +73,11 @@
     ],
     "page_layout": "single_column",
     "author_info": null,
-    "affiliation": null
+    "affiliation": null,
+    "document_template": "default",
+    "authors": null,
+    "affiliations": null,
+    "figures": null
   },
   "review_warnings": [
     {

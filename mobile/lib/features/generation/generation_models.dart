@@ -49,6 +49,10 @@ class GenerationRequest {
       'desired_sections',
       'citation_style',
       'page_layout',
+      'document_template',
+      'authors',
+      'affiliations',
+      'figures',
     };
     final filteredPrefs = <String, Object?>{
       for (final entry in rawPrefs.entries)
@@ -210,8 +214,15 @@ class ReferencePayload {
     this.publisher,
     this.doi,
     this.url,
+    this.isbnOrIssn,
+    this.accessDate,
+    this.publicationType,
     this.provenance,
     this.verificationStatus,
+    this.citationNumber,
+    this.citationLocations,
+    this.isCited,
+    this.reviewWarning,
   });
 
   final String id;
@@ -227,8 +238,15 @@ class ReferencePayload {
   final String? publisher;
   final String? doi;
   final String? url;
+  final String? isbnOrIssn;
+  final String? accessDate;
+  final String? publicationType;
   final String? provenance;
   final String? verificationStatus;
+  final int? citationNumber;
+  final List<String>? citationLocations;
+  final bool? isCited;
+  final String? reviewWarning;
 
   factory ReferencePayload.fromJson(Map<String, Object?> json) {
     _requireKeys(
@@ -247,8 +265,15 @@ class ReferencePayload {
         'publisher',
         'doi',
         'url',
+        'isbn_or_issn',
+        'access_date',
+        'publication_type',
         'provenance',
         'verification_status',
+        'citation_number',
+        'citation_locations',
+        'is_cited',
+        'review_warning',
       },
     );
     final id = _boundedString(json['id'], 'reference.id', 1, 40);
@@ -269,8 +294,65 @@ class ReferencePayload {
       publisher: json['publisher'] as String?,
       doi: json['doi'] as String?,
       url: json['url'] as String?,
+      isbnOrIssn: json['isbn_or_issn'] as String?,
+      accessDate: json['access_date'] as String?,
+      publicationType: json['publication_type'] as String?,
       provenance: json['provenance'] as String?,
       verificationStatus: json['verification_status'] as String?,
+      citationNumber: json['citation_number'] as int?,
+      citationLocations: (json['citation_locations'] as List?)?.map((e) => e.toString()).toList(),
+      isCited: json['is_cited'] as bool?,
+      reviewWarning: json['review_warning'] as String?,
+    );
+  }
+
+  ReferencePayload copyWith({
+    String? id,
+    String? text,
+    String? rawText,
+    List<String>? authors,
+    int? year,
+    String? title,
+    String? venue,
+    String? volume,
+    String? issue,
+    String? pages,
+    String? publisher,
+    String? doi,
+    String? url,
+    String? isbnOrIssn,
+    String? accessDate,
+    String? publicationType,
+    String? provenance,
+    String? verificationStatus,
+    int? citationNumber,
+    List<String>? citationLocations,
+    bool? isCited,
+    String? reviewWarning,
+  }) {
+    return ReferencePayload(
+      id: id ?? this.id,
+      text: text ?? this.text,
+      rawText: rawText ?? this.rawText,
+      authors: authors ?? this.authors,
+      year: year ?? this.year,
+      title: title ?? this.title,
+      venue: venue ?? this.venue,
+      volume: volume ?? this.volume,
+      issue: issue ?? this.issue,
+      pages: pages ?? this.pages,
+      publisher: publisher ?? this.publisher,
+      doi: doi ?? this.doi,
+      url: url ?? this.url,
+      isbnOrIssn: isbnOrIssn ?? this.isbnOrIssn,
+      accessDate: accessDate ?? this.accessDate,
+      publicationType: publicationType ?? this.publicationType,
+      provenance: provenance ?? this.provenance,
+      verificationStatus: verificationStatus ?? this.verificationStatus,
+      citationNumber: citationNumber ?? this.citationNumber,
+      citationLocations: citationLocations ?? this.citationLocations,
+      isCited: isCited ?? this.isCited,
+      reviewWarning: reviewWarning ?? this.reviewWarning,
     );
   }
 
@@ -288,8 +370,262 @@ class ReferencePayload {
     if (publisher != null) 'publisher': publisher,
     if (doi != null) 'doi': doi,
     if (url != null) 'url': url,
+    if (isbnOrIssn != null) 'isbn_or_issn': isbnOrIssn,
+    if (accessDate != null) 'access_date': accessDate,
+    if (publicationType != null) 'publication_type': publicationType,
     if (provenance != null) 'provenance': provenance,
     if (verificationStatus != null) 'verification_status': verificationStatus,
+    if (citationNumber != null) 'citation_number': citationNumber,
+    if (citationLocations != null) 'citation_locations': citationLocations,
+    if (isCited != null) 'is_cited': isCited,
+    if (reviewWarning != null) 'review_warning': reviewWarning,
+  };
+}
+
+class AuthorAffiliationPayload {
+  const AuthorAffiliationPayload({
+    required this.id,
+    this.department,
+    required this.institution,
+    this.city,
+    this.state,
+    this.country,
+  });
+
+  final String id;
+  final String? department;
+  final String institution;
+  final String? city;
+  final String? state;
+  final String? country;
+
+  factory AuthorAffiliationPayload.fromJson(Map<String, Object?> json) {
+    return AuthorAffiliationPayload(
+      id: _boundedString(json['id'], 'affiliation.id', 1, 50),
+      department: _optionalBoundedString(json['department'], 'affiliation.department', 300),
+      institution: _boundedString(json['institution'], 'affiliation.institution', 1, 300),
+      city: _optionalBoundedString(json['city'], 'affiliation.city', 150),
+      state: _optionalBoundedString(json['state'], 'affiliation.state', 150),
+      country: _optionalBoundedString(json['country'], 'affiliation.country', 150),
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    if (department != null) 'department': department,
+    'institution': institution,
+    if (city != null) 'city': city,
+    if (state != null) 'state': state,
+    if (country != null) 'country': country,
+  };
+}
+
+class AuthorMetadataPayload {
+  const AuthorMetadataPayload({
+    required this.name,
+    this.order = 1,
+    this.affiliationIds = const [],
+    this.email,
+    this.roleOrTitle,
+    this.isCorresponding = false,
+    this.fundingAcknowledgment,
+  });
+
+  final String name;
+  final int order;
+  final List<String> affiliationIds;
+  final String? email;
+  final String? roleOrTitle;
+  final bool isCorresponding;
+  final String? fundingAcknowledgment;
+
+  factory AuthorMetadataPayload.fromJson(Map<String, Object?> json) {
+    return AuthorMetadataPayload(
+      name: _boundedString(json['name'], 'author.name', 1, 150),
+      order: json['order'] != null ? _integer(json['order'], 'author.order') : 1,
+      affiliationIds: json['affiliation_ids'] != null
+          ? _list(json['affiliation_ids'], 'author.affiliation_ids')
+              .map((e) => _boundedString(e, 'affiliation_id', 1, 50))
+              .toList(growable: false)
+          : const [],
+      email: _optionalBoundedString(json['email'], 'author.email', 150),
+      roleOrTitle: _optionalBoundedString(json['role_or_title'], 'author.role_or_title', 150),
+      isCorresponding: json['is_corresponding'] == true,
+      fundingAcknowledgment: _optionalBoundedString(
+        json['funding_acknowledgment'],
+        'author.funding_acknowledgment',
+        500,
+      ),
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'name': name,
+    'order': order,
+    'affiliation_ids': affiliationIds,
+    if (email != null) 'email': email,
+    if (roleOrTitle != null) 'role_or_title': roleOrTitle,
+    'is_corresponding': isCorresponding,
+    if (fundingAcknowledgment != null) 'funding_acknowledgment': fundingAcknowledgment,
+  };
+}
+
+class StructuredFigurePayload {
+  const StructuredFigurePayload({
+    required this.id,
+    required this.filename,
+    required this.caption,
+    this.storageKey,
+    this.dataUri,
+    this.width = 0,
+    this.height = 0,
+    this.mimeType = 'image/png',
+    this.title,
+    this.description,
+    this.category = 'other',
+    this.relatedSection,
+    this.targetAnchor,
+    this.placementRationale,
+    this.preferredPlacement = 'after_paragraph',
+    this.columnSpan = 'column_width',
+    this.figureOrder = 1,
+    this.referencedInText = false,
+    this.placementStatus = 'unplaced',
+  });
+
+  final String id;
+  final String filename;
+  final String caption;
+  final String? storageKey;
+  final String? dataUri;
+  final int width;
+  final int height;
+  final String mimeType;
+  final String? title;
+  final String? description;
+  final String category;
+  final String? relatedSection;
+  final String? targetAnchor;
+  final String? placementRationale;
+  final String preferredPlacement;
+  final String columnSpan;
+  final int figureOrder;
+  final bool referencedInText;
+  final String placementStatus;
+
+  factory StructuredFigurePayload.fromJson(Map<String, Object?> json) {
+    _requireKeys(
+      json,
+      const {'id', 'filename', 'caption'},
+      'StructuredFigure',
+      optional: const {
+        'storage_key',
+        'data_uri',
+        'width',
+        'height',
+        'mime_type',
+        'title',
+        'description',
+        'category',
+        'related_section',
+        'target_anchor',
+        'placement_rationale',
+        'preferred_placement',
+        'column_span',
+        'figure_order',
+        'referenced_in_text',
+        'placement_status',
+      },
+    );
+    return StructuredFigurePayload(
+      id: _boundedString(json['id'], 'id', 1, 50),
+      filename: _boundedString(json['filename'], 'filename', 1, 255),
+      caption: _boundedString(json['caption'], 'caption', 1, 1000),
+      storageKey: json['storage_key'] != null
+          ? _boundedString(json['storage_key'], 'storage_key', 0, 500)
+          : null,
+      dataUri: json['data_uri'] != null
+          ? _boundedString(json['data_uri'], 'data_uri', 0, 15000000)
+          : null,
+      width: json['width'] != null ? _integer(json['width'], 'width') : 0,
+      height: json['height'] != null ? _integer(json['height'], 'height') : 0,
+      mimeType: json['mime_type'] != null
+          ? _boundedString(json['mime_type'], 'mime_type', 1, 100)
+          : 'image/png',
+      title: json['title'] != null ? _boundedString(json['title'], 'title', 0, 200) : null,
+      description: json['description'] != null
+          ? _boundedString(json['description'], 'description', 0, 2000)
+          : null,
+      category: json['category'] != null
+          ? _enumValue(json['category'], 'category', const [
+              'flowchart',
+              'architecture_diagram',
+              'screenshot',
+              'graph',
+              'photograph',
+              'experimental_result',
+              'table_image',
+              'other',
+            ])
+          : 'other',
+      relatedSection: json['related_section'] != null
+          ? _boundedString(json['related_section'], 'related_section', 0, 100)
+          : null,
+      targetAnchor: json['target_anchor'] != null
+          ? _boundedString(json['target_anchor'], 'target_anchor', 0, 300)
+          : null,
+      placementRationale: json['placement_rationale'] != null
+          ? _boundedString(json['placement_rationale'], 'placement_rationale', 0, 1000)
+          : null,
+      preferredPlacement: json['preferred_placement'] != null
+          ? _enumValue(json['preferred_placement'], 'preferred_placement', const [
+              'after_paragraph',
+              'top_of_column',
+              'bottom_of_column',
+              'inline',
+            ])
+          : 'after_paragraph',
+      columnSpan: json['column_span'] != null
+          ? _enumValue(json['column_span'], 'column_span', const [
+              'column_width',
+              'full_width',
+            ])
+          : 'column_width',
+      figureOrder: json['figure_order'] != null
+          ? _integer(json['figure_order'], 'figure_order')
+          : 1,
+      referencedInText: json['referenced_in_text'] == true,
+      placementStatus: json['placement_status'] != null
+          ? _enumValue(json['placement_status'], 'placement_status', const [
+              'assigned',
+              'suggested',
+              'unplaced',
+              'omitted',
+            ])
+          : 'unplaced',
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'filename': filename,
+    'caption': caption,
+    if (storageKey != null) 'storage_key': storageKey,
+    if (dataUri != null) 'data_uri': dataUri,
+    'width': width,
+    'height': height,
+    'mime_type': mimeType,
+    if (title != null) 'title': title,
+    if (description != null) 'description': description,
+    'category': category,
+    if (relatedSection != null) 'related_section': relatedSection,
+    if (targetAnchor != null) 'target_anchor': targetAnchor,
+    if (placementRationale != null) 'placement_rationale': placementRationale,
+    'preferred_placement': preferredPlacement,
+    'column_span': columnSpan,
+    'figure_order': figureOrder,
+    'referenced_in_text': referencedInText,
+    'placement_status': placementStatus,
   };
 }
 
@@ -299,12 +635,20 @@ class PaperPreferencesPayload {
     required this.desiredSections,
     required this.citationStyle,
     this.pageLayout = 'single_column',
+    this.documentTemplate = 'default',
+    this.authors,
+    this.affiliations,
+    this.figures,
   });
 
   final int targetWordCount;
   final List<String> desiredSections;
   final String citationStyle;
   final String pageLayout;
+  final String documentTemplate;
+  final List<AuthorMetadataPayload>? authors;
+  final List<AuthorAffiliationPayload>? affiliations;
+  final List<StructuredFigurePayload>? figures;
 
   factory PaperPreferencesPayload.fromJson(Map<String, Object?> json) {
     _requireKeys(
@@ -315,7 +659,7 @@ class PaperPreferencesPayload {
         'citation_style',
       },
       'preferences',
-      optional: const {'page_layout'},
+      optional: const {'page_layout', 'document_template', 'authors', 'affiliations', 'figures'},
     );
     final wordCount = _integer(json['target_word_count'], 'target_word_count');
     if (wordCount < 500 || wordCount > 8000) {
@@ -328,6 +672,24 @@ class PaperPreferencesPayload {
         sections.any((section) => !_sectionIdPattern.hasMatch(section))) {
       throw const FormatException('Choose up to 15 unique valid section IDs.');
     }
+    final rawAuthors = json['authors'];
+    final authors = rawAuthors != null
+        ? _list(rawAuthors, 'preferences.authors')
+            .map((v) => AuthorMetadataPayload.fromJson(_map(v, 'author')))
+            .toList(growable: false)
+        : null;
+    final rawAffiliations = json['affiliations'];
+    final affiliations = rawAffiliations != null
+        ? _list(rawAffiliations, 'preferences.affiliations')
+            .map((v) => AuthorAffiliationPayload.fromJson(_map(v, 'affiliation')))
+            .toList(growable: false)
+        : null;
+    final rawFigures = json['figures'];
+    final figures = rawFigures != null
+        ? _list(rawFigures, 'preferences.figures')
+            .map((v) => StructuredFigurePayload.fromJson(_map(v, 'figure')))
+            .toList(growable: false)
+        : null;
     return PaperPreferencesPayload(
       targetWordCount: wordCount,
       desiredSections: sections,
@@ -340,6 +702,12 @@ class PaperPreferencesPayload {
               'two_column_academic',
             ])
           : 'single_column',
+      documentTemplate: json['document_template'] is String
+          ? (json['document_template'] as String)
+          : 'default',
+      authors: authors,
+      affiliations: affiliations,
+      figures: figures,
     );
   }
 
@@ -348,6 +716,10 @@ class PaperPreferencesPayload {
     'desired_sections': desiredSections,
     'citation_style': citationStyle,
     'page_layout': pageLayout,
+    'document_template': documentTemplate,
+    if (authors != null) 'authors': authors!.map((a) => a.toJson()).toList(),
+    if (affiliations != null) 'affiliations': affiliations!.map((a) => a.toJson()).toList(),
+    if (figures != null) 'figures': figures!.map((f) => f.toJson()).toList(),
   };
 }
 
@@ -411,6 +783,10 @@ class PaperDraftPayload {
     this.pageLayout = 'single_column',
     this.authorInfo,
     this.affiliation,
+    this.documentTemplate = 'default',
+    this.authors,
+    this.affiliations,
+    this.figures,
   });
 
   final int schemaVersion;
@@ -423,6 +799,10 @@ class PaperDraftPayload {
   final String pageLayout;
   final String? authorInfo;
   final String? affiliation;
+  final String documentTemplate;
+  final List<AuthorMetadataPayload>? authors;
+  final List<AuthorAffiliationPayload>? affiliations;
+  final List<StructuredFigurePayload>? figures;
 
   factory PaperDraftPayload.fromJson(Map<String, Object?> json) {
     _requireKeys(
@@ -437,7 +817,15 @@ class PaperDraftPayload {
         'review_warnings',
       },
       'paper',
-      optional: const {'page_layout', 'author_info', 'affiliation'},
+      optional: const {
+        'page_layout',
+        'author_info',
+        'affiliation',
+        'document_template',
+        'authors',
+        'affiliations',
+        'figures',
+      },
     );
     if (_integer(json['schema_version'], 'paper.schema_version') != 1) {
       throw const FormatException('Unsupported paper schema version.');
@@ -459,6 +847,24 @@ class PaperDraftPayload {
         references.length > 50 || warnings.length > 100) {
       throw const FormatException('The generated paper exceeds schema limits.');
     }
+    final rawAuthors = json['authors'];
+    final authors = rawAuthors != null
+        ? _list(rawAuthors, 'paper.authors')
+            .map((v) => AuthorMetadataPayload.fromJson(_map(v, 'author')))
+            .toList(growable: false)
+        : null;
+    final rawAffiliations = json['affiliations'];
+    final affiliations = rawAffiliations != null
+        ? _list(rawAffiliations, 'paper.affiliations')
+            .map((v) => AuthorAffiliationPayload.fromJson(_map(v, 'affiliation')))
+            .toList(growable: false)
+        : null;
+    final rawFigures = json['figures'];
+    final figures = rawFigures != null
+        ? _list(rawFigures, 'paper.figures')
+            .map((v) => StructuredFigurePayload.fromJson(_map(v, 'figure')))
+            .toList(growable: false)
+        : null;
     return PaperDraftPayload(
       schemaVersion: 1,
       title: _boundedString(json['title'], 'paper.title', 1, 300),
@@ -475,6 +881,12 @@ class PaperDraftPayload {
           : 'single_column',
       authorInfo: _optionalBoundedString(json['author_info'], 'paper.author_info', 500),
       affiliation: _optionalBoundedString(json['affiliation'], 'paper.affiliation', 500),
+      documentTemplate: json['document_template'] is String
+          ? (json['document_template'] as String)
+          : 'default',
+      authors: authors,
+      affiliations: affiliations,
+      figures: figures,
     );
   }
 
@@ -489,6 +901,10 @@ class PaperDraftPayload {
     'page_layout': pageLayout,
     if (authorInfo != null) 'author_info': authorInfo,
     if (affiliation != null) 'affiliation': affiliation,
+    'document_template': documentTemplate,
+    if (authors != null) 'authors': authors!.map((a) => a.toJson()).toList(),
+    if (affiliations != null) 'affiliations': affiliations!.map((a) => a.toJson()).toList(),
+    if (figures != null) 'figures': figures!.map((f) => f.toJson()).toList(),
   };
 
   PaperDraftPayload copyWith({
@@ -502,6 +918,10 @@ class PaperDraftPayload {
     String? pageLayout,
     String? authorInfo,
     String? affiliation,
+    String? documentTemplate,
+    List<AuthorMetadataPayload>? authors,
+    List<AuthorAffiliationPayload>? affiliations,
+    List<StructuredFigurePayload>? figures,
   }) => PaperDraftPayload(
     schemaVersion: schemaVersion ?? this.schemaVersion,
     title: title ?? this.title,
@@ -513,6 +933,10 @@ class PaperDraftPayload {
     pageLayout: pageLayout ?? this.pageLayout,
     authorInfo: authorInfo ?? this.authorInfo,
     affiliation: affiliation ?? this.affiliation,
+    documentTemplate: documentTemplate ?? this.documentTemplate,
+    authors: authors ?? this.authors,
+    affiliations: affiliations ?? this.affiliations,
+    figures: figures ?? this.figures,
   );
 }
 
