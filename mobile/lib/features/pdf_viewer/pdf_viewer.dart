@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:pdfrx/pdfrx.dart' as rx;
 
 import '../docx_viewer/docx_document_canvas.dart';
 import '../export/docx_export_client.dart';
@@ -9,7 +11,7 @@ import '../generation/generation_models.dart';
 import 'pdf_web_embed_stub.dart'
     if (dart.library.js_interop) 'pdf_web_embed.dart';
 
-/// Embedded Native Academic PDF Viewer for Resbud manuscripts.
+/// Embedded Native Academic PDF Viewer for Resbud manuscripts powered by PDFium (pdfrx).
 int extractPdfPageCount(Uint8List bytes) {
   final text = latin1.decode(bytes, allowInvalid: true);
   final pageMatches = RegExp(r'/Type\s*/Page\b').allMatches(text);
@@ -63,7 +65,13 @@ class _PdfViewerState extends State<PdfViewer> {
   int _rotationDegrees = 0;
   bool _isFullscreen = false;
   bool _useCanvasFallback = false;
-  final ScrollController _scrollController = ScrollController();
+  bool _isSearchOpen = false;
+  bool _hasAutoFitted = false;
+
+  late final rx.PdfViewerController _pdfController;
+  late final rx.PdfTextSearcher _textSearcher;
+  final TextEditingController _searchQueryController = TextEditingController();
+  final ScrollController _fallbackScrollController = ScrollController();
   late String _currentLayout;
 
   String get _activeViewId =>
@@ -74,12 +82,24 @@ class _PdfViewerState extends State<PdfViewer> {
     super.initState();
     _currentLayout = widget.paper.pageLayout;
     _pdfBytes = widget.initialPdfBytes;
+    _pdfController = rx.PdfViewerController();
+    _textSearcher = rx.PdfTextSearcher(_pdfController);
+
     if (_pdfBytes != null && _pdfBytes!.isNotEmpty) {
       _totalPages = extractPdfPageCount(_pdfBytes!);
     }
     if (kIsWeb && _pdfBytes == null && widget.exportApi != null) {
       _fetchPdfBinary();
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_hasAutoFitted) {
+        final screenWidth = MediaQuery.maybeOf(context)?.size.width;
+        if (screenWidth != null && screenWidth < 700) {
+          _hasAutoFitted = true;
+          _fitToWidth();
+        }
+      }
+    });
   }
 
   @override
@@ -101,7 +121,8 @@ class _PdfViewerState extends State<PdfViewer> {
 
   @override
   void dispose() {
-    _scrollController.dispose();
+    _searchQueryController.dispose();
+    _fallbackScrollController.dispose();
     super.dispose();
   }
 
@@ -111,6 +132,7 @@ class _PdfViewerState extends State<PdfViewer> {
           ? 'single_column'
           : 'two_column_academic';
       _pdfBytes = null;
+      _hasAutoFitted = false;
     });
     if (kIsWeb) {
       _fetchPdfBinary();
@@ -145,9 +167,11 @@ class _PdfViewerState extends State<PdfViewer> {
   void _goToPage(int targetPage) {
     final page = targetPage.clamp(1, _totalPages);
     setState(() => _currentPage = page);
-    if (_scrollController.hasClients) {
+    if (_pdfBytes != null && _pdfController.isReady) {
+      _pdfController.goToPage(pageNumber: page);
+    } else if (_fallbackScrollController.hasClients) {
       final pageHeight = (1123.0 + 24.0) * _zoom;
-      _scrollController.animateTo(
+      _fallbackScrollController.animateTo(
         (page - 1) * pageHeight,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
@@ -158,19 +182,54 @@ class _PdfViewerState extends State<PdfViewer> {
     }
   }
 
-  void _zoomIn() => setState(() => _zoom = (_zoom + 0.1).clamp(0.4, 2.5));
-  void _zoomOut() => setState(() => _zoom = (_zoom - 0.1).clamp(0.4, 2.5));
-  void _resetZoom() => setState(() => _zoom = 1.0);
+  void _zoomIn() {
+    setState(() => _zoom = (_zoom + 0.1).clamp(0.4, 3.0));
+    if (_pdfBytes != null && _pdfController.isReady) {
+      final next = _pdfController.getNextZoom();
+      _pdfController.goToPosition(
+        documentOffset: _pdfController.visibleRect.center,
+        zoom: next,
+      );
+    }
+  }
+
+  void _zoomOut() {
+    setState(() => _zoom = (_zoom - 0.1).clamp(0.4, 3.0));
+    if (_pdfBytes != null && _pdfController.isReady) {
+      final prev = _pdfController.getPreviousZoom();
+      _pdfController.goToPosition(
+        documentOffset: _pdfController.visibleRect.center,
+        zoom: prev,
+      );
+    }
+  }
+
+  void _resetZoom() {
+    setState(() => _zoom = 1.0);
+    if (_pdfBytes != null && _pdfController.isReady) {
+      final m = _pdfController.calcMatrixForFit(pageNumber: _currentPage);
+      if (m != null) _pdfController.value = m;
+    }
+  }
+
   void _fitToWidth() {
-    final screenWidth = MediaQuery.maybeOf(context)?.size.width;
+    final screenWidth = MediaQuery.maybeOf(context)?.size.width ?? 794.0;
     setState(() {
-      if (screenWidth != null && screenWidth < 700) {
-        _zoom = ((screenWidth - 32) / 794.0).clamp(0.4, 2.5);
+      if (screenWidth < 768) {
+        _zoom = ((screenWidth - 24) / 794.0).clamp(0.4, 2.5);
       } else {
         _zoom = 1.0;
       }
     });
+
+    if (_pdfBytes != null && _pdfController.isReady) {
+      final matrix = _pdfController.calcMatrixFitWidthForPage(pageNumber: _currentPage);
+      if (matrix != null) {
+        _pdfController.value = matrix;
+      }
+    }
   }
+
   void _rotateClockwise() => setState(() => _rotationDegrees = (_rotationDegrees + 90) % 360);
 
   void _printPdf() {
@@ -246,39 +305,138 @@ class _PdfViewerState extends State<PdfViewer> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFF525659), // Standard PDF grey
-      child: Column(
+      color: const Color(0xFF525659), // Classic PDF viewer grey
+      child: Stack(
         children: [
-          _buildViewerToolbar(),
-          Expanded(
-            child: Stack(
-              children: [
-                _buildViewerContent(),
-                if (_isExportingPdf && _pdfBytes == null)
-                  Container(
-                    color: Colors.black26,
-                    child: const Center(
-                      child: Card(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+          Column(
+            children: [
+              if (!_isFullscreen) _buildViewerToolbar(),
+              if (_isSearchOpen && !_isFullscreen) _buildSearchBar(),
+              Expanded(
+                child: Stack(
+                  children: [
+                    _buildViewerContent(),
+                    if (_isExportingPdf && _pdfBytes == null)
+                      Container(
+                        color: Colors.black26,
+                        child: const Center(
+                          child: Card(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Text('Rendering academic PDF layout…'),
+                                ],
                               ),
-                              SizedBox(width: 12),
-                              Text('Rendering academic PDF layout…'),
-                            ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-              ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (_isFullscreen)
+            Positioned(
+              top: 12,
+              right: 12,
+              child: SafeArea(
+                child: FloatingActionButton.small(
+                  key: const ValueKey('button-pdf-viewer-fullscreen'),
+                  backgroundColor: Colors.black87,
+                  foregroundColor: Colors.white,
+                  tooltip: 'Exit fullscreen',
+                  onPressed: () => setState(() => _isFullscreen = false),
+                  child: const Icon(Icons.fullscreen_exit, size: 20),
+                ),
+              ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      key: const ValueKey('pdf-search-bar'),
+      color: const Color(0xFF232527),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Row(
+        children: [
+          const Icon(Icons.search, color: Colors.white70, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              key: const ValueKey('pdf-search-input'),
+              controller: _searchQueryController,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              decoration: const InputDecoration(
+                hintText: 'Search text in PDF manuscript…',
+                hintStyle: TextStyle(color: Colors.white38, fontSize: 13),
+                isDense: true,
+                border: InputBorder.none,
+              ),
+              onChanged: (val) {
+                if (val.trim().isNotEmpty) {
+                  _textSearcher.startTextSearch(val.trim());
+                } else {
+                  _textSearcher.resetTextSearch();
+                }
+              },
+            ),
+          ),
+          ListenableBuilder(
+            listenable: _textSearcher,
+            builder: (context, _) {
+              final matches = _textSearcher.matches;
+              final idx = _textSearcher.currentIndex;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_searchQueryController.text.trim().isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Text(
+                        matches.isEmpty ? '0/0' : '${idx != null ? idx + 1 : 0}/${matches.length}',
+                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left, color: Colors.white70, size: 20),
+                    tooltip: 'Previous match',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    onPressed: matches.isNotEmpty ? () => _textSearcher.goToPrevMatch() : null,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.chevron_right, color: Colors.white70, size: 20),
+                    tooltip: 'Next match',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                    onPressed: matches.isNotEmpty ? () => _textSearcher.goToNextMatch() : null,
+                  ),
+                ],
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, color: Colors.white70, size: 18),
+            tooltip: 'Close search',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+            onPressed: () {
+              _textSearcher.resetTextSearch();
+              setState(() => _isSearchOpen = false);
+            },
           ),
         ],
       ),
@@ -366,16 +524,16 @@ class _PdfViewerState extends State<PdfViewer> {
               onPressed: _currentPage < _totalPages ? () => _goToPage(_currentPage + 1) : null,
             ),
 
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             Container(width: 1, height: 20, color: Colors.white24),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
 
             // Zoom Controls
             IconButton(
               key: const ValueKey('button-pdf-zoom-out'),
               tooltip: 'Zoom out',
               icon: const Icon(Icons.remove, color: Colors.white70, size: 18),
-              onPressed: _zoom > 0.5 ? _zoomOut : null,
+              onPressed: _zoom > 0.4 ? _zoomOut : null,
             ),
             GestureDetector(
               onTap: _resetZoom,
@@ -396,7 +554,7 @@ class _PdfViewerState extends State<PdfViewer> {
               key: const ValueKey('button-pdf-zoom-in'),
               tooltip: 'Zoom in',
               icon: const Icon(Icons.add, color: Colors.white70, size: 18),
-              onPressed: _zoom < 2.5 ? _zoomIn : null,
+              onPressed: _zoom < 3.0 ? _zoomIn : null,
             ),
             IconButton(
               key: const ValueKey('button-pdf-fit-width'),
@@ -408,6 +566,20 @@ class _PdfViewerState extends State<PdfViewer> {
             const SizedBox(width: 8),
             Container(width: 1, height: 20, color: Colors.white24),
             const SizedBox(width: 8),
+
+            // Search Toggle
+            IconButton(
+              key: const ValueKey('button-pdf-search-toggle'),
+              tooltip: 'Search text',
+              icon: Icon(
+                Icons.search,
+                color: _isSearchOpen ? Colors.amberAccent : Colors.white70,
+                size: 20,
+              ),
+              onPressed: () {
+                setState(() => _isSearchOpen = !_isSearchOpen);
+              },
+            ),
 
             // Rotate
             IconButton(
@@ -494,27 +666,49 @@ class _PdfViewerState extends State<PdfViewer> {
           ],
         ),
       );
-    } else if (kIsWeb &&
-        isPdfWebEmbedSupported &&
+    } else if (_pdfBytes != null &&
+        _pdfBytes!.isNotEmpty &&
         !_useCanvasFallback &&
-        _pdfBytes != null &&
-        _pdfBytes!.isNotEmpty) {
-      final base64Str = base64Encode(_pdfBytes!);
-      content = buildPdfWebEmbed(
-        viewId: _activeViewId,
-        base64Bytes: base64Str,
-        onError: () {
-          if (mounted) setState(() => _useCanvasFallback = true);
-        },
+        !(kDebugMode && !kIsWeb && Platform.environment.containsKey('FLUTTER_TEST'))) {
+      // Production PDFium Vector Rendering via pdfrx
+      content = rx.PdfViewer.data(
+        _pdfBytes!,
+        sourceName: 'resbud-${widget.paper.title.hashCode}.pdf',
+        controller: _pdfController,
+        params: rx.PdfViewerParams(
+          backgroundColor: const Color(0xFF525659),
+          margin: 12.0,
+          pageDropShadow: const BoxShadow(
+            color: Color(0x60000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+          onViewerReady: (document, controller) {
+            if (mounted) {
+              setState(() {
+                _totalPages = document.pages.length;
+              });
+              if (!_hasAutoFitted) {
+                _hasAutoFitted = true;
+                _fitToWidth();
+              }
+            }
+          },
+          onPageChanged: (pageNumber) {
+            if (mounted && pageNumber != null) {
+              setState(() => _currentPage = pageNumber);
+            }
+          },
+        ),
       );
     } else {
-      // High fidelity publication canvas fallback (desktop, mobile, headless tests)
+      // Fallback Academic Document Canvas (when PDF binary pending or in headless widget tests)
       final activePaper = widget.paper.copyWith(pageLayout: _currentLayout);
       content = DocxDocumentCanvas(
         key: ValueKey('pdf-canvas-${activePaper.hashCode}-$_currentLayout'),
         paper: activePaper,
         zoom: _zoom,
-        scrollController: _scrollController,
+        scrollController: _fallbackScrollController,
         onPageCountResolved: (count) {
           if (mounted && _pdfBytes == null && count != _totalPages) {
             setState(() => _totalPages = count);

@@ -343,9 +343,84 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
     double zoom, {
     bool includeReferences = false,
   }) {
-    final half = (sections.length / 2).ceil();
-    final leftSections = sections.take(half).toList();
-    final rightSections = sections.skip(half).toList();
+    if (sections.isEmpty) {
+      if (includeReferences && widget.paper.references.isNotEmpty) {
+        return _buildReferencesSection(zoom, isTwoColumn: true);
+      }
+      return const SizedBox.shrink();
+    }
+
+    final leftWidgets = <Widget>[];
+    final rightWidgets = <Widget>[];
+
+    if (sections.length == 1) {
+      // Single section on this page (e.g. Introduction on page 1):
+      // Flow content blocks across both columns symmetrically to prevent empty right column.
+      final sec = sections.first;
+      final headingWidget = Padding(
+        padding: EdgeInsets.only(bottom: 6.0 * zoom),
+        child: Text(
+          sec.heading.startsWith(RegExp(r'\d'))
+              ? sec.heading
+              : '$startIndex. ${sec.heading}',
+          style: TextStyle(
+            fontFamily: 'serif',
+            fontSize: 11.0 * zoom,
+            fontWeight: FontWeight.bold,
+            color: Colors.black,
+            height: 1.25,
+          ),
+        ),
+      );
+
+      final blocks = _extractContentBlocks(sec.content);
+      if (blocks.length <= 1) {
+        leftWidgets.add(headingWidget);
+        if (blocks.isNotEmpty) {
+          leftWidgets.add(_renderSingleBlock(blocks[0], zoom, isTwoColumn: true));
+        }
+        if (includeReferences && widget.paper.references.isNotEmpty) {
+          rightWidgets.add(_buildReferencesSection(zoom, isTwoColumn: true));
+        }
+      } else {
+        final half = (blocks.length / 2).ceil();
+        leftWidgets.add(headingWidget);
+        for (var i = 0; i < half; i++) {
+          leftWidgets.add(_renderSingleBlock(blocks[i], zoom, isTwoColumn: true));
+        }
+        for (var i = half; i < blocks.length; i++) {
+          rightWidgets.add(_renderSingleBlock(blocks[i], zoom, isTwoColumn: true));
+        }
+        if (includeReferences && widget.paper.references.isNotEmpty) {
+          rightWidgets.add(SizedBox(height: 14 * zoom));
+          rightWidgets.add(_buildReferencesSection(zoom, isTwoColumn: true));
+        }
+      }
+    } else {
+      // Multiple sections: distribute based on block count for balanced visual columns
+      final sectionWeights = sections.map((s) => _extractContentBlocks(s.content).length.clamp(1, 999)).toList();
+      final totalWeight = sectionWeights.fold(0, (a, b) => a + b);
+      var currentWeight = 0;
+      var splitIndex = 1;
+      for (var i = 0; i < sections.length; i++) {
+        currentWeight += sectionWeights[i];
+        if (currentWeight >= totalWeight / 2) {
+          splitIndex = (i + 1).clamp(1, sections.length - 1);
+          break;
+        }
+      }
+
+      for (var i = 0; i < splitIndex; i++) {
+        leftWidgets.add(_buildSectionBlock(sections[i], startIndex + i, zoom, isTwoColumn: true));
+      }
+      for (var i = splitIndex; i < sections.length; i++) {
+        rightWidgets.add(_buildSectionBlock(sections[i], startIndex + i, zoom, isTwoColumn: true));
+      }
+      if (includeReferences && widget.paper.references.isNotEmpty) {
+        rightWidgets.add(SizedBox(height: 14 * zoom));
+        rightWidgets.add(_buildReferencesSection(zoom, isTwoColumn: true));
+      }
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -358,24 +433,14 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (var i = 0; i < leftSections.length; i++)
-                    _buildSectionBlock(leftSections[i], startIndex + i, zoom, isTwoColumn: true),
-                ],
+                children: leftWidgets,
               ),
             ),
             SizedBox(width: 20 * zoom), // 6-8mm inter-column spacing
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (var i = 0; i < rightSections.length; i++)
-                    _buildSectionBlock(rightSections[i], startIndex + half + i, zoom, isTwoColumn: true),
-                  if (includeReferences && widget.paper.references.isNotEmpty) ...[
-                    SizedBox(height: 14 * zoom),
-                    _buildReferencesSection(zoom, isTwoColumn: true),
-                  ],
-                ],
+                children: rightWidgets,
               ),
             ),
           ],
@@ -507,18 +572,23 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Section Heading (H1 / H2)
-          Text(
-            section.heading.startsWith(RegExp(r'\d'))
-                ? section.heading
-                : '$index. ${section.heading}',
-            style: TextStyle(
-              fontFamily: 'serif',
-              fontSize: (isTwoColumn ? 11.0 : 12.5) * zoom,
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-              height: 1.25,
-            ),
+          // Section Heading (H1 / H2) with clean markdown stripping
+          Builder(
+            builder: (context) {
+              final cleanHeading = section.heading.replaceFirst(RegExp(r'^\s*#+\s*'), '').trim();
+              return Text(
+                cleanHeading.startsWith(RegExp(r'\d'))
+                    ? cleanHeading
+                    : '$index. $cleanHeading',
+                style: TextStyle(
+                  fontFamily: 'serif',
+                  fontSize: (isTwoColumn ? 11.0 : 12.5) * zoom,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                  height: 1.25,
+                ),
+              );
+            },
           ),
           SizedBox(height: (isTwoColumn ? 4 : 6) * zoom),
           // Section Content rendered as formatted paragraphs
@@ -526,6 +596,118 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
         ],
       ),
     );
+  }
+
+  static List<String> _extractContentBlocks(String content) {
+    if (content.trim().isEmpty) return [];
+    final rawBlocks = content.split('\n\n');
+    final blocks = <String>[];
+    for (final b in rawBlocks) {
+      final lines = b.split('\n');
+      final currentProse = StringBuffer();
+      for (final line in lines) {
+        final trimmedLine = line.trim();
+        if (trimmedLine.startsWith('#')) {
+          if (currentProse.isNotEmpty) {
+            blocks.add(currentProse.toString().trim());
+            currentProse.clear();
+          }
+          blocks.add(trimmedLine);
+        } else {
+          if (currentProse.isNotEmpty) currentProse.writeln();
+          currentProse.write(line);
+        }
+      }
+      if (currentProse.isNotEmpty) {
+        blocks.add(currentProse.toString().trim());
+      }
+    }
+    return blocks.where((b) => b.trim().isNotEmpty).toList();
+  }
+
+  Widget _buildSubheadingBlock(
+    String headingText,
+    int level,
+    double zoom, {
+    bool isTwoColumn = false,
+  }) {
+    final fontSize = switch (level) {
+      1 => (isTwoColumn ? 11.5 : 13.0) * zoom,
+      2 => (isTwoColumn ? 10.8 : 12.0) * zoom,
+      3 => (isTwoColumn ? 10.0 : 11.0) * zoom,
+      _ => (isTwoColumn ? 9.5 : 10.2) * zoom,
+    };
+    final isItalic = level >= 3;
+    final isBold = level <= 3;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        top: (level <= 2 ? 10.0 : 7.0) * zoom,
+        bottom: 4.0 * zoom,
+      ),
+      child: Text(
+        headingText,
+        style: TextStyle(
+          fontFamily: 'serif',
+          fontSize: fontSize,
+          fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+          fontStyle: isItalic ? FontStyle.italic : FontStyle.normal,
+          color: Colors.black87,
+          height: 1.25,
+        ),
+      ),
+    );
+  }
+
+  Widget _renderSingleBlock(String block, double zoom, {bool isTwoColumn = false}) {
+    final trimmed = block.trim();
+    if (trimmed.isEmpty) return const SizedBox.shrink();
+
+    // 1. Markdown headings (#, ##, ###, ####)
+    if (trimmed.startsWith('#')) {
+      final levelMatch = RegExp(r'^(#{1,6})\s*(.*)$').firstMatch(trimmed);
+      if (levelMatch != null) {
+        final level = levelMatch.group(1)!.length;
+        final headingText = levelMatch.group(2)!.trim();
+        return _buildSubheadingBlock(headingText, level, zoom, isTwoColumn: isTwoColumn);
+      }
+    }
+
+    // 2. Markdown table
+    if (trimmed.contains('|') &&
+        (trimmed.contains('---') ||
+            trimmed.split('\n').where((l) => l.trim().startsWith('|')).length >= 2)) {
+      return _buildMarkdownTable(trimmed, zoom);
+    }
+
+    // 3. Figure / illustration markdown
+    if (trimmed.startsWith('![') && trimmed.contains('](') && trimmed.endsWith(')')) {
+      return _buildFigureBlock(trimmed, zoom);
+    }
+
+    // 4. Chart specification
+    if (trimmed.startsWith('```chart') && trimmed.endsWith('```')) {
+      return _buildChartBlock(trimmed, zoom);
+    }
+
+    // 5. Bullet or numbered list
+    if (trimmed.startsWith('- ') ||
+        trimmed.startsWith('* ') ||
+        trimmed.startsWith(RegExp(r'^\d+\.'))) {
+      return _buildListBlock(trimmed, zoom);
+    }
+
+    // 6. Block math equation
+    if ((trimmed.startsWith(r'$$') && trimmed.endsWith(r'$$') && trimmed.length > 4) ||
+        (trimmed.startsWith(r'\[') && trimmed.endsWith(r'\]') && trimmed.length > 4) ||
+        RegExp(r'^\\begin\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?\}[\s\S]*?\\end\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?\}$').hasMatch(trimmed)) {
+      return _buildMathEquationBlock(trimmed, zoom);
+    }
+
+    // 7. Enforce block-level math: split paragraph on embedded equations
+    final subWidgets = _splitAndRenderParagraphWithEquations(trimmed, zoom);
+    if (subWidgets.length == 1) return subWidgets.first;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: subWidgets);
   }
 
   Widget _renderFormattedContent(
@@ -545,47 +727,12 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
       );
     }
 
-    final paragraphs = content.split('\n\n');
+    final blocks = _extractContentBlocks(content);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: paragraphs.expand((p) {
-        final trimmed = p.trim();
-        if (trimmed.isEmpty) return <Widget>[];
-
-        // Check for Markdown table
-        if (trimmed.contains('|') &&
-            (trimmed.contains('---') ||
-                trimmed.split('\n').where((l) => l.trim().startsWith('|')).length >= 2)) {
-          return [_buildMarkdownTable(trimmed, zoom)];
-        }
-
-        // Check for figure / illustration markdown
-        if (trimmed.startsWith('![') && trimmed.contains('](') && trimmed.endsWith(')')) {
-          return [_buildFigureBlock(trimmed, zoom)];
-        }
-
-        // Check for chart specification
-        if (trimmed.startsWith('```chart') && trimmed.endsWith('```')) {
-          return [_buildChartBlock(trimmed, zoom)];
-        }
-
-        // Check for bullet or numbered list
-        if (trimmed.startsWith('- ') ||
-            trimmed.startsWith('* ') ||
-            trimmed.startsWith(RegExp(r'^\d+\.'))) {
-          return [_buildListBlock(trimmed, zoom)];
-        }
-
-        // Check for block math equation
-        if ((trimmed.startsWith(r'$$') && trimmed.endsWith(r'$$') && trimmed.length > 4) ||
-            (trimmed.startsWith(r'\[') && trimmed.endsWith(r'\]') && trimmed.length > 4) ||
-            RegExp(r'^\\begin\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?\}[\s\S]*?\\end\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?\}$').hasMatch(trimmed)) {
-          return [_buildMathEquationBlock(trimmed, zoom)];
-        }
-
-        // Enforce block-level math: split paragraph on embedded equations into standalone display blocks and pure prose paragraphs
-        return _splitAndRenderParagraphWithEquations(trimmed, zoom);
-      }).toList(),
+      children: blocks
+          .map((b) => _renderSingleBlock(b, zoom, isTwoColumn: isTwoColumn))
+          .toList(),
     );
   }
 
@@ -906,42 +1053,46 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
 
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 10.0 * zoom),
-      child: Table(
-        border: TableBorder.all(color: Colors.grey.shade400, width: 0.75 * zoom),
-        defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-        children: [
-          TableRow(
-            decoration: BoxDecoration(color: Colors.grey.shade100),
-            children: headerCols
-                .map((col) => Padding(
-                      padding: EdgeInsets.all(6.0 * zoom),
-                      child: Text(
-                        col,
-                        style: TextStyle(
-                          fontFamily: 'serif',
-                          fontSize: 9.5 * zoom,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ))
-                .toList(),
-          ),
-          for (final row in dataRows)
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Table(
+          defaultColumnWidth: const IntrinsicColumnWidth(),
+          border: TableBorder.all(color: Colors.grey.shade400, width: 0.75 * zoom),
+          defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+          children: [
             TableRow(
-              children: row
-                  .map((cell) => Padding(
+              decoration: BoxDecoration(color: Colors.grey.shade100),
+              children: headerCols
+                  .map((col) => Padding(
                         padding: EdgeInsets.all(6.0 * zoom),
                         child: Text(
-                          cell,
+                          col,
                           style: TextStyle(
                             fontFamily: 'serif',
-                            fontSize: 9.0 * zoom,
+                            fontSize: 9.5 * zoom,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ))
                   .toList(),
             ),
-        ],
+            for (final row in dataRows)
+              TableRow(
+                children: row
+                    .map((cell) => Padding(
+                          padding: EdgeInsets.all(6.0 * zoom),
+                          child: Text(
+                            cell,
+                            style: TextStyle(
+                              fontFamily: 'serif',
+                              fontSize: 9.0 * zoom,
+                            ),
+                          ),
+                        ))
+                    .toList(),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -953,14 +1104,16 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: items.map((item) {
-          final cleanItem = item.replaceFirst(RegExp(r'^[-*]\s+|\d+\.\s+'), '');
+          final numMatch = RegExp(r'^(\d+\.)\s+').firstMatch(item.trim());
+          final bullet = numMatch != null ? '${numMatch.group(1)} ' : '• ';
+          final cleanItem = item.trim().replaceFirst(RegExp(r'^[-*]\s+|\d+\.\s+'), '');
           return Padding(
             padding: EdgeInsets.only(bottom: 3.0 * zoom),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '• ',
+                  bullet,
                   style: TextStyle(
                     fontFamily: 'serif',
                     fontSize: 10.5 * zoom,
