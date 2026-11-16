@@ -20,6 +20,9 @@ enum GenerationFailureCode {
   providerUnavailable,
   providerTimeout,
   invalidResponse,
+  deserializationFailure,
+  unsupportedPaperFormat,
+  localPersistenceFailure,
   networkUnavailable,
   unknown,
 }
@@ -29,12 +32,16 @@ class GenerationApiFailure implements Exception {
     required this.code,
     this.statusCode,
     this.requestId,
+    this.detail,
+    this.cause,
     this.mayHaveCompleted = false,
   });
 
   final GenerationFailureCode code;
   final int? statusCode;
   final String? requestId;
+  final String? detail;
+  final Object? cause;
   final bool mayHaveCompleted;
 
   String get userMessage => switch (code) {
@@ -50,20 +57,30 @@ class GenerationApiFailure implements Exception {
     GenerationFailureCode.providerUnavailable => 'The generation service is temporarily unavailable.',
     GenerationFailureCode.providerTimeout => 'The generation service timed out.',
     GenerationFailureCode.invalidResponse => 'The server response did not match the supported paper format.',
+    GenerationFailureCode.deserializationFailure => 'The application could not parse the server response.',
+    GenerationFailureCode.unsupportedPaperFormat => 'The requested paper format is not supported.',
+    GenerationFailureCode.localPersistenceFailure => 'The generated paper could not be saved to local storage.',
     GenerationFailureCode.networkUnavailable => 'Could not reach the generation service. Check the connection and service address.',
     GenerationFailureCode.unknown => 'The generation request failed for an unsupported reason.',
   };
 
-  String get supportDetail => requestId == null
-      ? userMessage
-      : '$userMessage\nSupport request ID: $requestId';
+  String get supportDetail {
+    final buffer = StringBuffer(userMessage);
+    if (detail != null && detail!.trim().isNotEmpty) {
+      buffer.write('\nDetail: $detail');
+    }
+    if (requestId != null && requestId!.trim().isNotEmpty) {
+      buffer.write('\nSupport request ID: $requestId');
+    }
+    return buffer.toString();
+  }
 
   String get retryNotice => mayHaveCompleted
       ? 'Retrying sends a new generation request. The first request may still have completed, so this retry may trigger another model call.'
       : 'Retrying sends a new generation request.';
 
   @override
-  String toString() => 'GenerationApiFailure($code, requestId: $requestId)';
+  String toString() => 'GenerationApiFailure($code, statusCode: $statusCode, requestId: $requestId, detail: $detail)';
 }
 
 class GenerationResult {
@@ -217,11 +234,21 @@ class GenerationApiClient implements PaperGenerationApi {
         Map<String, Object?>.from(decoded),
       );
       return GenerationResult(response: parsed, requestId: requestId);
-    } on Object {
+    } on FormatException catch (e) {
       throw GenerationApiFailure(
-        code: GenerationFailureCode.invalidResponse,
+        code: GenerationFailureCode.deserializationFailure,
         requestId: requestId,
         statusCode: response.statusCode,
+        detail: e.message,
+        cause: e,
+      );
+    } on Object catch (e) {
+      throw GenerationApiFailure(
+        code: GenerationFailureCode.deserializationFailure,
+        requestId: requestId,
+        statusCode: response.statusCode,
+        detail: e.toString(),
+        cause: e,
       );
     }
   }
@@ -280,11 +307,21 @@ class GenerationApiClient implements PaperGenerationApi {
         throw const FormatException('Replacement section ID does not match request.');
       }
       return SectionRegenerationResult(response: parsed, requestId: requestId);
-    } on Object {
+    } on FormatException catch (e) {
       throw GenerationApiFailure(
-        code: GenerationFailureCode.invalidResponse,
+        code: GenerationFailureCode.deserializationFailure,
         requestId: requestId,
         statusCode: response.statusCode,
+        detail: e.message,
+        cause: e,
+      );
+    } on Object catch (e) {
+      throw GenerationApiFailure(
+        code: GenerationFailureCode.deserializationFailure,
+        requestId: requestId,
+        statusCode: response.statusCode,
+        detail: e.toString(),
+        cause: e,
       );
     }
   }
@@ -338,11 +375,21 @@ class GenerationApiClient implements PaperGenerationApi {
       return ResearchAnalysisResponsePayload.fromJson(
         Map<String, Object?>.from(decoded),
       );
-    } on Object {
+    } on FormatException catch (e) {
       throw GenerationApiFailure(
-        code: GenerationFailureCode.invalidResponse,
+        code: GenerationFailureCode.deserializationFailure,
         requestId: requestId,
         statusCode: response.statusCode,
+        detail: e.message,
+        cause: e,
+      );
+    } on Object catch (e) {
+      throw GenerationApiFailure(
+        code: GenerationFailureCode.deserializationFailure,
+        requestId: requestId,
+        statusCode: response.statusCode,
+        detail: e.toString(),
+        cause: e,
       );
     }
   }
@@ -360,6 +407,9 @@ class GenerationApiClient implements PaperGenerationApi {
     if (decoded is Map) {
       final body = Map<String, Object?>.from(decoded);
       final code = body['code'];
+      final detail = body['detail'] is String
+          ? body['detail'] as String
+          : (body['message'] is String ? body['message'] as String : null);
       final requestId = body['request_id'] is String
           ? body['request_id'] as String
           : headerRequestId;
@@ -368,6 +418,7 @@ class GenerationApiClient implements PaperGenerationApi {
           code: _failureCodeFromStableCode(code),
           statusCode: response.statusCode,
           requestId: requestId,
+          detail: detail,
           mayHaveCompleted: code == 'PROVIDER_TIMEOUT' || response.statusCode == 504,
         );
       }
@@ -402,6 +453,8 @@ GenerationFailureCode _failureCodeFromStableCode(String code) => switch (code) {
   'PROVIDER_INVALID_RESPONSE' => GenerationFailureCode.providerInvalidResponse,
   'PROVIDER_UNAVAILABLE' => GenerationFailureCode.providerUnavailable,
   'PROVIDER_TIMEOUT' => GenerationFailureCode.providerTimeout,
+  'UNSUPPORTED_PAPER_FORMAT' => GenerationFailureCode.unsupportedPaperFormat,
+  'DESERIALIZATION_FAILURE' => GenerationFailureCode.deserializationFailure,
   _ => GenerationFailureCode.unknown,
 };
 

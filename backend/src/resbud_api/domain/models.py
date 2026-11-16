@@ -229,6 +229,7 @@ class PaperPreferences(ContractModel):
     authors: Annotated[list[AuthorMetadata], Field(max_length=50)] | None = None
     affiliations: Annotated[list[AuthorAffiliation], Field(max_length=50)] | None = None
     figures: Annotated[list[StructuredFigure], Field(max_length=50)] | None = None
+    include_review_notes_appendix: bool = False
 
     @model_validator(mode="after")
     def desired_section_ids_are_unique(self) -> "PaperPreferences":
