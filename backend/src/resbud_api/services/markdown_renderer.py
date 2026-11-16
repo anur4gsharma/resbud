@@ -752,10 +752,20 @@ def render_blocks_to_docx(
                 )
 
         elif isinstance(block, ParagraphBlock):
+            plain_text = "".join(span.content for span in block.spans).strip()
+            is_table_caption = bool(
+                re.match(r"^(?:TABLE|Table)\s+[IVXLCDM0-9]+[\s.:\-–—]", plain_text)
+            )
             p = document.add_paragraph()
-            p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-            p.paragraph_format.line_spacing = 1.12 if two_column else 1.15
-            p.paragraph_format.space_after = Pt(4 if two_column else 6)
+            if is_table_caption:
+                p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                p.paragraph_format.keep_with_next = True
+                p.paragraph_format.space_before = Pt(6)
+                p.paragraph_format.space_after = Pt(2)
+            else:
+                p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                p.paragraph_format.line_spacing = 1.12 if two_column else 1.15
+                p.paragraph_format.space_after = Pt(4 if two_column else 6)
             _render_spans_to_docx_paragraph(p, block.spans, academic_font, size_pt=body_size_pt)
 
         elif isinstance(block, ListBlock):
@@ -1001,6 +1011,7 @@ def _render_table_to_docx(
         num_cols = max(len(r) for r in all_rows)
         table = document.add_table(rows=len(all_rows), cols=num_cols)
         table.style = "Table Grid"
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
         col_w = Inches(max_width_in / max(num_cols, 1))
         for r_idx, row in enumerate(all_rows):
             for c_idx, cell_text in enumerate(row):
@@ -1431,8 +1442,26 @@ def render_blocks_to_pdf(
                 story.append(Paragraph(html.escape(title_text), styles["Heading3"]))
 
         elif isinstance(block, ParagraphBlock):
+            plain_text = "".join(span.content for span in block.spans).strip()
+            is_table_caption = bool(
+                re.match(r"^(?:TABLE|Table)\s+[IVXLCDM0-9]+[\s.:\-–—]", plain_text)
+            )
             html_text = spans_to_reportlab_html(block.spans)
-            story.append(Paragraph(html_text, styles["Body"]))
+            if is_table_caption and "TableCaption" in styles:
+                story.append(Paragraph(html_text, styles["TableCaption"]))
+            elif is_table_caption:
+                cap_parent = styles.get("Body") or next(iter(styles.values()))
+                cap_style = ParagraphStyle(
+                    "InlineTableCap",
+                    parent=cap_parent,
+                    alignment=1,
+                    spaceBefore=6,
+                    spaceAfter=2,
+                    keepWithNext=True,
+                )
+                story.append(Paragraph(html_text, cap_style))
+            else:
+                story.append(Paragraph(html_text, styles["Body"]))
 
         elif isinstance(block, ListBlock):
             for item_idx, item_spans in enumerate(block.items, start=block.start_num):

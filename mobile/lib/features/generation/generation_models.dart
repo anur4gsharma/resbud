@@ -598,6 +598,7 @@ class StructuredFigurePayload {
       placementStatus: json['placement_status'] != null
           ? _enumValue(json['placement_status'], 'placement_status', const [
               'assigned',
+              'approved',
               'suggested',
               'unplaced',
               'omitted',

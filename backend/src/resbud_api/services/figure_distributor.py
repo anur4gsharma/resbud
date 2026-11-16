@@ -201,7 +201,9 @@ def distribute_and_reindex_figures(paper: PaperDraft) -> PaperDraft:
                         "figure_order": num,
                         "caption": ieee_cap,
                         "referenced_in_text": True,
-                        "placement_status": "assigned",
+                        "placement_status": "approved"
+                        if fig.placement_status == "approved"
+                        else "assigned",
                     }
                 )
             )
