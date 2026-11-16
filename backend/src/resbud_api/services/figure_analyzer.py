@@ -146,12 +146,20 @@ def infer_target_section(
 
     # Find methodology / method
     method_sec = next(
-        (orig for norm, orig in norm_secs.items() if "method" in norm or "system" in norm or "approach" in norm or "model" in norm),
+        (
+            orig
+            for norm, orig in norm_secs.items()
+            if "method" in norm or "system" in norm or "approach" in norm or "model" in norm
+        ),
         None,
     )
     # Find results / experiment
     results_sec = next(
-        (orig for norm, orig in norm_secs.items() if "result" in norm or "eval" in norm or "experiment" in norm or "benchmark" in norm),
+        (
+            orig
+            for norm, orig in norm_secs.items()
+            if "result" in norm or "eval" in norm or "experiment" in norm or "benchmark" in norm
+        ),
         None,
     )
     # Find discussion / limitations
@@ -168,19 +176,31 @@ def infer_target_section(
         return method_sec or intro_sec or (available_sections[0] if available_sections else None)
 
     if cat in ("graph", "experimental_result", "table_image"):
-        return results_sec or discussion_sec or method_sec or (available_sections[-1] if available_sections else None)
+        return (
+            results_sec
+            or discussion_sec
+            or method_sec
+            or (available_sections[-1] if available_sections else None)
+        )
 
     if cat == "screenshot":
         # Check if mobile app screenshot represents results/prototype or methodology
-        if any(w in combined_text for w in ["app", "mobile", "interface", "prototype", "user", "client"]):
-            return results_sec or method_sec or (available_sections[0] if available_sections else None)
+        if any(
+            w in combined_text
+            for w in ["app", "mobile", "interface", "prototype", "user", "client"]
+        ):
+            return (
+                results_sec or method_sec or (available_sections[0] if available_sections else None)
+            )
         return method_sec or results_sec or (available_sections[0] if available_sections else None)
 
     if cat == "photograph":
         return method_sec or results_sec or (available_sections[0] if available_sections else None)
 
     # Keyword fallback
-    if any(w in combined_text for w in ["method", "algorithm", "architecture", "model", "pipeline"]):
+    if any(
+        w in combined_text for w in ["method", "algorithm", "architecture", "model", "pipeline"]
+    ):
         return method_sec
     if any(w in combined_text for w in ["result", "accuracy", "performance", "metric", "score"]):
         return results_sec
@@ -261,11 +281,18 @@ def analyze_figures(
             and not fig.related_section
         )
 
-        status = "unplaced" if is_ambiguous else (fig.placement_status if fig.placement_status != "unplaced" else "suggested")
+        status = (
+            "unplaced"
+            if is_ambiguous
+            else (fig.placement_status if fig.placement_status != "unplaced" else "suggested")
+        )
         rationale = (
             "Flagged for user review: contextual purpose unclear from provided visual metadata."
             if is_ambiguous
-            else (fig.placement_rationale or f"Contextually mapped to {target_sec or 'manuscript'} based on {cat} categorization.")
+            else (
+                fig.placement_rationale
+                or f"Contextually mapped to {target_sec or 'manuscript'} based on {cat} categorization."
+            )
         )
 
         # Broad architecture diagrams or wide comparison charts default to full_width

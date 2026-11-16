@@ -2452,7 +2452,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: pubType,
+                  initialValue: pubType,
                   decoration: const InputDecoration(labelText: 'Publication Type'),
                   items: const [
                     DropdownMenuItem(value: 'journal_article', child: Text('Journal Article')),
@@ -2578,7 +2578,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 DropdownButtonFormField<String>(
-                  value: pubType,
+                  initialValue: pubType,
                   decoration: const InputDecoration(labelText: 'Publication Type'),
                   items: const [
                     DropdownMenuItem(value: 'journal_article', child: Text('Journal Article')),

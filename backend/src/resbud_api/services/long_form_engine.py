@@ -25,6 +25,7 @@ from resbud_api.providers.base import (
     ProviderUnavailable,
     ResearchBrief,
 )
+from resbud_api.services.equation_engine import process_manuscript_equations
 from resbud_api.services.figure_analyzer import analyze_figures
 from resbud_api.services.figure_distributor import distribute_and_reindex_figures
 from resbud_api.services.figure_planner import plan_figure_placements
@@ -217,6 +218,9 @@ async def generate_long_form_manuscript(
     if paper.references:
         paper, ref_warnings = process_manuscript_citations_and_bibliography(paper, brief)
         failure_warnings.extend(ref_warnings)
+
+    paper, eq_warnings = process_manuscript_equations(paper)
+    failure_warnings.extend(eq_warnings)
 
     if not has_meaningful_content(paper):
         raise ResbudError(502)

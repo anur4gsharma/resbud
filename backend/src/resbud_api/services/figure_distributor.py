@@ -46,7 +46,8 @@ def distribute_and_reindex_figures(paper: PaperDraft) -> PaperDraft:
 
     # Step 2: Contextually inject unplaced active figures into their target sections
     active_unplaced = [
-        f for f in paper.figures
+        f
+        for f in paper.figures
         if f.id not in placed_figure_ids and f.placement_status not in ("omitted",)
     ]
 
@@ -58,12 +59,20 @@ def distribute_and_reindex_figures(paper: PaperDraft) -> PaperDraft:
             # Fallback to methodology or results
             if fig.category in ("flowchart", "architecture_diagram"):
                 target_sec_id = next(
-                    (s.id for s in paper.sections if "method" in s.id.lower() or "sys" in s.id.lower()),
+                    (
+                        s.id
+                        for s in paper.sections
+                        if "method" in s.id.lower() or "sys" in s.id.lower()
+                    ),
                     paper.sections[0].id if paper.sections else None,
                 )
             elif fig.category in ("graph", "experimental_result", "screenshot"):
                 target_sec_id = next(
-                    (s.id for s in paper.sections if "result" in s.id.lower() or "eval" in s.id.lower()),
+                    (
+                        s.id
+                        for s in paper.sections
+                        if "result" in s.id.lower() or "eval" in s.id.lower()
+                    ),
                     paper.sections[-1].id if paper.sections else None,
                 )
             else:
@@ -91,9 +100,7 @@ def distribute_and_reindex_figures(paper: PaperDraft) -> PaperDraft:
         p_len = len(paragraphs)
         stride = max(1, p_len // (len(to_inject) + 1))
 
-        insert_positions = [
-            min(p_len, max(1, (i + 1) * stride)) for i in range(len(to_inject))
-        ]
+        insert_positions = [min(p_len, max(1, (i + 1) * stride)) for i in range(len(to_inject))]
 
         for p_idx, para in enumerate(paragraphs, start=1):
             new_paragraphs.append(para)
@@ -108,7 +115,9 @@ def distribute_and_reindex_figures(paper: PaperDraft) -> PaperDraft:
 
                     # Check if preceding paragraph mentions this figure
                     if not re.search(r"\b(?:Fig\.?|Figure)\b", para, flags=re.IGNORECASE):
-                        intro_clause = f" As illustrated in the following diagram, {desc.lower().rstrip('.')}."
+                        intro_clause = (
+                            f" As illustrated in the following diagram, {desc.lower().rstrip('.')}."
+                        )
 
                     if intro_clause:
                         new_paragraphs[-1] = new_paragraphs[-1] + intro_clause
@@ -132,7 +141,9 @@ def distribute_and_reindex_figures(paper: PaperDraft) -> PaperDraft:
 
     # Step 3: Global Sequential Renumbering & Cross-Referencing across all sections
     # Scan document in reading order to discover chronological sequence
-    chronological_figures: list[tuple[StructuredFigure, str, str]] = []  # (fig_obj, old_caption, old_src)
+    chronological_figures: list[
+        tuple[StructuredFigure, str, str]
+    ] = []  # (fig_obj, old_caption, old_src)
     reindexed_id_to_num: dict[str, int] = {}
     current_number = 1
 
@@ -198,7 +209,10 @@ def distribute_and_reindex_figures(paper: PaperDraft) -> PaperDraft:
             updated_figures.append(fig)
         else:
             # Figure was not placed in text
-            rationale = fig.placement_rationale or "Retained in project figure assets; not contextually placed in manuscript text."
+            rationale = (
+                fig.placement_rationale
+                or "Retained in project figure assets; not contextually placed in manuscript text."
+            )
             updated_figures.append(
                 fig.model_copy(
                     update={

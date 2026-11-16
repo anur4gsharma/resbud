@@ -38,6 +38,7 @@ from resbud_api.core.errors import ResbudError
 from resbud_api.domain.models import PaperDraft
 from resbud_api.services.chart_generator import render_academic_chart_from_spec
 from resbud_api.services.editorial_notes import prepare_paper_for_export
+from resbud_api.services.equation_engine import process_manuscript_equations
 from resbud_api.services.image_processor import decode_image_source, process_image_for_document
 from resbud_api.services.markdown_renderer import (
     clean_heading_text,
@@ -123,6 +124,7 @@ def export_paper_pdf(
     sanitized_paper, review_notes = prepare_paper_for_export(
         paper, include_review_notes_appendix=effective_notes
     )
+    sanitized_paper, _ = process_manuscript_equations(sanitized_paper)
 
     if effective_template == "ieee_conference" or effective_layout == "two_column_academic":
         return _export_two_column_academic_pdf(

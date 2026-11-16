@@ -120,6 +120,10 @@ def sanitize_latex_for_mathml(raw_latex: str) -> str:
     # 4. Normalize norm symbols
     clean = clean.replace(r"\parallel", r"\Vert")
 
+    # 5. Strip LaTeX \label and \tag commands from inner MathML/OMML
+    clean = re.sub(r"\\label\{[^{}]+\}", "", clean)
+    clean = re.sub(r"\\tag\{[^{}]+\}", "", clean)
+
     return clean
 
 

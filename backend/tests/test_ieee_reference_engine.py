@@ -307,9 +307,7 @@ def test_first_appearance_citation_numbering() -> None:
     assert "[3]" in methods_content
 
     # Warning generated for uncited Hopper
-    assert any(
-        w.code == "REFERENCE_INCOMPLETE" and "ref_hopper" in w.message for w in warnings
-    )
+    assert any(w.code == "REFERENCE_INCOMPLETE" and "ref_hopper" in w.message for w in warnings)
 
 
 def test_multiple_and_consecutive_citation_groups() -> None:
@@ -326,9 +324,7 @@ def test_multiple_and_consecutive_citation_groups() -> None:
 def test_author_formatting_rules() -> None:
     """Verify IEEE author formatting for 1, 2, 3–6, and >6 authors with nobiliary particle preservation."""
     assert format_ieee_authors(["Alan Turing"]) == "A. Turing"
-    assert (
-        format_ieee_authors(["Alan Turing", "Claude Shannon"]) == "A. Turing and C. Shannon"
-    )
+    assert format_ieee_authors(["Alan Turing", "Claude Shannon"]) == "A. Turing and C. Shannon"
     assert (
         format_ieee_authors(["Alan Turing", "Claude Shannon", "John von Neumann"])
         == "A. Turing, C. Shannon, and J. von Neumann"
@@ -410,10 +406,7 @@ def test_doi_normalization_and_validation() -> None:
         normalize_doi("https://doi.org/10.1109/ACCESS.2024.1234567")
         == "10.1109/ACCESS.2024.1234567"
     )
-    assert (
-        normalize_doi("http://dx.doi.org/10.1145/3318464.3389700")
-        == "10.1145/3318464.3389700"
-    )
+    assert normalize_doi("http://dx.doi.org/10.1145/3318464.3389700") == "10.1145/3318464.3389700"
     assert normalize_doi("doi: 10.1000/182") == "10.1000/182"
     assert normalize_doi("10.5555/3295222.3295349") == "10.5555/3295222.3295349"
 
@@ -439,7 +432,9 @@ def test_citation_to_reference_integrity_and_unresolved_warnings() -> None:
             ),
         ],
         references=[
-            ReferenceInput(id="ref_valid", text="Valid Source Text", title="Valid Source", year=2024),
+            ReferenceInput(
+                id="ref_valid", text="Valid Source Text", title="Valid Source", year=2024
+            ),
         ],
         review_warnings=[],
     )
@@ -606,9 +601,7 @@ def test_bibliographic_resolver_authoritative_resolution() -> None:
         "DOI": "10.1017/CBO9780511546891",
         "publisher": "Cambridge University Press",
     }
-    crossref_ref = BibliographicResolver.resolve_from_crossref_json(
-        crossref_item, "ref-goldreich"
-    )
+    crossref_ref = BibliographicResolver.resolve_from_crossref_json(crossref_item, "ref-goldreich")
     assert crossref_ref.id == "ref-goldreich"
     assert crossref_ref.publication_type == "book"
     assert crossref_ref.year == 2001
@@ -620,15 +613,18 @@ def test_bibliographic_resolver_authoritative_resolution() -> None:
     openalex_item: dict[str, Any] = {
         "title": "Quantum Supremacy Using a Programmable Superconducting Processor",
         "publication_year": 2019,
-        "authorships": [{"author": {"display_name": "Frank Arute"}}, {"author": {"display_name": "John Martinis"}}],
-        "primary_location": {"source": {"display_name": "Nature", "host_organization_name": "Springer Nature"}},
+        "authorships": [
+            {"author": {"display_name": "Frank Arute"}},
+            {"author": {"display_name": "John Martinis"}},
+        ],
+        "primary_location": {
+            "source": {"display_name": "Nature", "host_organization_name": "Springer Nature"}
+        },
         "doi": "https://doi.org/10.1038/s41586-019-1666-5",
         "type": "article",
         "biblio": {"volume": "574", "issue": "7779", "first_page": "505", "last_page": "510"},
     }
-    openalex_ref = BibliographicResolver.resolve_from_openalex_json(
-        openalex_item, "ref-martinis"
-    )
+    openalex_ref = BibliographicResolver.resolve_from_openalex_json(openalex_item, "ref-martinis")
     assert openalex_ref.id == "ref-martinis"
     assert openalex_ref.publication_type == "journal_article"
     assert openalex_ref.year == 2019

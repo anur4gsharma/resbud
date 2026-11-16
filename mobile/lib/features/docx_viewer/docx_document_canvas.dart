@@ -1127,8 +1127,16 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
       }
 
       final mathSource = _cleanMathSource(m.group(0)!);
-      widgets.add(_buildMathEquationBlock(mathSource, zoom));
-      cursor = m.end;
+      final trailingRest = text.substring(m.end);
+      final numMatch = RegExp(r'^\s*\(([0-9]+)\)').firstMatch(trailingRest);
+      String? eqNum;
+      if (numMatch != null) {
+        eqNum = numMatch.group(1);
+        cursor = m.end + numMatch.end;
+      } else {
+        cursor = m.end;
+      }
+      widgets.add(_buildMathEquationBlock(mathSource, zoom, equationNumber: eqNum));
     }
 
     final postText = text.substring(cursor).trim();
@@ -1142,33 +1150,59 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
     return widgets;
   }
 
-  Widget _buildMathEquationBlock(String equationText, double zoom) {
-    final cleanLatex = _cleanMathSource(equationText);
+  Widget _buildMathEquationBlock(String equationText, double zoom, {String? equationNumber}) {
+    var cleanLatex = _cleanMathSource(equationText);
+    String? resolvedNum = equationNumber;
+    final tagMatch = RegExp(r'\\tag\{([0-9]+)\}').firstMatch(cleanLatex);
+    if (tagMatch != null) {
+      resolvedNum ??= tagMatch.group(1);
+      cleanLatex = cleanLatex.replaceAll(tagMatch.group(0)!, '').trim();
+    }
 
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 12.0 * zoom),
-      child: Center(
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Math.tex(
-            cleanLatex,
-            mathStyle: MathStyle.display,
-            textStyle: TextStyle(
-              fontSize: 11.5 * zoom,
-              color: Colors.black,
-            ),
-            onErrorFallback: (_) => Text(
-              '[Warning: Unsupported mathematical syntax] $cleanLatex',
-              style: TextStyle(
-                fontFamily: 'serif',
-                fontStyle: FontStyle.italic,
-                fontSize: 10.5 * zoom,
-                color: const Color(0xFFCC0000),
-              ),
-            ),
+    final mathWidget = SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Math.tex(
+        cleanLatex,
+        mathStyle: MathStyle.display,
+        textStyle: TextStyle(
+          fontSize: 11.5 * zoom,
+          color: Colors.black,
+        ),
+        onErrorFallback: (_) => Text(
+          '[Warning: Unsupported mathematical syntax] $cleanLatex',
+          style: TextStyle(
+            fontFamily: 'serif',
+            fontStyle: FontStyle.italic,
+            fontSize: 10.5 * zoom,
+            color: const Color(0xFFCC0000),
           ),
         ),
       ),
+    );
+
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 10.0 * zoom),
+      child: resolvedNum != null
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Center(child: mathWidget),
+                ),
+                Padding(
+                  padding: EdgeInsets.only(left: 8.0 * zoom),
+                  child: Text(
+                    '($resolvedNum)',
+                    style: TextStyle(
+                      fontFamily: 'serif',
+                      fontSize: 10.5 * zoom,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : Center(child: mathWidget),
     );
   }
 

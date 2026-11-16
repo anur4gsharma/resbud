@@ -22,7 +22,10 @@ import latex2mathml.converter
 # fixmyslop-ignore[deps/phantom-import] Top-level import provided by mathml2omml-as package
 import matplotlib
 import matplotlib.pyplot as plt
+from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import parse_xml
+from docx.oxml.ns import nsdecls
 from docx.shared import Inches, Pt, RGBColor
 from PIL import Image as PILImage
 from PIL import ImageFile
@@ -246,10 +249,17 @@ def create_equation_block_node(
     clean = clean_math_source(raw_latex)
     norm = normalize_math_latex(clean)
     status, err = validate_math_latex(clean)
+
+    assigned_id = equation_id
+    if not assigned_id:
+        tag_m = re.search(r"\\tag\{([^{}]+)\}", clean)
+        if tag_m:
+            assigned_id = tag_m.group(1).strip("()")
+
     return EquationBlockNode(
         latex=clean,
         display_type=display_type,
-        equation_id=equation_id,
+        equation_id=assigned_id,
         normalized_latex=norm,
         rendering_status=status,
         validation_error=err,
@@ -364,9 +374,19 @@ def extract_equation_blocks_from_paragraph(text: str) -> list[MarkdownBlock]:
             if (m.lastgroup == "math_env" or re.search(r"\\begin\{[a-zA-Z0-9*]+\}", raw_math))
             else "display"
         )
-        eq_node = create_equation_block_node(raw_math, display_type=display_type)
+        trailing_rest = text[m.end() :]
+        num_match = re.match(r"^\s*\(([0-9]+)\)", trailing_rest)
+        assigned_eq_id = None
+        if num_match:
+            assigned_eq_id = num_match.group(1)
+            cursor = m.end() + num_match.end()
+        else:
+            cursor = m.end()
+
+        eq_node = create_equation_block_node(
+            raw_math, display_type=display_type, equation_id=assigned_eq_id
+        )
         blocks.append(eq_node)
-        cursor = m.end()
 
     trailing_text = text[cursor:].strip()
     if trailing_text:
@@ -483,7 +503,13 @@ def parse_markdown_blocks(content: str) -> list[MarkdownBlock]:
             trimmed.startswith("$$") and trimmed.endswith("$$") and len(trimmed) > 4
         ):
             clean_math = clean_math_source(trimmed)
-            blocks.append(create_equation_block_node(clean_math, display_type="display"))
+            eq_num = None
+            if i + 1 < n and re.match(r"^\([0-9]+\)$", lines[i + 1].strip()):
+                eq_num = lines[i + 1].strip()[1:-1]
+                i += 1
+            blocks.append(
+                create_equation_block_node(clean_math, display_type="display", equation_id=eq_num)
+            )
             i += 1
             continue
 
@@ -498,7 +524,13 @@ def parse_markdown_blocks(content: str) -> list[MarkdownBlock]:
             if i < n:
                 i += 1
             raw_math = "\n".join(math_lines).strip()
-            blocks.append(create_equation_block_node(raw_math, display_type="display"))
+            eq_num = None
+            if i < n and re.match(r"^\([0-9]+\)$", lines[i].strip()):
+                eq_num = lines[i].strip()[1:-1]
+                i += 1
+            blocks.append(
+                create_equation_block_node(raw_math, display_type="display", equation_id=eq_num)
+            )
             continue
 
         # Multiline block environment \begin{env} ... \end{env}
@@ -517,7 +549,13 @@ def parse_markdown_blocks(content: str) -> list[MarkdownBlock]:
             else:
                 i += 1
             raw_math = "\n".join(math_lines).strip()
-            blocks.append(create_equation_block_node(raw_math, display_type="environment"))
+            eq_num = None
+            if i < n and re.match(r"^\([0-9]+\)$", lines[i].strip()):
+                eq_num = lines[i].strip()[1:-1]
+                i += 1
+            blocks.append(
+                create_equation_block_node(raw_math, display_type="environment", equation_id=eq_num)
+            )
             continue
 
         # 3. Figure (![caption](src))
@@ -751,18 +789,14 @@ def render_blocks_to_docx(
             run.font.color.rgb = RGBColor(0x22, 0x22, 0x22)
 
         elif isinstance(block, (MathBlock, EquationBlockNode)):
-            p = document.add_paragraph()
-            p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            p.paragraph_format.space_before = Pt(6 if two_column else 8)
-            p.paragraph_format.space_after = Pt(6 if two_column else 8)
-            _render_math_to_docx(
-                p,
+            _render_numbered_equation_to_docx(
+                document,
                 block.latex,
                 academic_font,
-                is_display=True,
+                equation_number=block.equation_id,
+                two_column=two_column,
                 status=block.rendering_status,
                 error_msg=block.validation_error,
-                equation_number=block.equation_id,
             )
 
         elif isinstance(block, TableBlock):
@@ -813,6 +847,86 @@ def render_blocks_to_docx(
                     max_width_in=max_fig_width,
                     caption_size_pt=caption_size,
                 )
+
+
+def _render_numbered_equation_to_docx(
+    document: Any,
+    latex_str: str,
+    font_name: str,
+    equation_number: str | None = None,
+    two_column: bool = False,
+    status: Literal["ok", "warning", "error"] = "ok",
+    error_msg: str | None = None,
+) -> None:
+    """Render a display equation centered within the column with right-aligned (N) in Word."""
+    if not equation_number:
+        p = document.add_paragraph()
+        p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.space_before = Pt(4 if two_column else 6)
+        p.paragraph_format.space_after = Pt(4 if two_column else 6)
+        _render_math_to_docx(
+            p,
+            latex_str,
+            font_name,
+            is_display=True,
+            status=status,
+            error_msg=error_msg,
+        )
+        return
+
+    # IEEE 2-column: column width is 3.5 in -> Math cell: 3.0 in, Number cell: 0.5 in
+    # Single column: column width is 6.5 in -> Math cell: 5.8 in, Number cell: 0.7 in
+    col_math_in = 3.0 if two_column else 5.8
+    col_num_in = 0.5 if two_column else 0.7
+
+    tbl = document.add_table(rows=1, cols=2)
+    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+    tblPr = tbl._tbl.tblPr
+    tblBorders = parse_xml(
+        f"<w:tblBorders {nsdecls('w')}>"
+        '<w:top w:val="none"/>'
+        '<w:left w:val="none"/>'
+        '<w:bottom w:val="none"/>'
+        '<w:right w:val="none"/>'
+        '<w:insideH w:val="none"/>'
+        '<w:insideV w:val="none"/>'
+        "</w:tblBorders>"
+    )
+    tblPr.append(tblBorders)
+
+    cell_math = tbl.cell(0, 0)
+    cell_num = tbl.cell(0, 1)
+    cell_math.width = Inches(col_math_in)
+    cell_num.width = Inches(col_num_in)
+
+    tcPr_math = cell_math._tc.get_or_add_tcPr()
+    tcPr_num = cell_num._tc.get_or_add_tcPr()
+    tcPr_math.append(parse_xml(f'<w:vAlign {nsdecls("w")} w:val="center"/>'))
+    tcPr_num.append(parse_xml(f'<w:vAlign {nsdecls("w")} w:val="center"/>'))
+
+    p_math = cell_math.paragraphs[0]
+    p_math.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_math.paragraph_format.space_before = Pt(3)
+    p_math.paragraph_format.space_after = Pt(3)
+    _render_math_to_docx(
+        p_math,
+        latex_str,
+        font_name,
+        is_display=True,
+        status=status,
+        error_msg=error_msg,
+    )
+
+    p_num = cell_num.paragraphs[0]
+    p_num.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    p_num.paragraph_format.space_before = Pt(3)
+    p_num.paragraph_format.space_after = Pt(3)
+    clean_num = equation_number.strip("()")
+    r_num = p_num.add_run(f"({clean_num})")
+    r_num.font.name = font_name
+    r_num.font.size = Pt(9.5 if two_column else 10.0)
+    r_num.font.color.rgb = RGBColor(0, 0, 0)
 
 
 def _render_math_to_docx(
@@ -1138,6 +1252,7 @@ def _render_math_to_pdf_flowable(
     status: Literal["ok", "warning", "error"] = "ok",
     error_msg: str | None = None,
     max_width: float = 460.0,
+    equation_number: str | None = None,
 ) -> Any:
     """Render a LaTeX display equation into a centered high-DPI image flowable or table."""
     clean = latex.strip()
@@ -1150,77 +1265,115 @@ def _render_math_to_pdf_flowable(
     elif clean.startswith("$") and clean.endswith("$") and len(clean) > 2:
         clean = clean[1:-1].strip()
 
+    available_math_w = max_width - 36.0 if equation_number else max_width
+
     if status in ("warning", "error"):
         warn_text = (
             f'<font color="#CC0000"><b>[Warning: Unsupported mathematical syntax]</b></font> '
             f"<i>{html.escape(clean)}</i>"
         )
-        return Paragraph(warn_text, styles["MathBlock"])
-
-    # If it's a matrix environment like \begin{pmatrix} ... \end{pmatrix}
-    m = re.search(r"\\begin\{(pmatrix|matrix|bmatrix)\}([\s\S]*?)\\end\{\1\}", clean)
-    if m:
-        body = m.group(2).strip()
-        raw_rows = [r.strip() for r in body.split(r"\\") if r.strip()]
-        if raw_rows:
-            table_data = []
-            matrix_cell_style = styles.get("TableCell", styles.get("Body"))
-            for row in raw_rows:
-                row_cells = []
-                for cell in row.split("&"):
-                    cell_text = cell.strip()
-                    row_cells.append(
-                        Paragraph(f"<i>{html.escape(cell_text)}</i>", matrix_cell_style)
+        inner_flowable: Any = Paragraph(warn_text, styles["MathBlock"])
+    else:
+        # If it's a matrix environment like \begin{pmatrix} ... \end{pmatrix}
+        m = re.search(r"\\begin\{(pmatrix|matrix|bmatrix)\}([\s\S]*?)\\end\{\1\}", clean)
+        if m:
+            body = m.group(2).strip()
+            raw_rows = [r.strip() for r in body.split(r"\\") if r.strip()]
+            if raw_rows:
+                table_data = []
+                matrix_cell_style = styles.get("TableCell", styles.get("Body"))
+                for row in raw_rows:
+                    row_cells = []
+                    for cell in row.split("&"):
+                        cell_text = cell.strip()
+                        row_cells.append(
+                            Paragraph(f"<i>{html.escape(cell_text)}</i>", matrix_cell_style)
+                        )
+                    table_data.append(row_cells)
+                t_matrix = Table(table_data, hAlign="CENTER")
+                t_matrix.setStyle(
+                    TableStyle(
+                        [
+                            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                            ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                            ("TOPPADDING", (0, 0), (-1, -1), 4),
+                            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                        ]
                     )
-                table_data.append(row_cells)
-            t = Table(table_data, hAlign="CENTER")
-            t.setStyle(
-                TableStyle(
-                    [
-                        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                        ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                        ("TOPPADDING", (0, 0), (-1, -1), 4),
-                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                    ]
                 )
+                inner_flowable = t_matrix
+            else:
+                inner_flowable = Paragraph(f"<i>{html.escape(clean)}</i>", styles["MathBlock"])
+        else:
+            # Mathtext preprocessing
+            mathtext_str = _sanitize_mathtext_str(clean)
+            if not (mathtext_str.startswith("$") and mathtext_str.endswith("$")):
+                mathtext_str = f"${mathtext_str}$"
+
+            try:
+                fig = plt.figure()
+                fig.patch.set_alpha(0.0)
+                fig.text(0.5, 0.5, mathtext_str, fontsize=12, ha="center", va="center")
+                buf = io.BytesIO()
+                fig.savefig(
+                    buf,
+                    format="png",
+                    dpi=300,
+                    transparent=True,
+                    bbox_inches="tight",
+                    pad_inches=0.03,
+                )
+                plt.close(fig)
+                buf.seek(0)
+                with PILImage.open(buf) as pil_img:
+                    w_px, h_px = pil_img.size
+                    w_pt = (w_px / 300.0) * 72.0
+                    h_pt = (h_px / 300.0) * 72.0
+                    if w_pt > available_math_w:
+                        scale = available_math_w / w_pt
+                        w_pt = available_math_w
+                        h_pt = h_pt * scale
+                buf.seek(0)
+                img = RLImage(buf, width=w_pt, height=h_pt)
+                img.hAlign = "CENTER"
+                inner_flowable = img
+            except Exception:
+                warn_text = (
+                    f'<font color="#CC0000"><b>[Warning: Unsupported mathematical syntax]</b></font> '
+                    f"<i>{html.escape(clean)}</i>"
+                )
+                inner_flowable = Paragraph(warn_text, styles["MathBlock"])
+
+    if equation_number:
+        clean_num = equation_number.strip("()")
+        base_style = styles.get("Body") or styles.get("MathBlock") or next(iter(styles.values()))
+        num_style = ParagraphStyle(
+            "EqNumRight",
+            parent=base_style,
+            fontName="Times-Roman" if "Times-Roman" in styles else "Helvetica",
+            fontSize=9.5,
+            alignment=2,  # Right-aligned
+        )
+        num_p = Paragraph(f"({clean_num})", num_style)
+        t_eq = Table([[inner_flowable, num_p]], colWidths=[max_width - 36.0, 36.0], hAlign="CENTER")
+        t_eq.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("ALIGN", (0, 0), (0, 0), "CENTER"),
+                    ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 2),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                ]
             )
-            return t
-
-    # Mathtext preprocessing
-    mathtext_str = _sanitize_mathtext_str(clean)
-    if not (mathtext_str.startswith("$") and mathtext_str.endswith("$")):
-        mathtext_str = f"${mathtext_str}$"
-
-    try:
-        fig = plt.figure()
-        fig.patch.set_alpha(0.0)
-        fig.text(0.5, 0.5, mathtext_str, fontsize=12, ha="center", va="center")
-        buf = io.BytesIO()
-        fig.savefig(
-            buf, format="png", dpi=300, transparent=True, bbox_inches="tight", pad_inches=0.03
         )
-        plt.close(fig)
-        buf.seek(0)
-        with PILImage.open(buf) as pil_img:
-            w_px, h_px = pil_img.size
-            w_pt = (w_px / 300.0) * 72.0
-            h_pt = (h_px / 300.0) * 72.0
-            if w_pt > max_width:
-                scale = max_width / w_pt
-                w_pt = max_width
-                h_pt = h_pt * scale
-        buf.seek(0)
-        img = RLImage(buf, width=w_pt, height=h_pt)
-        img.hAlign = "CENTER"
-        return img
-    except Exception:
-        warn_text = (
-            f'<font color="#CC0000"><b>[Warning: Unsupported mathematical syntax]</b></font> '
-            f"<i>{html.escape(clean)}</i>"
-        )
-        return Paragraph(warn_text, styles["MathBlock"])
+        return t_eq
+
+    return inner_flowable
 
 
 def spans_to_reportlab_html(spans: list[InlineSpan]) -> str:
@@ -1301,6 +1454,7 @@ def render_blocks_to_pdf(
                 status=block.rendering_status,
                 error_msg=block.validation_error,
                 max_width=max_width,
+                equation_number=block.equation_id,
             )
             story.append(Spacer(1, 4 if two_column else 6))
             story.append(flowable)

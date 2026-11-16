@@ -408,9 +408,7 @@ def detect_duplicate_references(references: list[ReferenceInput]) -> list[tuple[
             norm_doi = normalize_doi(ref.doi)
             if norm_doi:
                 if norm_doi in seen_dois:
-                    duplicates.append(
-                        (seen_dois[norm_doi], ref.id, f"Matching DOI: {norm_doi}")
-                    )
+                    duplicates.append((seen_dois[norm_doi], ref.id, f"Matching DOI: {norm_doi}"))
                 else:
                     seen_dois[norm_doi] = ref.id
 
@@ -726,13 +724,9 @@ def process_manuscript_citations_and_bibliography(
                 return format_ieee_citation_group(extracted_nums)
             return cluster
 
-        content = re.sub(
-            r"\[\d+\](?:\s*(?:,|and|[-–—])?\s*\[\d+\])+", collapse_adjacent, content
-        )
+        content = re.sub(r"\[\d+\](?:\s*(?:,|and|[-–—])?\s*\[\d+\])+", collapse_adjacent, content)
 
-        updated_sections.append(
-            sec.model_copy(update={"content": content})
-        )
+        updated_sections.append(sec.model_copy(update={"content": content}))
 
     # Pass 4: Update dedicated unnumbered REFERENCES section if present in paper sections or desired
     has_ref_section = any(
@@ -749,9 +743,7 @@ def process_manuscript_citations_and_bibliography(
         has_ref_section = True
 
     if has_ref_section:
-        ref_entries = [
-            format_ieee_reference(ref, ref.citation_number) for ref in final_references
-        ]
+        ref_entries = [format_ieee_reference(ref, ref.citation_number) for ref in final_references]
         references_content = "\n\n".join(ref_entries)
         references_section = PaperSection(
             id="references",

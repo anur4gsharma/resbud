@@ -23,7 +23,12 @@ from resbud_api.services.figure_planner import clean_ieee_caption_text, plan_fig
 from resbud_api.services.pdf_export import export_paper_pdf
 
 
-def _make_dummy_image_data_uri(fmt: str = "PNG", color: tuple[int, int, int] = (100, 150, 200), width: int = 120, height: int = 90) -> str:
+def _make_dummy_image_data_uri(
+    fmt: str = "PNG",
+    color: tuple[int, int, int] = (100, 150, 200),
+    width: int = 120,
+    height: int = 90,
+) -> str:
     img = PILImage.new("RGB", (width, height), color=color)
     buf = BytesIO()
     img.save(buf, format=fmt)

@@ -41,11 +41,19 @@ def plan_figure_placements(
     # Normalize section IDs
     norm_secs = {s.lower().replace("-", "_"): s for s in section_ids}
     method_sec = next(
-        (orig for norm, orig in norm_secs.items() if "method" in norm or "system" in norm or "approach" in norm),
+        (
+            orig
+            for norm, orig in norm_secs.items()
+            if "method" in norm or "system" in norm or "approach" in norm
+        ),
         section_ids[0] if section_ids else "methodology",
     )
     results_sec = next(
-        (orig for norm, orig in norm_secs.items() if "result" in norm or "eval" in norm or "experiment" in norm),
+        (
+            orig
+            for norm, orig in norm_secs.items()
+            if "result" in norm or "eval" in norm or "experiment" in norm
+        ),
         section_ids[-1] if section_ids else "results",
     )
 
@@ -61,7 +69,12 @@ def plan_figure_placements(
             elif fig.category in ("graph", "experimental_result", "screenshot"):
                 target = results_sec
             else:
-                target = method_sec if len(section_buckets.get(method_sec, [])) <= len(section_buckets.get(results_sec, [])) else results_sec
+                target = (
+                    method_sec
+                    if len(section_buckets.get(method_sec, []))
+                    <= len(section_buckets.get(results_sec, []))
+                    else results_sec
+                )
 
         section_buckets.setdefault(target, []).append(fig)
 
@@ -72,7 +85,10 @@ def plan_figure_placements(
                 # Move experimental results or graphs or screenshots to results section
                 remaining: list[StructuredFigure] = []
                 for f in bucket:
-                    if f.category in ("graph", "experimental_result", "screenshot") and s_id != results_sec:
+                    if (
+                        f.category in ("graph", "experimental_result", "screenshot")
+                        and s_id != results_sec
+                    ):
                         section_buckets.setdefault(results_sec, []).append(f)
                     else:
                         remaining.append(f)
@@ -101,7 +117,9 @@ def plan_figure_placements(
 
             # Determine column_span
             column_span = fig.column_span
-            if fig.category == "architecture_diagram" and (fig.width > fig.height * 1.8 or "broad" in (fig.description or "").lower()):
+            if fig.category == "architecture_diagram" and (
+                fig.width > fig.height * 1.8 or "broad" in (fig.description or "").lower()
+            ):
                 column_span = "full_width"
             elif fig.category in ("screenshot", "flowchart") and fig.height >= fig.width:
                 column_span = "column_width"

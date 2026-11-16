@@ -331,11 +331,42 @@ class OmmlParser {
     final blocks = <DocxParsedBlock>[];
 
     for (final p in paragraphs) {
+      // Check if this paragraph is the equation number cell in a 2-cell equation table row
+      final parentTc = p.parentElement;
+      if (parentTc != null && parentTc.name.local == 'tc') {
+        final parentTr = parentTc.parentElement;
+        if (parentTr != null && parentTr.name.local == 'tr') {
+          final cells = parentTr.findElements('tc', namespace: wNs).toList();
+          if (cells.length == 2 && cells[1] == parentTc) {
+            final tText = p.findAllElements('t', namespace: wNs).map((e) => e.innerText).join().trim();
+            if (RegExp(r'^\(?([0-9]+)\)?$').hasMatch(tText)) {
+              continue;
+            }
+          }
+        }
+      }
+
+      // Check for equation number in adjacent cell if in a 2-cell equation table
+      String? eqNum;
+      if (parentTc != null && parentTc.name.local == 'tc') {
+        final parentTr = parentTc.parentElement;
+        if (parentTr != null && parentTr.name.local == 'tr') {
+          final cells = parentTr.findElements('tc', namespace: wNs).toList();
+          if (cells.length == 2 && cells[0] == parentTc) {
+            final text = cells[1].findAllElements('t', namespace: wNs).map((e) => e.innerText).join().trim();
+            final m = RegExp(r'^\(?([0-9]+)\)?$').firstMatch(text);
+            if (m != null) {
+              eqNum = m.group(1);
+            }
+          }
+        }
+      }
+
       // Check if paragraph contains display math
       final oMathPara = p.findElements('oMathPara', namespace: mathNamespace).firstOrNull;
       if (oMathPara != null) {
         final mathElem = parseOmml(oMathPara);
-        blocks.add(DocxDisplayEquationBlock(latex: mathElem.latex));
+        blocks.add(DocxDisplayEquationBlock(latex: mathElem.latex, equationNumber: eqNum));
         continue;
       }
 
@@ -344,7 +375,7 @@ class OmmlParser {
       final textRuns = p.findElements('r', namespace: wNs);
       if (standaloneOmath.length == 1 && textRuns.isEmpty) {
         final mathElem = parseOmml(standaloneOmath.first);
-        blocks.add(DocxDisplayEquationBlock(latex: mathElem.latex));
+        blocks.add(DocxDisplayEquationBlock(latex: mathElem.latex, equationNumber: eqNum));
         continue;
       }
 
