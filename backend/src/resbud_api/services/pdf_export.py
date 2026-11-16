@@ -45,6 +45,7 @@ from resbud_api.services.markdown_renderer import (
     render_blocks_to_pdf,
     setup_reportlab_academic_fonts,
 )
+from resbud_api.services.reference_engine import format_ieee_reference
 from resbud_api.templates.ieee_conference import (
     calculate_ieee_author_grid,
     format_ieee_heading_1,
@@ -375,9 +376,13 @@ def _export_two_column_academic_pdf(
         if paper.references:
             story.append(Paragraph("References", styles["Heading1"]))
             for ref_idx, ref in enumerate(paper.references, start=1):
-                ref_text = ref.text.strip()
-                if not re.match(r"^\[\d+\]", ref_text) and not re.match(r"^\d+\.", ref_text):
-                    ref_text = f"[{ref_idx}] {ref_text}"
+                ref_num = ref.citation_number or ref_idx
+                if ref.title and ref.publication_type:
+                    ref_text = format_ieee_reference(ref, ref_num)
+                else:
+                    ref_text = ref.text.strip()
+                    if not re.match(r"^\[\d+\]", ref_text) and not re.match(r"^\d+\.", ref_text):
+                        ref_text = f"[{ref_num}] {ref_text}"
                 story.append(Paragraph(html.escape(ref_text), styles["Reference"]))
 
         if review_notes:
@@ -876,9 +881,13 @@ def _build_story(
     if paper.references:
         story.append(Paragraph("References", styles["Heading1"]))
         for ref_idx, ref in enumerate(paper.references, start=1):
-            ref_text = ref.text.strip()
-            if not re.match(r"^\[\d+\]", ref_text) and not re.match(r"^\d+\.", ref_text):
-                ref_text = f"[{ref_idx}] {ref_text}"
+            ref_num = ref.citation_number or ref_idx
+            if ref.title and ref.publication_type:
+                ref_text = format_ieee_reference(ref, ref_num)
+            else:
+                ref_text = ref.text.strip()
+                if not re.match(r"^\[\d+\]", ref_text) and not re.match(r"^\d+\.", ref_text):
+                    ref_text = f"[{ref_num}] {ref_text}"
             story.append(Paragraph(html.escape(ref_text), styles["Reference"]))
 
     if review_notes:

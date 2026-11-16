@@ -214,8 +214,15 @@ class ReferencePayload {
     this.publisher,
     this.doi,
     this.url,
+    this.isbnOrIssn,
+    this.accessDate,
+    this.publicationType,
     this.provenance,
     this.verificationStatus,
+    this.citationNumber,
+    this.citationLocations,
+    this.isCited,
+    this.reviewWarning,
   });
 
   final String id;
@@ -231,8 +238,15 @@ class ReferencePayload {
   final String? publisher;
   final String? doi;
   final String? url;
+  final String? isbnOrIssn;
+  final String? accessDate;
+  final String? publicationType;
   final String? provenance;
   final String? verificationStatus;
+  final int? citationNumber;
+  final List<String>? citationLocations;
+  final bool? isCited;
+  final String? reviewWarning;
 
   factory ReferencePayload.fromJson(Map<String, Object?> json) {
     _requireKeys(
@@ -251,8 +265,15 @@ class ReferencePayload {
         'publisher',
         'doi',
         'url',
+        'isbn_or_issn',
+        'access_date',
+        'publication_type',
         'provenance',
         'verification_status',
+        'citation_number',
+        'citation_locations',
+        'is_cited',
+        'review_warning',
       },
     );
     final id = _boundedString(json['id'], 'reference.id', 1, 40);
@@ -273,8 +294,65 @@ class ReferencePayload {
       publisher: json['publisher'] as String?,
       doi: json['doi'] as String?,
       url: json['url'] as String?,
+      isbnOrIssn: json['isbn_or_issn'] as String?,
+      accessDate: json['access_date'] as String?,
+      publicationType: json['publication_type'] as String?,
       provenance: json['provenance'] as String?,
       verificationStatus: json['verification_status'] as String?,
+      citationNumber: json['citation_number'] as int?,
+      citationLocations: (json['citation_locations'] as List?)?.map((e) => e.toString()).toList(),
+      isCited: json['is_cited'] as bool?,
+      reviewWarning: json['review_warning'] as String?,
+    );
+  }
+
+  ReferencePayload copyWith({
+    String? id,
+    String? text,
+    String? rawText,
+    List<String>? authors,
+    int? year,
+    String? title,
+    String? venue,
+    String? volume,
+    String? issue,
+    String? pages,
+    String? publisher,
+    String? doi,
+    String? url,
+    String? isbnOrIssn,
+    String? accessDate,
+    String? publicationType,
+    String? provenance,
+    String? verificationStatus,
+    int? citationNumber,
+    List<String>? citationLocations,
+    bool? isCited,
+    String? reviewWarning,
+  }) {
+    return ReferencePayload(
+      id: id ?? this.id,
+      text: text ?? this.text,
+      rawText: rawText ?? this.rawText,
+      authors: authors ?? this.authors,
+      year: year ?? this.year,
+      title: title ?? this.title,
+      venue: venue ?? this.venue,
+      volume: volume ?? this.volume,
+      issue: issue ?? this.issue,
+      pages: pages ?? this.pages,
+      publisher: publisher ?? this.publisher,
+      doi: doi ?? this.doi,
+      url: url ?? this.url,
+      isbnOrIssn: isbnOrIssn ?? this.isbnOrIssn,
+      accessDate: accessDate ?? this.accessDate,
+      publicationType: publicationType ?? this.publicationType,
+      provenance: provenance ?? this.provenance,
+      verificationStatus: verificationStatus ?? this.verificationStatus,
+      citationNumber: citationNumber ?? this.citationNumber,
+      citationLocations: citationLocations ?? this.citationLocations,
+      isCited: isCited ?? this.isCited,
+      reviewWarning: reviewWarning ?? this.reviewWarning,
     );
   }
 
@@ -292,8 +370,15 @@ class ReferencePayload {
     if (publisher != null) 'publisher': publisher,
     if (doi != null) 'doi': doi,
     if (url != null) 'url': url,
+    if (isbnOrIssn != null) 'isbn_or_issn': isbnOrIssn,
+    if (accessDate != null) 'access_date': accessDate,
+    if (publicationType != null) 'publication_type': publicationType,
     if (provenance != null) 'provenance': provenance,
     if (verificationStatus != null) 'verification_status': verificationStatus,
+    if (citationNumber != null) 'citation_number': citationNumber,
+    if (citationLocations != null) 'citation_locations': citationLocations,
+    if (isCited != null) 'is_cited': isCited,
+    if (reviewWarning != null) 'review_warning': reviewWarning,
   };
 }
 

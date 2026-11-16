@@ -238,6 +238,36 @@ components:
       properties:
         id: { type: string, pattern: '^[A-Za-z0-9_-]{1,40}$' }
         text: { type: string, minLength: 1, maxLength: 2000 }
+        raw_text: { type: [string, 'null'], maxLength: 4000 }
+        authors:
+          type: [array, 'null']
+          items: { type: string, maxLength: 300 }
+        year: { type: [integer, 'null'] }
+        title: { type: [string, 'null'], maxLength: 500 }
+        venue: { type: [string, 'null'], maxLength: 500 }
+        volume: { type: [string, 'null'], maxLength: 100 }
+        issue: { type: [string, 'null'], maxLength: 100 }
+        pages: { type: [string, 'null'], maxLength: 100 }
+        publisher: { type: [string, 'null'], maxLength: 300 }
+        doi: { type: [string, 'null'], maxLength: 200 }
+        url: { type: [string, 'null'], maxLength: 1000 }
+        isbn_or_issn: { type: [string, 'null'], maxLength: 50 }
+        access_date: { type: [string, 'null'], maxLength: 50 }
+        publication_type:
+          type: [string, 'null']
+          enum: [journal_article, conference_paper, book, book_chapter, thesis, technical_report, standard, patent, website, software_documentation, preprint, null]
+        provenance:
+          type: [string, 'null']
+          enum: [user_supplied, extracted, verified, placeholder, crossref, openalex, semantic_scholar, doi_org, null]
+        verification_status:
+          type: [string, 'null']
+          enum: [unverified, verified, incomplete, disputed, user_provided, flagged_missing_metadata, null]
+        citation_number: { type: [integer, 'null'] }
+        citation_locations:
+          type: [array, 'null']
+          items: { type: string, maxLength: 100 }
+        is_cited: { type: [boolean, 'null'] }
+        review_warning: { type: [string, 'null'], maxLength: 500 }
     AuthorAffiliation:
       type: object
       additionalProperties: false

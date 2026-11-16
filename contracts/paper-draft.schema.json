@@ -130,11 +130,50 @@
           },
           "provenance": {
             "type": ["string", "null"],
-            "enum": ["user_supplied", "extracted", "verified", "placeholder", null]
+            "enum": ["user_supplied", "extracted", "verified", "placeholder", "crossref", "openalex", "semantic_scholar", "doi_org", null]
           },
           "verification_status": {
             "type": ["string", "null"],
-            "enum": ["unverified", "verified", "incomplete", "disputed", null]
+            "enum": ["unverified", "verified", "incomplete", "disputed", "user_provided", "flagged_missing_metadata", null]
+          },
+          "isbn_or_issn": {
+            "type": ["string", "null"],
+            "maxLength": 50
+          },
+          "access_date": {
+            "type": ["string", "null"],
+            "maxLength": 50
+          },
+          "publication_type": {
+            "type": ["string", "null"],
+            "enum": [
+              "journal_article",
+              "conference_paper",
+              "book",
+              "book_chapter",
+              "thesis",
+              "technical_report",
+              "standard",
+              "patent",
+              "website",
+              "software_documentation",
+              "preprint",
+              null
+            ]
+          },
+          "citation_number": {
+            "type": ["integer", "null"]
+          },
+          "citation_locations": {
+            "type": ["array", "null"],
+            "items": { "type": "string" }
+          },
+          "is_cited": {
+            "type": ["boolean", "null"]
+          },
+          "review_warning": {
+            "type": ["string", "null"],
+            "maxLength": 500
           }
         }
       }

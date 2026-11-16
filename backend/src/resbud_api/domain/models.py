@@ -86,8 +86,37 @@ class ProjectContext(ContractModel):
         return self
 
 
-ProvenanceType = Literal["user_supplied", "extracted", "verified", "placeholder"]
-VerificationStatusType = Literal["unverified", "verified", "incomplete", "disputed"]
+ProvenanceType = Literal[
+    "user_supplied",
+    "extracted",
+    "verified",
+    "placeholder",
+    "crossref",
+    "openalex",
+    "semantic_scholar",
+    "doi_org",
+]
+VerificationStatusType = Literal[
+    "unverified",
+    "verified",
+    "incomplete",
+    "disputed",
+    "user_provided",
+    "flagged_missing_metadata",
+]
+PublicationType = Literal[
+    "journal_article",
+    "conference_paper",
+    "book",
+    "book_chapter",
+    "thesis",
+    "technical_report",
+    "standard",
+    "patent",
+    "website",
+    "software_documentation",
+    "preprint",
+]
 
 
 class ReferenceInput(ContractModel):
@@ -104,8 +133,15 @@ class ReferenceInput(ContractModel):
     publisher: Annotated[str, Field(max_length=300)] | None = None
     doi: Annotated[str, Field(max_length=200)] | None = None
     url: Annotated[str, Field(max_length=1000)] | None = None
+    isbn_or_issn: Annotated[str, Field(max_length=50)] | None = None
+    access_date: Annotated[str, Field(max_length=50)] | None = None
+    publication_type: PublicationType | None = None
     provenance: ProvenanceType | None = None
     verification_status: VerificationStatusType | None = None
+    citation_number: int | None = None
+    citation_locations: list[Annotated[str, Field(max_length=100)]] | None = None
+    is_cited: bool | None = None
+    review_warning: Annotated[str, Field(max_length=500)] | None = None
 
 
 class AuthorAffiliation(ContractModel):

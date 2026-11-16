@@ -27,6 +27,7 @@ from resbud_api.services.markdown_renderer import (
     render_blocks_to_docx,
 )
 from resbud_api.services.math_omml import insert_omml_into_paragraph
+from resbud_api.services.reference_engine import format_ieee_reference
 from resbud_api.templates.ieee_conference import (
     calculate_ieee_author_grid,
     format_ieee_heading_1,
@@ -312,9 +313,13 @@ def _create_document(paper: PaperDraft, review_notes: list[dict[str, str]] | Non
         ref_heading = document.add_heading("References", level=1)
         _ensure_run_style(ref_heading, bold=True)
         for ref_idx, reference in enumerate(paper.references, start=1):
-            ref_text = reference.text.strip()
-            if not re.match(r"^\[\d+\]", ref_text) and not re.match(r"^\d+\.", ref_text):
-                ref_text = f"[{ref_idx}] {ref_text}"
+            ref_num = reference.citation_number or ref_idx
+            if reference.title and reference.publication_type:
+                ref_text = format_ieee_reference(reference, ref_num)
+            else:
+                ref_text = reference.text.strip()
+                if not re.match(r"^\[\d+\]", ref_text) and not re.match(r"^\d+\.", ref_text):
+                    ref_text = f"[{ref_num}] {ref_text}"
             paragraph = document.add_paragraph()
             paragraph.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             paragraph.paragraph_format.left_indent = Inches(0.3)
@@ -733,9 +738,13 @@ def _create_ieee_conference_document(
             rPr.append(parse_xml(f"<w:smallCaps {nsdecls('w')}/>"))
 
         for ref_idx, reference in enumerate(paper.references, start=1):
-            ref_text = reference.text.strip()
-            if not re.match(r"^\[\d+\]", ref_text) and not re.match(r"^\d+\.", ref_text):
-                ref_text = f"[{ref_idx}] {ref_text}"
+            ref_num = reference.citation_number or ref_idx
+            if reference.title and reference.publication_type:
+                ref_text = format_ieee_reference(reference, ref_num)
+            else:
+                ref_text = reference.text.strip()
+                if not re.match(r"^\[\d+\]", ref_text) and not re.match(r"^\d+\.", ref_text):
+                    ref_text = f"[{ref_num}] {ref_text}"
             paragraph = document.add_paragraph()
             paragraph.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
             paragraph.paragraph_format.left_indent = Inches(0.22)

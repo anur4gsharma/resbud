@@ -30,6 +30,7 @@ from resbud_api.services.figure_distributor import distribute_and_reindex_figure
 from resbud_api.services.figure_planner import plan_figure_placements
 from resbud_api.services.integrity import has_meaningful_content, run_integrity_checks
 from resbud_api.services.manuscript_planner import create_manuscript_plan
+from resbud_api.services.reference_engine import process_manuscript_citations_and_bibliography
 from resbud_api.services.section_generator import (
     build_section_prompt,
     execute_section_generation,
@@ -212,6 +213,10 @@ async def generate_long_form_manuscript(
 
     if planned_figures:
         paper = distribute_and_reindex_figures(paper)
+
+    if paper.references:
+        paper, ref_warnings = process_manuscript_citations_and_bibliography(paper, brief)
+        failure_warnings.extend(ref_warnings)
 
     if not has_meaningful_content(paper):
         raise ResbudError(502)

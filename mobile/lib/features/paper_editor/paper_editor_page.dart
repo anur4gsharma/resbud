@@ -2415,46 +2415,445 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
     );
   }
 
-  Widget _buildReferencesCard() => Card(
-        key: _referencesKey,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  List<String> _getCitedSectionsForReference(String refId) {
+    final list = <String>[];
+    final pattern = RegExp(r'\[' + RegExp.escape(refId) + r'\]');
+    for (final sec in _paper.sections) {
+      final content = _sectionControllers[sec.id]?.text ?? sec.content;
+      if (pattern.hasMatch(content) || content.contains('[$refId]')) {
+        list.add(sec.heading);
+      }
+    }
+    return list;
+  }
+
+  Future<void> _showAddReferenceDialog() async {
+    final idController = TextEditingController(text: 'ref_${_paper.references.length + 1}');
+    final titleController = TextEditingController();
+    final authorsController = TextEditingController();
+    final yearController = TextEditingController(text: DateTime.now().year.toString());
+    final venueController = TextEditingController();
+    final doiController = TextEditingController();
+    final urlController = TextEditingController();
+    String pubType = 'journal_article';
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          title: const Text('Add Bibliographic Reference'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: idController,
+                  decoration: const InputDecoration(labelText: 'Reference ID *', hintText: 'ref_1'),
+                ),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: pubType,
+                  decoration: const InputDecoration(labelText: 'Publication Type'),
+                  items: const [
+                    DropdownMenuItem(value: 'journal_article', child: Text('Journal Article')),
+                    DropdownMenuItem(value: 'conference_paper', child: Text('Conference Paper')),
+                    DropdownMenuItem(value: 'book', child: Text('Book')),
+                    DropdownMenuItem(value: 'book_chapter', child: Text('Book Chapter')),
+                    DropdownMenuItem(value: 'thesis', child: Text('Thesis / Dissertation')),
+                    DropdownMenuItem(value: 'technical_report', child: Text('Technical Report')),
+                    DropdownMenuItem(value: 'standard', child: Text('Standard')),
+                    DropdownMenuItem(value: 'patent', child: Text('Patent')),
+                    DropdownMenuItem(value: 'website', child: Text('Website')),
+                    DropdownMenuItem(value: 'software_documentation', child: Text('Software Docs')),
+                    DropdownMenuItem(value: 'preprint', child: Text('Preprint (arXiv)')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) setDlgState(() => pubType = val);
+                  },
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(labelText: 'Title *', hintText: 'Paper or publication title'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: authorsController,
+                  decoration: const InputDecoration(labelText: 'Authors (comma-separated)', hintText: 'A. Author, B. Author'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: yearController,
+                  decoration: const InputDecoration(labelText: 'Year *', hintText: '2024'),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: venueController,
+                  decoration: const InputDecoration(labelText: 'Venue / Journal / Publisher', hintText: 'IEEE Trans. on SE'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: doiController,
+                  decoration: const InputDecoration(labelText: 'DOI', hintText: '10.1109/...'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: urlController,
+                  decoration: const InputDecoration(labelText: 'URL', hintText: 'https://...'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (idController.text.trim().isEmpty || titleController.text.trim().isEmpty) {
+                  return;
+                }
+                Navigator.of(ctx).pop(true);
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (saved == true) {
+      final cleanId = idController.text.trim();
+      final authorsList = authorsController.text
+          .split(RegExp(r'[,;]'))
+          .map((a) => a.trim())
+          .where((a) => a.isNotEmpty)
+          .toList();
+      final yearVal = int.tryParse(yearController.text.trim());
+      final formattedText = authorsList.isNotEmpty
+          ? '${authorsList.join(", ")}. ($yearVal). "${titleController.text.trim()}", ${venueController.text.trim()}.'
+          : '"${titleController.text.trim()}", ${venueController.text.trim()} ($yearVal).';
+
+      final newRef = ReferencePayload(
+        id: cleanId,
+        text: formattedText,
+        title: titleController.text.trim(),
+        authors: authorsList.isNotEmpty ? authorsList : null,
+        year: yearVal,
+        venue: venueController.text.trim().isNotEmpty ? venueController.text.trim() : null,
+        doi: doiController.text.trim().isNotEmpty ? doiController.text.trim() : null,
+        url: urlController.text.trim().isNotEmpty ? urlController.text.trim() : null,
+        publicationType: pubType,
+        provenance: 'user_supplied',
+        verificationStatus: (doiController.text.trim().isNotEmpty) ? 'verified' : 'unverified',
+        isCited: false,
+      );
+
+      setState(() {
+        final updatedRefs = List<ReferencePayload>.from(_paper.references)..add(newRef);
+        _paper = _paper.copyWith(references: updatedRefs);
+        _isDirty = true;
+      });
+    }
+  }
+
+  Future<void> _showEditReferenceDialog(ReferencePayload ref) async {
+    final titleController = TextEditingController(text: ref.title ?? '');
+    final authorsController = TextEditingController(text: ref.authors?.join(', ') ?? '');
+    final yearController = TextEditingController(text: ref.year?.toString() ?? '');
+    final venueController = TextEditingController(text: ref.venue ?? '');
+    final doiController = TextEditingController(text: ref.doi ?? '');
+    final urlController = TextEditingController(text: ref.url ?? '');
+    String pubType = ref.publicationType ?? 'journal_article';
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          title: Text('Edit Reference [${ref.id}]'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: pubType,
+                  decoration: const InputDecoration(labelText: 'Publication Type'),
+                  items: const [
+                    DropdownMenuItem(value: 'journal_article', child: Text('Journal Article')),
+                    DropdownMenuItem(value: 'conference_paper', child: Text('Conference Paper')),
+                    DropdownMenuItem(value: 'book', child: Text('Book')),
+                    DropdownMenuItem(value: 'book_chapter', child: Text('Book Chapter')),
+                    DropdownMenuItem(value: 'thesis', child: Text('Thesis / Dissertation')),
+                    DropdownMenuItem(value: 'technical_report', child: Text('Technical Report')),
+                    DropdownMenuItem(value: 'standard', child: Text('Standard')),
+                    DropdownMenuItem(value: 'patent', child: Text('Patent')),
+                    DropdownMenuItem(value: 'website', child: Text('Website')),
+                    DropdownMenuItem(value: 'software_documentation', child: Text('Software Docs')),
+                    DropdownMenuItem(value: 'preprint', child: Text('Preprint (arXiv)')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) setDlgState(() => pubType = val);
+                  },
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(labelText: 'Title *'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: authorsController,
+                  decoration: const InputDecoration(labelText: 'Authors (comma-separated)'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: yearController,
+                  decoration: const InputDecoration(labelText: 'Year'),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: venueController,
+                  decoration: const InputDecoration(labelText: 'Venue / Journal / Publisher'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: doiController,
+                  decoration: const InputDecoration(labelText: 'DOI'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: urlController,
+                  decoration: const InputDecoration(labelText: 'URL'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (saved == true) {
+      final authorsList = authorsController.text
+          .split(RegExp(r'[,;]'))
+          .map((a) => a.trim())
+          .where((a) => a.isNotEmpty)
+          .toList();
+      final yearVal = int.tryParse(yearController.text.trim());
+      final updatedRef = ref.copyWith(
+        title: titleController.text.trim().isNotEmpty ? titleController.text.trim() : ref.title,
+        authors: authorsList.isNotEmpty ? authorsList : ref.authors,
+        year: yearVal ?? ref.year,
+        venue: venueController.text.trim().isNotEmpty ? venueController.text.trim() : ref.venue,
+        doi: doiController.text.trim().isNotEmpty ? doiController.text.trim() : ref.doi,
+        url: urlController.text.trim().isNotEmpty ? urlController.text.trim() : ref.url,
+        publicationType: pubType,
+      );
+
+      setState(() {
+        final updatedList = _paper.references.map((r) => r.id == ref.id ? updatedRef : r).toList();
+        _paper = _paper.copyWith(references: updatedList);
+        _isDirty = true;
+      });
+    }
+  }
+
+  Future<void> _deleteReference(String refId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete Reference [$refId]?'),
+        content: Text('Are you sure you want to delete reference [$refId] from this manuscript?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() {
+        final updatedList = _paper.references.where((r) => r.id != refId).toList();
+        _paper = _paper.copyWith(references: updatedList);
+        _isDirty = true;
+      });
+    }
+  }
+
+  Widget _buildReferenceItem(ReferencePayload ref) {
+    final citedHeadings = _getCitedSectionsForReference(ref.id);
+    final isCited = (ref.isCited == true) || (ref.citationLocations != null && ref.citationLocations!.isNotEmpty) || citedHeadings.isNotEmpty;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
               Text(
-                'References (${_paper.references.length})',
-                style: Theme.of(context).textTheme.titleMedium,
+                '[${ref.citationNumber ?? ref.id}]',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Supplied references are authoritative and preserved across section updates.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 12),
-              if (_paper.references.isEmpty)
-                const Text('No references recorded for this draft.')
-              else
-                for (final ref in _paper.references)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '[${ref.id}] ',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        Expanded(
-                          child: SelectableText(ref.text),
-                        ),
-                      ],
-                    ),
+              const SizedBox(width: 8),
+              if (ref.publicationType != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.blueGrey.shade50,
+                    borderRadius: BorderRadius.circular(4),
                   ),
+                  child: Text(
+                    ref.publicationType!.replaceAll('_', ' ').toUpperCase(),
+                    style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.blueGrey.shade800),
+                  ),
+                ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isCited ? Colors.green.shade50 : Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  isCited ? 'Cited' : 'Uncited',
+                  style: TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    color: isCited ? Colors.green.shade800 : Colors.amber.shade900,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, size: 16),
+                tooltip: 'Edit Reference Metadata',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _showEditReferenceDialog(ref),
+              ),
+              IconButton(
+                icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
+                tooltip: 'Delete Reference',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _deleteReference(ref.id),
+              ),
             ],
           ),
+          const SizedBox(height: 6),
+          SelectableText(
+            ref.text,
+            style: const TextStyle(fontSize: 12),
+          ),
+          if (ref.doi != null && ref.doi!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'DOI: ${ref.doi}',
+              style: TextStyle(fontSize: 11, color: Colors.blue.shade700),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReferencesCard() {
+    final uncitedRefs = _paper.references.where((r) {
+      final cited = _getCitedSectionsForReference(r.id);
+      return (r.isCited == false) || (r.citationLocations == null && cited.isEmpty);
+    }).toList();
+
+    return Card(
+      key: _referencesKey,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'References (${_paper.references.length})',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'IEEE formatted references and citation management.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _showAddReferenceDialog,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Add Reference'),
+                ),
+              ],
+            ),
+            if (uncitedRefs.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.amber.shade300),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, size: 18, color: Colors.amber.shade900),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${uncitedRefs.length} reference(s) listed but not cited in text: ${uncitedRefs.map((r) => r.id).join(", ")}',
+                        style: TextStyle(fontSize: 12, color: Colors.amber.shade900),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            if (_paper.references.isEmpty)
+              const Text('No references recorded for this draft.')
+            else
+              for (final ref in _paper.references) ...[
+                _buildReferenceItem(ref),
+                const SizedBox(height: 10),
+              ],
+          ],
         ),
-      );
+      ),
+    );
+  }
 
   static String _versionSubtitle(PaperVersion version) {
     final restoredFrom = version.metadata?['restored_from_version_number'];
