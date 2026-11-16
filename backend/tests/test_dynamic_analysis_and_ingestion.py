@@ -77,6 +77,25 @@ def test_extract_pdf_in_memory():
     assert "empty" in err or "no readable text" in err
 
 
+def test_extract_image_in_memory():
+    from PIL import Image
+
+    img = Image.new("RGB", (320, 240), color="blue")
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    png_bytes = buf.getvalue()
+
+    text, fmt = extract_document_text("architecture_diagram.png", png_bytes)
+    assert fmt == "image"
+    assert "Architecture Diagram" in text
+    assert "320x240" in text
+
+    # Test corrupted image
+    with pytest.raises(Exception) as exc_info:
+        extract_document_text("corrupted.png", b"Not a PNG image bytes")
+    assert "corrupted" in str(exc_info.value).lower()
+
+
 def test_analysis_scenario_1_complete_research():
     text = (
         "# Graph Neural Networks for Quantum Chemistry\n\n"

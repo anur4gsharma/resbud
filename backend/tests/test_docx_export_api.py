@@ -245,3 +245,120 @@ def test_two_column_academic_docx_with_no_references() -> None:
     assert response.status_code == 200
     doc = Document(BytesIO(response.content))
     assert len(doc.paragraphs) > 0
+
+
+def test_docx_export_with_various_figure_formats() -> None:
+    import base64
+
+    from PIL import Image
+
+    def _make_b64(fmt: str, mode: str = "RGB") -> str:
+        im = Image.new(mode, (100, 80), color=(60, 120, 180))
+        buf = BytesIO()
+        im.save(buf, format=fmt)
+        return (
+            "data:image/"
+            + fmt.lower()
+            + ";base64,"
+            + base64.b64encode(buf.getvalue()).decode("ascii")
+        )
+
+    png_b64 = _make_b64("PNG", "RGBA")
+    webp_b64 = _make_b64("WEBP")
+    bmp_b64 = _make_b64("BMP")
+
+    paper = copy.deepcopy(PAPER)
+    paper["sections"][0]["content"] = (
+        "Multi-format image embedding in Word document:\n\n"
+        f"![Figure 1: Transparent PNG]({png_b64}#placement=full_width)\n\n"
+        f"![Figure 2: WebP Encoding]({webp_b64}#placement=column_width)\n\n"
+        f"![Figure 3: Windows Bitmap]({bmp_b64})\n\n"
+        "All figures rendered."
+    )
+
+    response = _request(_app(), paper)
+    assert response.status_code == 200
+    assert response.content.startswith(b"PK")
+
+    doc = Document(BytesIO(response.content))
+    texts = [p.text for p in doc.paragraphs]
+    assert any("Figure 1: Transparent PNG" in t for t in texts)
+    assert any("Figure 2: WebP Encoding" in t for t in texts)
+    assert any("Figure 3: Windows Bitmap" in t for t in texts)
+
+    # Test two-column DOCX with placement
+    async def request_two_col() -> httpx.Response:
+        transport = httpx.ASGITransport(app=_app(), raise_app_exceptions=False)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            return await client.post("/api/v1/exports/docx?layout=two_column_academic", json=paper)
+
+    response_two_col = asyncio.run(request_two_col())
+    assert response_two_col.status_code == 200
+    assert response_two_col.content.startswith(b"PK")
+    doc_two_col = Document(BytesIO(response_two_col.content))
+    texts_two_col = [p.text for p in doc_two_col.paragraphs]
+    assert any("Figure 1: Transparent PNG" in t for t in texts_two_col)
+    assert any("Figure 2: WebP Encoding" in t for t in texts_two_col)
+    assert any("Figure 3: Windows Bitmap" in t for t in texts_two_col)
+
+
+def test_docx_export_review_notes_appendix_disabled_strips_editorial_notes() -> None:
+    paper = copy.deepcopy(PAPER)
+    paper["sections"][0]["content"] = (
+        "State of the art benchmark [1] within interval [0, 1].\n\n"
+        "[Note: Specific experimental results were not provided in the prompt.]\n\n"
+        "[Methodological Scope Note: Further empirical expansion is constrained due to lack of dataset.]\n\n"
+        "The experimental evaluation has not yet been conducted."
+    )
+
+    async def request_no_notes() -> httpx.Response:
+        transport = httpx.ASGITransport(app=_app(), raise_app_exceptions=False)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            return await client.post(
+                "/api/v1/exports/docx?include_review_notes_appendix=false", json=paper
+            )
+
+    response = asyncio.run(request_no_notes())
+    assert response.status_code == 200
+    doc = Document(BytesIO(response.content))
+    all_text = " ".join(p.text for p in doc.paragraphs)
+
+    assert "Specific experimental results were not provided" not in all_text
+    assert "Further empirical expansion is constrained" not in all_text
+    assert "Author Review Notes" not in all_text
+    assert "[1]" in all_text
+    assert "[0, 1]" in all_text
+    assert "The experimental evaluation has not yet been conducted." in all_text
+
+
+def test_docx_export_review_notes_appendix_enabled_adds_appendix() -> None:
+    paper = copy.deepcopy(PAPER)
+    paper["review_warnings"] = [
+        {
+            "code": "MISSING_RESULTS",
+            "severity": "warning",
+            "message": "Empirical validation dataset was not provided.",
+            "section_id": paper["sections"][0]["id"],
+        }
+    ]
+    paper["sections"][0]["content"] = (
+        "Citing reference [1].\n\n"
+        "[Note: Specific experimental results were not provided in the prompt.]\n\n"
+        "Standard narrative."
+    )
+
+    async def request_with_notes() -> httpx.Response:
+        transport = httpx.ASGITransport(app=_app(), raise_app_exceptions=False)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            return await client.post(
+                "/api/v1/exports/docx?include_review_notes_appendix=true", json=paper
+            )
+
+    response = asyncio.run(request_with_notes())
+    assert response.status_code == 200
+    doc = Document(BytesIO(response.content))
+    all_text = " ".join(p.text for p in doc.paragraphs)
+
+    assert "Author Review Notes" in all_text
+    assert "Empirical validation dataset was not provided." in all_text
+    assert "Specific experimental results were not provided" in all_text

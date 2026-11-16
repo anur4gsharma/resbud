@@ -8,6 +8,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:resbud_mobile/data/local_project_repository.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(sqfliteFfiInit);
 
   late Directory tempDirectory;
@@ -276,12 +277,18 @@ void main() {
       expect(await database.getVersion(), currentDatabaseSchemaVersion);
       expect(
         (await database.query('database_meta')).single['schema_version'],
-        2,
+        currentDatabaseSchemaVersion,
       );
       expect(
         (await database.rawQuery(
           'PRAGMA table_info(paper_versions)',
         )).any((column) => column['name'] == 'metadata_json'),
+        isTrue,
+      );
+      expect(
+        (await database.rawQuery(
+          'PRAGMA table_info(project_figures)',
+        )).any((column) => column['name'] == 'storage_key'),
         isTrue,
       );
     },

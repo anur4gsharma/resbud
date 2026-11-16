@@ -71,6 +71,12 @@ class SourceDocumentImporter {
     final isText = extension == 'txt' || extension == 'md' || extension == 'markdown';
     final isDocx = extension == 'docx';
     final isPdf = extension == 'pdf';
+    final isImage = extension == 'png' ||
+        extension == 'jpg' ||
+        extension == 'jpeg' ||
+        extension == 'webp' ||
+        extension == 'gif' ||
+        extension == 'bmp';
 
     if (!allowPdf && isPdf) {
       throw const SourceImportException(
@@ -78,10 +84,10 @@ class SourceDocumentImporter {
         'Choose a UTF-8 .txt, .md, or .docx file.',
       );
     }
-    if (!isText && !isDocx && (!allowPdf || !isPdf)) {
+    if (!isText && !isDocx && (!allowPdf || !isPdf) && !isImage) {
       throw const SourceImportException(
         SourceImportErrorCode.unsupportedFormat,
-        'Choose a UTF-8 .txt, .md, or .docx file.',
+        'Choose a UTF-8 .txt, .md, .docx, .pdf, or image file.',
       );
     }
     _validateMediaType(extension, contentType);
@@ -96,7 +102,9 @@ class SourceDocumentImporter {
         ? _readText(bytes)
         : isDocx
             ? _readDocx(bytes)
-            : _readPdf(bytes);
+            : isPdf
+                ? _readPdf(bytes)
+                : _readImage(bytes, fileName, extension);
     if (text.trim().isEmpty) {
       throw const SourceImportException(
         SourceImportErrorCode.emptyDocument,
@@ -207,21 +215,139 @@ class SourceDocumentImporter {
     }
     final isText = extension == 'txt' || extension == 'md' || extension == 'markdown';
     final isPdf = extension == 'pdf';
+    final isImage = extension == 'png' ||
+        extension == 'jpg' ||
+        extension == 'jpeg' ||
+        extension == 'webp' ||
+        extension == 'gif' ||
+        extension == 'bmp';
     final valid = isText
         ? normalized == 'text/plain' ||
             normalized == 'text/markdown' ||
             normalized == 'text/x-markdown'
         : isPdf
             ? normalized == 'application/pdf' || normalized == 'application/x-pdf'
-            : normalized ==
-                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-                normalized == 'application/zip';
+            : isImage
+                ? normalized.startsWith('image/')
+                : normalized ==
+                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                    normalized == 'application/zip';
     if (!valid) {
       throw const SourceImportException(
         SourceImportErrorCode.unsupportedMediaType,
         'The selected file type does not match its file extension.',
       );
     }
+  }
+
+  String _readImage(Uint8List bytes, String fileName, String extension) {
+    if (bytes.isEmpty) {
+      throw const SourceImportException(
+        SourceImportErrorCode.emptyDocument,
+        'The selected image is empty.',
+      );
+    }
+
+    int width = 0;
+    int height = 0;
+
+    // Validate headers & extract dimensions if available
+    if (extension == 'png') {
+      if (bytes.length < 24 ||
+          bytes[0] != 0x89 ||
+          bytes[1] != 0x50 ||
+          bytes[2] != 0x4e ||
+          bytes[3] != 0x47) {
+        throw const SourceImportException(
+          SourceImportErrorCode.malformedDocument,
+          'The .png file is malformed or corrupted.',
+        );
+      }
+      final data = ByteData.sublistView(bytes);
+      width = data.getUint32(16, Endian.big);
+      height = data.getUint32(20, Endian.big);
+    } else if (extension == 'gif') {
+      if (bytes.length < 10 ||
+          bytes[0] != 0x47 ||
+          bytes[1] != 0x49 ||
+          bytes[2] != 0x46) {
+        throw const SourceImportException(
+          SourceImportErrorCode.malformedDocument,
+          'The .gif file is malformed or corrupted.',
+        );
+      }
+      final data = ByteData.sublistView(bytes);
+      width = data.getUint16(6, Endian.little);
+      height = data.getUint16(8, Endian.little);
+    } else if (extension == 'bmp') {
+      if (bytes.length < 26 || bytes[0] != 0x42 || bytes[1] != 0x4d) {
+        throw const SourceImportException(
+          SourceImportErrorCode.malformedDocument,
+          'The .bmp file is malformed or corrupted.',
+        );
+      }
+      final data = ByteData.sublistView(bytes);
+      width = data.getInt32(18, Endian.little).abs();
+      height = data.getInt32(22, Endian.little).abs();
+    } else if (extension == 'jpg' || extension == 'jpeg') {
+      if (bytes.length < 4 || bytes[0] != 0xff || bytes[1] != 0xd8) {
+        throw const SourceImportException(
+          SourceImportErrorCode.malformedDocument,
+          'The JPEG file is malformed or corrupted.',
+        );
+      }
+      var i = 2;
+      while (i < bytes.length - 8) {
+        if (bytes[i] == 0xff) {
+          final marker = bytes[i + 1];
+          if ((marker >= 0xc0 && marker <= 0xc3) ||
+              (marker >= 0xc5 && marker <= 0xc7) ||
+              (marker >= 0xc9 && marker <= 0xcb) ||
+              (marker >= 0xcd && marker <= 0xcf)) {
+            final data = ByteData.sublistView(bytes);
+            height = data.getUint16(i + 5, Endian.big);
+            width = data.getUint16(i + 7, Endian.big);
+            break;
+          }
+          final data = ByteData.sublistView(bytes);
+          final blockLength = data.getUint16(i + 2, Endian.big);
+          i += 2 + blockLength;
+        } else {
+          i++;
+        }
+      }
+    } else if (extension == 'webp') {
+      if (bytes.length < 12 ||
+          bytes[0] != 0x52 ||
+          bytes[1] != 0x49 ||
+          bytes[2] != 0x46 ||
+          bytes[3] != 0x46 ||
+          bytes[8] != 0x57 ||
+          bytes[9] != 0x45 ||
+          bytes[10] != 0x42 ||
+          bytes[11] != 0x50) {
+        throw const SourceImportException(
+          SourceImportErrorCode.malformedDocument,
+          'The .webp file is malformed or corrupted.',
+        );
+      }
+    }
+
+    final cleanName = fileName
+        .replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '')
+        .replaceAll(RegExp(r'[-_]'), ' ')
+        .trim();
+    final titleCase = cleanName
+        .split(' ')
+        .where((w) => w.isNotEmpty)
+        .map((w) => w[0].toUpperCase() + w.substring(1))
+        .join(' ');
+
+    final dimStr = (width > 0 && height > 0) ? ' (${width}x${height})' : '';
+    return '=== RESEARCH FIGURE / IMAGE: $fileName ===\n'
+        'Figure: $titleCase\n'
+        'Format: ${extension.toUpperCase()}$dimStr\n'
+        'Visual Research Material: Attached empirical research figure and visualization for $titleCase.';
   }
 
   String _readPdf(Uint8List bytes) {

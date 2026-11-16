@@ -1,14 +1,15 @@
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/local_project_repository.dart';
+import '../../data/project_figure.dart';
 import '../docx_viewer/docx_document_canvas.dart';
 import '../docx_viewer/docx_viewer.dart';
 import '../export/docx_export_client.dart';
 import '../export/docx_file_saver.dart';
+import '../export/figure_export_resolver.dart';
 import '../generation/generation_api_client.dart';
 import '../generation/generation_models.dart';
 import '../pdf_viewer/pdf_viewer.dart';
@@ -60,6 +61,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
   bool _isDirty = false;
   bool _isSaving = false;
   bool _isExporting = false;
+  bool _includeReviewNotesAppendix = false;
   String? _activeRegeneratingSectionId;
   final Set<String> _previewingSectionIds = {};
 
@@ -73,6 +75,10 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
     _versionsFuture = widget.repository.listPaperVersions(widget.project.id);
     _exportApi = widget.exportApi ?? DocxExportApiClient.fromEnvironment();
     _fileSaver = widget.fileSaver ?? LocalDocxFileSaver();
+    final projectPrefs = widget.project.projectContext['preferences'];
+    if (projectPrefs is Map && projectPrefs['include_review_notes_appendix'] == true) {
+      _includeReviewNotesAppendix = true;
+    }
     _currentVersion = widget.initialVersion;
     _paper = PaperDraftPayload.fromJson(_currentVersion.paper);
     _titleController = TextEditingController(text: _paper.title);
@@ -527,10 +533,24 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
         final cleanName = file.name
             .replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '')
             .replaceAll('_', ' ');
-        final b64 = 'data:$mediaType;base64,${base64Encode(bytes)}';
+        final figId = 'fig_${DateTime.now().millisecondsSinceEpoch}_$count';
+        final fig = ProjectFigure(
+          id: figId,
+          projectId: widget.project.id,
+          figureNumber: count,
+          filename: file.name,
+          mimeType: mediaType,
+          fileSize: bytes.length,
+          caption: 'Figure: $cleanName',
+          storageKey: '',
+          placement: FigurePlacement.columnWidth,
+          sectionId: section.id,
+          cachedBytes: bytes,
+        );
+        await widget.repository.saveProjectFigures(widget.project.id, [fig]);
 
         buffer.writeln();
-        buffer.writeln('![Figure: $cleanName]($b64)');
+        buffer.writeln('![Figure: $cleanName]($figId)');
         buffer.writeln();
         count++;
       }
@@ -1462,7 +1482,15 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
     setState(() => _isExporting = true);
 
     try {
-      final result = await _exportApi.exportDocx(paperToExport);
+      final resolvedPaper = await resolveFiguresForExport(
+        paper: paperToExport,
+        repository: widget.repository,
+        projectId: widget.project.id,
+      );
+      final result = await _exportApi.exportDocx(
+        resolvedPaper,
+        includeReviewNotesAppendix: _includeReviewNotesAppendix,
+      );
       final savedPath = await _fileSaver.saveDocx(
         bytes: result.bytes,
         suggestedFilename: result.suggestedFilename,
@@ -1543,7 +1571,15 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
     setState(() => _isExporting = true);
 
     try {
-      final result = await _exportApi.exportPdf(paperToExport);
+      final resolvedPaper = await resolveFiguresForExport(
+        paper: paperToExport,
+        repository: widget.repository,
+        projectId: widget.project.id,
+      );
+      final result = await _exportApi.exportPdf(
+        resolvedPaper,
+        includeReviewNotesAppendix: _includeReviewNotesAppendix,
+      );
       final savedPath = await _fileSaver.savePdf(
         bytes: result.bytes,
         suggestedFilename: result.suggestedFilename,

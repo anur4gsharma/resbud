@@ -48,7 +48,7 @@ class ManuscriptPlan(BaseModel):
     abstract: str = Field(min_length=50, max_length=4000)
     keywords: list[str] = Field(min_length=2, max_length=10)
     total_target_words: int = Field(ge=500, le=8000)
-    sections: list[PlannedSection] = Field(min_length=3, max_length=15)
+    sections: list[PlannedSection] = Field(min_length=1, max_length=15)
     identified_limitations: list[str] = Field(default_factory=list)
     terminology_glossary: dict[str, str] = Field(
         default_factory=dict,

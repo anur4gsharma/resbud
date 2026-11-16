@@ -20,8 +20,8 @@ Live runtime verification on an Android emulator (Android 17 API 37) confirmed s
 | Attribute | Verified Value |
 |---|---|
 | **Binary Path** | `releases/android/Resbud-release.apk` |
-| **Artifact Size** | `64,422,036 bytes` (~61.44 MiB) |
-| **SHA-256 Checksum** | `c664131bb909305808a6defb5e5961a9fdf66a3f28531a409f173d51895c7822` |
+| **Artifact Size** | `64,814,640 bytes` (~61.81 MiB / 64.8 MB) |
+| **SHA-256 Checksum** | `5f7cf3c5754b3859bf5bd16f4dfd83a4897eb67d848a04933da6f54867f0543a` |
 | **Package Name** | `org.resbud.mobile` |
 | **Version Name** | `0.1.0` |
 | **Version Code** | `1` |
@@ -33,7 +33,7 @@ Live runtime verification on an Android emulator (Android 17 API 37) confirmed s
 ### Checksum Verification
 ```bash
 sha256sum releases/android/Resbud-release.apk
-# c664131bb909305808a6defb5e5961a9fdf66a3f28531a409f173d51895c7822  releases/android/Resbud-release.apk
+# 5f7cf3c5754b3859bf5bd16f4dfd83a4897eb67d848a04933da6f54867f0543a  releases/android/Resbud-release.apk
 ```
 
 ---
@@ -199,7 +199,7 @@ To install the release APK on a physical Android device or emulator:
 | Release Gate | Evaluation | Status |
 |---|---|---|
 | **Build Stability** | Universal release APK compiles cleanly with AGP 8.x, NDK 28, Gradle 9.3 | **PASS** |
-| **Test Coverage** | 182 / 182 Flutter unit, widget, and integration tests pass | **PASS** |
+| **Test Coverage** | 188 / 188 Flutter unit, widget, and integration tests pass | **PASS** |
 | **Cryptographic Signing** | Android Signature Scheme v2 verified with dedicated 2048-bit RSA release key | **PASS** |
 | **API Integration** | Release client defaults to HTTPS Render endpoint (`https://resbud-api.onrender.com`) | **PASS** |
 | **Zero-Secret Boundary**| No Gemini keys, backend signing secrets, or localhost URLs exist in mobile binary | **PASS** |

@@ -43,9 +43,18 @@ class GenerationRequest {
     final references = _list(project['references'], 'project.references')
         .map((value) => ReferencePayload.fromJson(_map(value, 'reference')))
         .toList(growable: false);
-    final preferences = PaperPreferencesPayload.fromJson(
-      _map(project['preferences'], 'project.preferences'),
-    );
+    final rawPrefs = _map(project['preferences'], 'project.preferences');
+    const allowedPrefsKeys = {
+      'target_word_count',
+      'desired_sections',
+      'citation_style',
+      'page_layout',
+    };
+    final filteredPrefs = <String, Object?>{
+      for (final entry in rawPrefs.entries)
+        if (allowedPrefsKeys.contains(entry.key)) entry.key: entry.value,
+    };
+    final preferences = PaperPreferencesPayload.fromJson(filteredPrefs);
     if (sourceDraft.trim().isEmpty || sourceDraft.length > 50000) {
       throw const FormatException('Source draft must contain 1–50,000 characters.');
     }

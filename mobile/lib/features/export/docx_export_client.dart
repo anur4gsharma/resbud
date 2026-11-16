@@ -91,8 +91,16 @@ class PdfExportResult {
 }
 
 abstract interface class PaperExportApi {
-  Future<DocxExportResult> exportDocx(PaperDraftPayload paper, {String? layout});
-  Future<PdfExportResult> exportPdf(PaperDraftPayload paper, {String? layout});
+  Future<DocxExportResult> exportDocx(
+    PaperDraftPayload paper, {
+    String? layout,
+    bool? includeReviewNotesAppendix,
+  });
+  Future<PdfExportResult> exportPdf(
+    PaperDraftPayload paper, {
+    String? layout,
+    bool? includeReviewNotesAppendix,
+  });
 }
 
 class DocxExportApiClient implements PaperExportApi {
@@ -131,10 +139,21 @@ class DocxExportApiClient implements PaperExportApi {
   final BearerTokenProvider? tokenProvider;
   final Duration timeout;
 
-  Uri _buildExportUri(String path, {String? layout}) {
+  Uri _buildExportUri(
+    String path, {
+    String? layout,
+    bool? includeReviewNotesAppendix,
+  }) {
     final uri = baseUri.resolve(path);
+    final qp = <String, String>{};
     if (layout != null && layout.isNotEmpty) {
-      return uri.replace(queryParameters: {'layout': layout});
+      qp['layout'] = layout;
+    }
+    if (includeReviewNotesAppendix != null) {
+      qp['include_review_notes_appendix'] = includeReviewNotesAppendix ? 'true' : 'false';
+    }
+    if (qp.isNotEmpty) {
+      return uri.replace(queryParameters: qp);
     }
     return uri;
   }
@@ -144,7 +163,11 @@ class DocxExportApiClient implements PaperExportApi {
   }
 
   @override
-  Future<DocxExportResult> exportDocx(PaperDraftPayload paper, {String? layout}) async {
+  Future<DocxExportResult> exportDocx(
+    PaperDraftPayload paper, {
+    String? layout,
+    bool? includeReviewNotesAppendix,
+  }) async {
     final token = await tokenProvider?.call();
     final headers = <String, String>{
       'content-type': 'application/json',
@@ -156,7 +179,11 @@ class DocxExportApiClient implements PaperExportApi {
 
     final payloadJson = jsonEncode(paper.toJson());
     final effectiveLayout = layout ?? paper.pageLayout;
-    final exportUri = _buildExportUri('/api/v1/exports/docx', layout: effectiveLayout);
+    final exportUri = _buildExportUri(
+      '/api/v1/exports/docx',
+      layout: effectiveLayout,
+      includeReviewNotesAppendix: includeReviewNotesAppendix,
+    );
 
     late final http.Response response;
     try {
@@ -209,7 +236,11 @@ class DocxExportApiClient implements PaperExportApi {
   }
 
   @override
-  Future<PdfExportResult> exportPdf(PaperDraftPayload paper, {String? layout}) async {
+  Future<PdfExportResult> exportPdf(
+    PaperDraftPayload paper, {
+    String? layout,
+    bool? includeReviewNotesAppendix,
+  }) async {
     final token = await tokenProvider?.call();
     final headers = <String, String>{
       'content-type': 'application/json',
@@ -221,7 +252,11 @@ class DocxExportApiClient implements PaperExportApi {
 
     final payloadJson = jsonEncode(paper.toJson());
     final effectiveLayout = layout ?? paper.pageLayout;
-    final exportUri = _buildExportUri('/api/v1/exports/pdf', layout: effectiveLayout);
+    final exportUri = _buildExportUri(
+      '/api/v1/exports/pdf',
+      layout: effectiveLayout,
+      includeReviewNotesAppendix: includeReviewNotesAppendix,
+    );
 
     late final http.Response response;
     try {

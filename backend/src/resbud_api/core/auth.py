@@ -144,15 +144,14 @@ async def get_current_user(request: Request) -> AuthenticatedUser:
     # In development or test environment without an auth_issuer configured:
     # Allow local unauthenticated access for local development / testing.
     if settings.environment != "production" and settings.auth_issuer is None:
-        if not auth_header:
-            user = AuthenticatedUser(
-                subject="local-dev-user",
-                issuer="local-dev",
-                audience="resbud-local",
-                claims={},
-            )
-            request.state.user = user
-            return user
+        user = AuthenticatedUser(
+            subject="local-dev-user",
+            issuer="local-dev",
+            audience="resbud-local",
+            claims={},
+        )
+        request.state.user = user
+        return user
 
     # In production, or whenever an auth_issuer is configured, require a valid Bearer token.
     if not auth_header or not auth_header.lower().startswith("bearer "):

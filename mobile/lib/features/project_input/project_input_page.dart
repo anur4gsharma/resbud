@@ -5,8 +5,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../data/local_project_repository.dart';
+import '../../data/project_figure.dart';
 import '../export/docx_export_client.dart';
 import '../export/docx_file_saver.dart';
+import '../export/figure_export_resolver.dart';
 import '../generation/generation_api_client.dart';
 import '../generation/generation_models.dart';
 import '../paper_editor/paper_editor_page.dart';
@@ -108,6 +110,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   int _targetWordCount = 5000;
   String _citationStyle = 'user_supplied';
   String _pageLayout = 'single_column';
+  bool _includeReviewNotesAppendix = false;
   List<String> _desiredSections = List.of(_baseSections);
   bool _saving = false;
   bool _importing = false;
@@ -183,6 +186,10 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           ['single_column', 'two_column_academic'].contains(pageLayout)) {
         _pageLayout = pageLayout;
       }
+      final includeReviewNotes = preferences['include_review_notes_appendix'];
+      if (includeReviewNotes is bool) {
+        _includeReviewNotesAppendix = includeReviewNotes;
+      }
       final sections = preferences['desired_sections'];
       if (sections is List && sections.every((value) => value is String)) {
         _desiredSections = List<String>.from(sections);
@@ -251,6 +258,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     _pageLayout,
     _desiredSections.join(','),
     _customSectionsController.text,
+    _attachedFigures.map((f) => '${f['id']}:${f['caption']}:${f['placement']}').join(','),
   ].join('|');
 
   bool get _isDirty => _fingerprint() != _initialFingerprint;
@@ -319,8 +327,13 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         'desired_sections': _requestedSections,
         'citation_style': _citationStyle,
         'page_layout': _pageLayout,
+        'include_review_notes_appendix': _includeReviewNotesAppendix,
       },
-      if (_attachedFigures.isNotEmpty) 'figures': _attachedFigures,
+      if (_attachedFigures.isNotEmpty)
+        'figures': _attachedFigures.map((fig) {
+          final pf = ProjectFigure.fromMap(fig, projectId: widget.project.id);
+          return pf.toMetadataMap();
+        }).toList(),
     };
   }
 
@@ -335,16 +348,32 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     _sectionError = null;
 
     if (_documentMode) {
-      if (_controllers['source_draft']!.text.trim().isEmpty) {
-        _fieldErrors['source_draft'] = 'Please upload a .txt, .md, .docx, or .pdf file.';
+      if (_controllers['source_draft']!.text.trim().isEmpty && _attachedFigures.isEmpty) {
+        _fieldErrors['source_draft'] = 'Please upload a .txt, .md, .docx, .pdf, or image file.';
       }
-      if (_controllers['title']!.text.trim().isEmpty && _controllers['source_draft']!.text.trim().isNotEmpty) {
+      if (_controllers['source_draft']!.text.trim().isEmpty && _attachedFigures.isNotEmpty) {
+        final buf = StringBuffer();
+        for (final fig in _attachedFigures) {
+          if (buf.isNotEmpty) buf.write('\n\n');
+          buf.writeln('=== RESEARCH FIGURE: ${fig['name']} ===');
+          buf.writeln('Caption: ${fig['caption']}');
+          buf.writeln('Marker: ![${fig['caption']}](${fig['id']})');
+          buf.writeln('Visual Research Material: Attached empirical figure and experimental evidence representing ${fig['caption']}.');
+        }
+        _controllers['source_draft']!.text = buf.toString();
+      }
+      if (_controllers['title']!.text.trim().isEmpty &&
+          (_controllers['source_draft']!.text.trim().isNotEmpty || _attachedFigures.isNotEmpty)) {
         _controllers['title']!.text = _analysisResponse?.inferredTitle.isNotEmpty == true
             ? _analysisResponse!.inferredTitle
-            : 'Scientific Research Study';
+            : (_attachedFigures.isNotEmpty
+                ? _attachedFigures.first['caption'].toString().replaceFirst(RegExp(r'^Figure \d+:\s*'), '')
+                : 'Scientific Research Study');
       }
-      if ((_controllers['description']?.text.trim() ?? '').isEmpty && _controllers['source_draft']!.text.trim().isNotEmpty) {
-        _controllers['description']!.text = 'Investigation and manuscript synthesis based on the supplied research dossier.';
+      if ((_controllers['description']?.text.trim() ?? '').isEmpty &&
+          (_controllers['source_draft']!.text.trim().isNotEmpty || _attachedFigures.isNotEmpty)) {
+        _controllers['description']!.text =
+            'Investigation and manuscript synthesis based on the supplied research dossier.';
       }
       _formKey.currentState?.validate();
       if (_fieldErrors.isNotEmpty) {
@@ -415,7 +444,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
   }
 
   List<Widget> _buildDocumentModeWidgets() {
-    final hasContent = _controllers['source_draft']!.text.trim().isNotEmpty;
+    final hasContent = _controllers['source_draft']!.text.trim().isNotEmpty || _attachedFigures.isNotEmpty;
     final charCount = _controllers['source_draft']!.text.length;
 
     return [
@@ -483,7 +512,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Upload notes, experimental results, manuscripts, or drafts. The AI will extract content, analyze research quality, and synthesize the paper.',
+                          'Upload notes, experimental results, manuscripts, drafts, or research images. The AI will extract content, analyze research quality, and synthesize the paper.',
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.onSurfaceVariant,
                             fontSize: 13,
@@ -500,7 +529,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                 spacing: 8,
                 runSpacing: 6,
                 children: [
-                  for (final ext in ['.txt', '.md', '.docx', '.pdf'])
+                  for (final ext in ['.txt', '.md', '.docx', '.pdf', '.png', '.jpg'])
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
@@ -545,6 +574,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                         setState(() {
                           _controllers['source_draft']!.clear();
                           _attachedFiles.clear();
+                          _attachedFigures.clear();
                           _analysisResponse = null;
                           _showAdditionalInfoInterface = false;
                         });
@@ -833,7 +863,15 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     );
 
     try {
-      final result = await _exportApi.exportDocx(paperToExport);
+      final resolvedPaper = await resolveFiguresForExport(
+        paper: paperToExport,
+        repository: widget.repository,
+        projectId: widget.project.id,
+      );
+      final result = await _exportApi.exportDocx(
+        resolvedPaper,
+        includeReviewNotesAppendix: _includeReviewNotesAppendix,
+      );
       final savedPath = await _fileSaver.saveDocx(
         bytes: result.bytes,
         suggestedFilename: result.suggestedFilename,
@@ -900,7 +938,15 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     );
 
     try {
-      final result = await _exportApi.exportPdf(paperToExport);
+      final resolvedPaper = await resolveFiguresForExport(
+        paper: paperToExport,
+        repository: widget.repository,
+        projectId: widget.project.id,
+      );
+      final result = await _exportApi.exportPdf(
+        resolvedPaper,
+        includeReviewNotesAppendix: _includeReviewNotesAppendix,
+      );
       final savedPath = await _fileSaver.savePdf(
         bytes: result.bytes,
         suggestedFilename: result.suggestedFilename,
@@ -1446,7 +1492,8 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       });
       if (showMessage) _showMessage('Project saved on this device.');
       return true;
-    } on Object {
+    } on Object catch (e, st) {
+      debugPrint('Failed to save project inputs: $e\n$st');
       if (!mounted) return false;
       setState(() => _saving = false);
       _showMessage(
@@ -1512,7 +1559,8 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           );
           return;
         }
-      } catch (_) {
+      } catch (e) {
+        debugPrint('analyzeResearch failed: $e');
         _isAnalyzing = false;
       }
     }
@@ -1573,13 +1621,15 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       });
       await _showGeneratedPreview();
     } on GenerationApiFailure catch (failure) {
+      debugPrint('GenerationApiFailure: $failure (${failure.userMessage})');
       if (!mounted) return;
       setState(() {
         _generationFailure = failure;
         _generationResult = null;
         _generationPhase = GenerationPhase.recoverableFailure;
       });
-    } on Object {
+    } on Object catch (e, st) {
+      debugPrint('Unexpected generation failure: $e\n$st');
       if (!mounted) return;
       setState(() {
         _generationFailure = const GenerationApiFailure(
@@ -1889,16 +1939,62 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           });
           return;
         }
+
+        final ext = picked.name.split('.').last.toLowerCase();
+        final isImage = const {'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'}.contains(ext);
+
         final imported = const SourceDocumentImporter().importBytes(
           fileName: picked.name,
           bytes: picked.bytes,
           allowPdf: true,
         );
+
+        if (isImage) {
+          final mediaType = switch (ext) {
+            'jpg' || 'jpeg' => 'image/jpeg',
+            'webp' => 'image/webp',
+            'gif' => 'image/gif',
+            'bmp' => 'image/bmp',
+            _ => 'image/png',
+          };
+          final b64 = 'data:$mediaType;base64,${base64Encode(picked.bytes)}';
+          final figNumber = _attachedFigures.length + 1;
+          final cleanName = picked.name
+              .replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '')
+              .replaceAll(RegExp(r'[-_]'), ' ')
+              .trim();
+          final titleName = cleanName
+              .split(' ')
+              .where((w) => w.isNotEmpty)
+              .map((w) => w[0].toUpperCase() + w.substring(1))
+              .join(' ');
+
+          _attachedFigures.add({
+            'id': 'fig_$figNumber',
+            'name': picked.name,
+            'caption': 'Figure $figNumber: $titleName',
+            'description': 'Visual research material: $titleName ($ext).',
+            'base64': b64,
+            'bytes': picked.bytes,
+          });
+
+          if (_controllers['title']!.text.trim().isEmpty ||
+              _controllers['title']!.text.trim() == 'Scientific Research Study') {
+            _controllers['title']!.text = titleName;
+          }
+          if ((_controllers['description']?.text.trim() ?? '').isEmpty) {
+            _controllers['description']!.text =
+                'Investigation and manuscript synthesis based on uploaded figure: ${picked.name}.';
+          }
+        }
+
         setState(() {
           _attachedFiles.clear();
           _attachedFiles.add((name: picked.name, size: picked.bytes.length));
           _controllers['source_draft']!.text = imported.text;
-          _importMessage = 'Imported ${picked.name} (${imported.text.length} characters).';
+          _importMessage = isImage
+              ? 'Processed and attached 1 figure (${picked.name}) into research material.'
+              : 'Imported ${picked.name} (${imported.text.length} characters).';
           _importing = false;
           _analysisResponse = null;
           _showAdditionalInfoInterface = false;
@@ -1919,6 +2015,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       }
 
       final filesToProcess = <({String fileName, Uint8List bytes, String? contentType})>[];
+      final newlyAddedFigures = <Map<String, dynamic>>[];
       int imagesAdded = 0;
 
       for (final file in result) {
@@ -1947,16 +2044,24 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           final figNumber = _attachedFigures.length + 1;
           final cleanName = file.name
               .replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '')
-              .replaceAll('_', ' ');
+              .replaceAll(RegExp(r'[-_]'), ' ')
+              .trim();
+          final titleName = cleanName
+              .split(' ')
+              .where((w) => w.isNotEmpty)
+              .map((w) => w[0].toUpperCase() + w.substring(1))
+              .join(' ');
 
-          _attachedFigures.add({
+          final figMap = {
             'id': 'fig_$figNumber',
             'name': file.name,
-            'caption': 'Figure $figNumber: $cleanName',
-            'description': '',
+            'caption': 'Figure $figNumber: $titleName',
+            'description': 'Visual research material: $titleName ($ext).',
             'base64': b64,
             'bytes': bytes,
-          });
+          };
+          _attachedFigures.add(figMap);
+          newlyAddedFigures.add(figMap);
           imagesAdded++;
         } else {
           filesToProcess.add((fileName: file.name, bytes: bytes, contentType: null));
@@ -1964,10 +2069,42 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       }
 
       if (filesToProcess.isEmpty && imagesAdded > 0) {
+        final imageDossier = StringBuffer();
+        for (final fig in newlyAddedFigures) {
+          if (imageDossier.isNotEmpty) imageDossier.write('\n\n');
+          imageDossier.writeln('=== RESEARCH FIGURE: ${fig['name']} ===');
+          imageDossier.writeln('Caption: ${fig['caption']}');
+          imageDossier.writeln('Marker: ![${fig['caption']}](${fig['id']})');
+          imageDossier.writeln('Visual Research Material: Attached empirical figure and experimental evidence representing ${fig['caption']}.');
+        }
+
+        final existingDraft = _controllers['source_draft']!.text.trim();
+        final newDraft = existingDraft.isNotEmpty
+            ? '$existingDraft\n\n$imageDossier'
+            : imageDossier.toString();
+
+        final firstTitle = newlyAddedFigures.first['caption'].toString().replaceFirst(RegExp(r'^Figure \d+:\s*'), '');
+        if (_controllers['title']!.text.trim().isEmpty ||
+            _controllers['title']!.text.trim() == 'Scientific Research Study') {
+          _controllers['title']!.text = firstTitle;
+        }
+        if ((_controllers['description']?.text.trim() ?? '').isEmpty) {
+          _controllers['description']!.text =
+              'Investigation and manuscript synthesis based on uploaded research figures: ${newlyAddedFigures.map((f) => f['name']).join(', ')}.';
+        }
+
         setState(() {
-          _importing = false;
-          _importMessage = 'Attached $imagesAdded figure${imagesAdded == 1 ? '' : 's'} to Illustrations & Figures.';
+          for (final fig in newlyAddedFigures) {
+            final b = fig['bytes'];
+            final size = b is Uint8List ? b.length : (b is List ? b.length : 0);
+            _attachedFiles.add((name: fig['name'] as String, size: size));
+          }
+          _controllers['source_draft']!.text = newDraft;
+          _importMessage = 'Processed and attached $imagesAdded figure${imagesAdded == 1 ? '' : 's'} into research material.';
           _importError = false;
+          _importing = false;
+          _analysisResponse = null;
+          _showAdditionalInfoInterface = false;
         });
         return;
       }
@@ -1985,17 +2122,34 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         filesToProcess,
       );
 
+      final combinedTextBuf = StringBuffer(imported.text);
+      if (newlyAddedFigures.isNotEmpty) {
+        combinedTextBuf.writeln('\n\n=== ATTACHED RESEARCH FIGURES ===');
+        for (final fig in newlyAddedFigures) {
+          combinedTextBuf.writeln('=== RESEARCH FIGURE: ${fig['name']} ===');
+          combinedTextBuf.writeln('Caption: ${fig['caption']}');
+          combinedTextBuf.writeln('Marker: ![${fig['caption']}](${fig['id']})');
+          combinedTextBuf.writeln('Visual Research Material: Attached empirical figure and experimental evidence representing ${fig['caption']}.');
+          combinedTextBuf.writeln();
+        }
+      }
+
       setState(() {
         _attachedFiles.clear();
         for (final f in filesToProcess) {
           _attachedFiles.add((name: f.fileName, size: f.bytes.length));
         }
-        _controllers['source_draft']!.text = imported.text;
+        for (final fig in newlyAddedFigures) {
+          final b = fig['bytes'];
+          final size = b is Uint8List ? b.length : (b is List ? b.length : 0);
+          _attachedFiles.add((name: fig['name'] as String, size: size));
+        }
+        _controllers['source_draft']!.text = combinedTextBuf.toString();
         final docMsg = filesToProcess.length == 1
             ? 'Imported ${filesToProcess.first.fileName} (${imported.text.length} characters)'
             : 'Imported ${filesToProcess.length} files (${imported.text.length} characters)';
         _importMessage = imagesAdded > 0
-            ? '$docMsg and attached $imagesAdded figure${imagesAdded == 1 ? '' : 's'}.'
+            ? '$docMsg and processed $imagesAdded figure${imagesAdded == 1 ? '' : 's'} into research material.'
             : '$docMsg.';
         _importing = false;
         _analysisResponse = null;
@@ -2569,6 +2723,18 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
               },
             ),
             const SizedBox(height: 12),
+            CheckboxListTile(
+              key: const ValueKey('checkbox-include-review-notes-appendix-classic'),
+              value: _includeReviewNotesAppendix,
+              title: const Text('Include review notes appendix in exported document'),
+              subtitle: const Text(
+                'Adds unresolved research and editorial review notes as a separate appendix at the end of the document.',
+              ),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+              onChanged: (val) => setState(() => _includeReviewNotesAppendix = val ?? false),
+            ),
+            const SizedBox(height: 12),
             Text(
               'Desired sections',
               style: Theme.of(context).textTheme.titleMedium,
@@ -2958,14 +3124,22 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         };
         final b64 = 'data:$mediaType;base64,${base64Encode(bytes)}';
         final figNumber = _attachedFigures.length + 1;
-        final cleanName = file.name.replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '').replaceAll('_', ' ');
+        final cleanName = file.name
+            .replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '')
+            .replaceAll(RegExp(r'[-_]'), ' ')
+            .trim();
+        final titleName = cleanName
+            .split(' ')
+            .where((w) => w.isNotEmpty)
+            .map((w) => w[0].toUpperCase() + w.substring(1))
+            .join(' ');
 
         setState(() {
           _attachedFigures.add({
             'id': 'fig_$figNumber',
             'name': file.name,
-            'caption': 'Figure $figNumber: $cleanName',
-            'description': '',
+            'caption': 'Figure $figNumber: $titleName',
+            'description': 'Visual research material: $titleName ($ext).',
             'base64': b64,
             'bytes': bytes,
           });
@@ -2974,6 +3148,29 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       }
 
       if (addedCount > 0 && mounted) {
+        if (_documentMode && _controllers['source_draft']!.text.trim().isEmpty) {
+          final addedFigureMaps = _attachedFigures.sublist(_attachedFigures.length - addedCount);
+          final buf = StringBuffer();
+          for (final fig in addedFigureMaps) {
+            if (buf.isNotEmpty) buf.write('\n\n');
+            buf.writeln('=== RESEARCH FIGURE: ${fig['name']} ===');
+            buf.writeln('Caption: ${fig['caption']}');
+            buf.writeln('Marker: ![${fig['caption']}](${fig['id']})');
+            buf.writeln('Visual Research Material: Attached empirical figure and experimental evidence representing ${fig['caption']}.');
+          }
+          setState(() {
+            _controllers['source_draft']!.text = buf.toString();
+            for (final fig in addedFigureMaps) {
+              final b = fig['bytes'];
+              final size = b is Uint8List ? b.length : (b is List ? b.length : 0);
+              _attachedFiles.add((name: fig['name'] as String, size: size));
+            }
+            if (_controllers['title']!.text.trim().isEmpty ||
+                _controllers['title']!.text.trim() == 'Scientific Research Study') {
+              _controllers['title']!.text = addedFigureMaps.first['caption'].toString().replaceFirst(RegExp(r'^Figure \d+:\s*'), '');
+            }
+          });
+        }
         _showMessage('Added $addedCount figure${addedCount == 1 ? '' : 's'} to manuscript.');
       }
     } catch (e) {
@@ -3072,12 +3269,33 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                     height: 72,
                     fit: BoxFit.cover,
                   )
-                : Container(
-                    width: 72,
-                    height: 72,
-                    color: Colors.grey.shade200,
-                    child: const Icon(Icons.image, color: Colors.grey),
-                  ),
+                : (fig['storage_key'] is String
+                    ? FutureBuilder<Uint8List?>(
+                        future: widget.repository.getFigureBytes(fig['storage_key'] as String),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasData && snapshot.data != null) {
+                            fig['bytes'] = snapshot.data;
+                            return Image.memory(
+                              snapshot.data!,
+                              width: 72,
+                              height: 72,
+                              fit: BoxFit.cover,
+                            );
+                          }
+                          return Container(
+                            width: 72,
+                            height: 72,
+                            color: Colors.grey.shade200,
+                            child: const Icon(Icons.image, color: Colors.grey),
+                          );
+                        },
+                      )
+                    : Container(
+                        width: 72,
+                        height: 72,
+                        color: Colors.grey.shade200,
+                        child: const Icon(Icons.image, color: Colors.grey),
+                      )),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -3108,6 +3326,38 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                     fig['description'] = val;
                   },
                 ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Text(
+                      'Layout: ',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(width: 4),
+                    DropdownButton<String>(
+                      value: fig['placement'] as String? ?? 'column_width',
+                      isDense: true,
+                      style: Theme.of(context).textTheme.bodySmall,
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'column_width',
+                          child: Text('Column Width'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'full_width',
+                          child: Text('Full Page Width'),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            fig['placement'] = val;
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -3116,9 +3366,12 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
             tooltip: 'Remove figure',
             icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
             onPressed: () {
-              setState(() {
-                _attachedFigures.removeAt(index);
-              });
+              final removed = _attachedFigures.removeAt(index);
+              final figId = removed['id'] as String?;
+              if (figId != null) {
+                widget.repository.deleteProjectFigure(widget.project.id, figId);
+              }
+              setState(() {});
             },
           ),
         ],
@@ -3436,6 +3689,18 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                 ),
               ),
             ],
+            const SizedBox(height: 12),
+            CheckboxListTile(
+              key: const ValueKey('checkbox-include-review-notes-appendix'),
+              value: _includeReviewNotesAppendix,
+              title: const Text('Include review notes appendix in exported document'),
+              subtitle: const Text(
+                'Adds unresolved research and editorial review notes as a separate appendix at the end of the document.',
+              ),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+              onChanged: (val) => setState(() => _includeReviewNotesAppendix = val ?? false),
+            ),
           ],
         ),
       ),

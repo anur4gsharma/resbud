@@ -285,6 +285,61 @@ void main() {
     expect(result.text, contains('=== SOURCE FILE: results.md ==='));
     expect(result.text, contains('Empirical accuracy was 94.2%.'));
   });
+
+  test('imports PNG image and extracts figure name, dimensions, and formatted research notes', () {
+    final pngBytes = _samplePngBytes(640, 480);
+    final result = importer.importBytes(
+      fileName: 'quantum_decoder_benchmark.png',
+      contentType: 'image/png',
+      bytes: pngBytes,
+    );
+
+    expect(result.format, 'png');
+    expect(result.text, contains('=== RESEARCH FIGURE / IMAGE: quantum_decoder_benchmark.png ==='));
+    expect(result.text, contains('Figure: Quantum Decoder Benchmark'));
+    expect(result.text, contains('640x480'));
+    expect(result.text, contains('Visual Research Material: Attached empirical research figure and visualization'));
+  });
+
+  test('rejects corrupted image files and mismatched media types', () {
+    expect(
+      () => importer.importBytes(
+        fileName: 'broken.png',
+        bytes: Uint8List.fromList([1, 2, 3, 4, 5]),
+      ),
+      throwsA(isA<SourceImportException>().having(
+        (e) => e.code,
+        'code',
+        SourceImportErrorCode.malformedDocument,
+      )),
+    );
+
+    expect(
+      () => importer.importBytes(
+        fileName: 'photo.jpg',
+        contentType: 'application/pdf',
+        bytes: Uint8List.fromList([0xff, 0xd8, 0xff, 0xe0]),
+      ),
+      throwsA(isA<SourceImportException>().having(
+        (e) => e.code,
+        'code',
+        SourceImportErrorCode.unsupportedMediaType,
+      )),
+    );
+  });
+}
+
+Uint8List _samplePngBytes(int width, int height) {
+  final bytes = Uint8List(33);
+  bytes.setRange(0, 8, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  bytes[11] = 13;
+  bytes.setRange(12, 16, [0x49, 0x48, 0x44, 0x52]);
+  final data = ByteData.sublistView(bytes);
+  data.setUint32(16, width, Endian.big);
+  data.setUint32(20, height, Endian.big);
+  bytes[24] = 8;
+  bytes[25] = 2;
+  return bytes;
 }
 
 String _document(String body) => '''<w:document xmlns:w="urn:test"><w:body>$body</w:body></w:document>''';

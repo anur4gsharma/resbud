@@ -110,20 +110,29 @@ class GenerationApiClient implements PaperGenerationApi {
   static String get defaultBaseUrl {
     const configured = String.fromEnvironment('RESBUD_API_BASE_URL');
     if (configured.isNotEmpty) return configured;
-    if (kReleaseMode) {
-      return 'https://resbud-api.onrender.com';
-    }
     if (kIsWeb) {
       try {
         final host = Uri.base.host;
-        if (host.isNotEmpty) {
+        final isLocalHost = host == 'localhost' ||
+            host == '127.0.0.1' ||
+            host == '0.0.0.0' ||
+            host.startsWith('192.168.') ||
+            host.startsWith('10.') ||
+            host.startsWith('172.') ||
+            host.endsWith('.local');
+        if (isLocalHost || host.isEmpty) {
           final scheme = Uri.base.scheme.isEmpty ? 'http' : Uri.base.scheme;
-          return '$scheme://$host:8000';
+          final targetHost = host.isEmpty ? 'localhost' : host;
+          return '$scheme://$targetHost:8000';
         }
+        return 'https://resbud-api.onrender.com';
       } catch (e) {
         debugPrint('Unable to inspect Uri.base for web URL: $e');
       }
       return 'http://localhost:8000';
+    }
+    if (kReleaseMode) {
+      return 'https://resbud-api.onrender.com';
     }
     if (!kIsWeb) {
       try {
@@ -161,6 +170,7 @@ class GenerationApiClient implements PaperGenerationApi {
 
   @override
   Future<GenerationResult> generate(GenerationRequest request) async {
+    final uri = _generationUri;
     final token = await tokenProvider?.call();
     final headers = <String, String>{
       'content-type': 'application/json',
@@ -174,7 +184,7 @@ class GenerationApiClient implements PaperGenerationApi {
     try {
       response = await _client
           .post(
-            _generationUri,
+            uri,
             headers: headers,
             body: request.encode(),
           )
@@ -184,11 +194,13 @@ class GenerationApiClient implements PaperGenerationApi {
         code: GenerationFailureCode.providerTimeout,
         mayHaveCompleted: true,
       );
-    } on SocketException {
+    } on SocketException catch (e) {
+      debugPrint('SocketException connecting to $uri: $e');
       throw const GenerationApiFailure(
         code: GenerationFailureCode.networkUnavailable,
       );
-    } on http.ClientException {
+    } on http.ClientException catch (e) {
+      debugPrint('ClientException connecting to $uri: $e');
       throw const GenerationApiFailure(
         code: GenerationFailureCode.networkUnavailable,
       );
@@ -218,6 +230,7 @@ class GenerationApiClient implements PaperGenerationApi {
   Future<SectionRegenerationResult> regenerateSection(
     SectionRegenerationRequest request,
   ) async {
+    final uri = _sectionRegenerationUri;
     final token = await tokenProvider?.call();
     final headers = <String, String>{
       'content-type': 'application/json',
@@ -231,7 +244,7 @@ class GenerationApiClient implements PaperGenerationApi {
     try {
       response = await _client
           .post(
-            _sectionRegenerationUri,
+            uri,
             headers: headers,
             body: request.encode(),
           )
@@ -241,11 +254,13 @@ class GenerationApiClient implements PaperGenerationApi {
         code: GenerationFailureCode.providerTimeout,
         mayHaveCompleted: true,
       );
-    } on SocketException {
+    } on SocketException catch (e) {
+      debugPrint('SocketException connecting to $uri: $e');
       throw const GenerationApiFailure(
         code: GenerationFailureCode.networkUnavailable,
       );
-    } on http.ClientException {
+    } on http.ClientException catch (e) {
+      debugPrint('ClientException connecting to $uri: $e');
       throw const GenerationApiFailure(
         code: GenerationFailureCode.networkUnavailable,
       );
@@ -300,11 +315,13 @@ class GenerationApiClient implements PaperGenerationApi {
         code: GenerationFailureCode.providerTimeout,
         mayHaveCompleted: true,
       );
-    } on SocketException {
+    } on SocketException catch (e) {
+      debugPrint('SocketException connecting to $uri: $e');
       throw const GenerationApiFailure(
         code: GenerationFailureCode.networkUnavailable,
       );
-    } on http.ClientException {
+    } on http.ClientException catch (e) {
+      debugPrint('ClientException connecting to $uri: $e');
       throw const GenerationApiFailure(
         code: GenerationFailureCode.networkUnavailable,
       );

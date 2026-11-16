@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -263,5 +264,79 @@ Under phenomenological noise model with 0.1% physical error rate, logical error 
       fakeApi.lastRequest!.sourceDraft,
       contains('Trained on 100k samples with 80/20 train/validation split.'),
     );
+  });
+
+  testWidgets('uploading research image processes figure, populates draft and title, and generates paper cleanly', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const tinyPngBase64 =
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    final pngBytes = base64Decode(tinyPngBase64);
+
+    final project = await tester.runAsync(
+      () => repository.createProject(
+        title: 'Scientific Research Study',
+        projectContext: const {'creation_mode': 'document'},
+      ),
+    );
+
+    await pumpDocInput(
+      tester,
+      project: project!,
+      sourcePicker: () async => (
+        name: 'quantum_surface_code_benchmarks.png',
+        bytes: pngBytes,
+      ),
+    );
+
+    // Tap Choose file
+    await tester.tap(find.byKey(const ValueKey('button-choose-doc-file')));
+    await tester.pumpAndSettle();
+
+    // Verify feedback message
+    expect(
+      find.textContaining('Processed and attached 1 figure (quantum_surface_code_benchmarks.png) into research material.'),
+      findsOneWidget,
+    );
+
+    // Verify change file button now visible (hasContent is true)
+    expect(find.text('Change file'), findsOneWidget);
+
+    // Verify title was inferred from image name
+    final titleField = find.widgetWithText(TextFormField, 'Quantum Surface Code Benchmarks');
+    expect(titleField, findsOneWidget);
+
+    fakeApi.nextAnalysisResult = const ResearchAnalysisResponsePayload(
+      inferredTitle: 'Quantum Surface Code Benchmarks',
+      inferredField: 'Quantum Computing',
+      inferredQuestion: 'What are the thresholds for quantum surface codes?',
+      inferredObjectives: ['Evaluate thresholds'],
+      suggestedOutline: [
+        DynamicOutlineSectionPayload(id: 'sec_1', heading: 'Introduction', rationale: 'Overview')
+      ],
+      questions: [],
+      warnings: [],
+      requiresClarification: false,
+      canProceedDirectly: true,
+    );
+
+    // Verify Generate Paper button can be tapped directly without validation error
+    final genBtn = find.byKey(const ValueKey('button-generate-paper-docmode'));
+    await tester.scrollUntilVisible(genBtn, 300, scrollable: find.byType(Scrollable).first);
+    await tester.pumpAndSettle();
+    await tester.tap(genBtn);
+    await tester.pump();
+    await tester.pumpAndSettle();
+
+    // Directly reaches preview dialog without blocking
+    expect(find.text('Review generated draft'), findsOneWidget);
+    expect(fakeApi.callCount, 1);
+    expect(fakeApi.lastRequest!.sourceDraft, contains('quantum_surface_code_benchmarks.png'));
+    expect(fakeApi.lastRequest!.sourceDraft, contains('=== RESEARCH FIGURES & ILLUSTRATIONS ==='));
   });
 }

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import logging
 import re
 import unicodedata
@@ -17,11 +16,12 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Mm, Pt, RGBColor
-from PIL import Image as PILImage
 
 from resbud_api.core.errors import ResbudError
 from resbud_api.domain.models import PaperDraft
 from resbud_api.services.chart_generator import render_academic_chart_from_spec
+from resbud_api.services.editorial_notes import prepare_paper_for_export
+from resbud_api.services.image_processor import decode_image_source, process_image_for_document
 from resbud_api.services.markdown_renderer import (
     clean_heading_text,
     parse_markdown_blocks,
@@ -57,14 +57,27 @@ def get_format_specifier_reference_path() -> Path | None:
     return None
 
 
-def export_paper_docx(paper: PaperDraft, layout: str | None = None) -> bytes:
+def export_paper_docx(
+    paper: PaperDraft,
+    layout: str | None = None,
+    include_review_notes_appendix: bool | None = None,
+) -> bytes:
     """Render the submitted paper in its supplied order and return DOCX bytes."""
     try:
         effective_layout = layout or getattr(paper, "page_layout", "single_column")
+        effective_notes = (
+            include_review_notes_appendix
+            if include_review_notes_appendix is not None
+            else getattr(paper, "include_review_notes_appendix", False)
+        )
+        sanitized_paper, review_notes = prepare_paper_for_export(
+            paper, include_review_notes_appendix=effective_notes
+        )
+
         if effective_layout == "two_column_academic":
-            document = _create_two_column_document(paper)
+            document = _create_two_column_document(sanitized_paper, review_notes=review_notes)
         else:
-            document = _create_document(paper)
+            document = _create_document(sanitized_paper, review_notes=review_notes)
         output = BytesIO()
         document.save(output)
         result = output.getvalue()
@@ -210,7 +223,7 @@ def _ensure_run_style(paragraph: Any, bold: bool | None = None) -> None:
             run.font.bold = bold
 
 
-def _create_document(paper: PaperDraft) -> Any:
+def _create_document(paper: PaperDraft, review_notes: list[dict[str, str]] | None = None) -> Any:
     # Handle absence of format_specifier_papers gracefully without crashing
     _ = get_format_specifier_reference_path()
 
@@ -296,10 +309,35 @@ def _create_document(paper: PaperDraft) -> Any:
             run.font.size = Pt(9.5)
             run.font.color.rgb = RGBColor(0, 0, 0)
 
+    if review_notes:
+        notes_h = document.add_heading("Author Review Notes", level=1)
+        _ensure_run_style(notes_h, bold=True)
+        lead_p = document.add_paragraph()
+        lead_run = lead_p.add_run(
+            "The following unresolved research and editorial review notes pertain to this manuscript:"
+        )
+        lead_run.font.name = "Times New Roman"
+        lead_run.font.italic = True
+        lead_p.paragraph_format.space_after = Pt(4)
+
+        for n_idx, note in enumerate(review_notes, start=1):
+            p = document.add_paragraph()
+            p.paragraph_format.left_indent = Inches(0.25)
+            p.paragraph_format.space_before = Pt(2)
+            p.paragraph_format.space_after = Pt(2)
+            num_run = p.add_run(f"{n_idx}. [{note['section']}] ")
+            num_run.font.name = "Times New Roman"
+            num_run.font.bold = True
+            msg_run = p.add_run(note["message"])
+            msg_run.font.name = "Times New Roman"
+            msg_run.font.size = Pt(9.5)
+
     return document
 
 
-def _create_two_column_document(paper: PaperDraft) -> Any:
+def _create_two_column_document(
+    paper: PaperDraft, review_notes: list[dict[str, str]] | None = None
+) -> Any:
     """Render a formal Two-Column Academic research paper with full-width front matter (IEEE style)."""
     # Handle absence of format_specifier_papers gracefully without crashing
     _ = get_format_specifier_reference_path()
@@ -446,6 +484,32 @@ def _create_two_column_document(paper: PaperDraft) -> Any:
             run.font.size = Pt(8.5)
             run.font.color.rgb = RGBColor(0, 0, 0)
 
+    if review_notes:
+        notes_h = document.add_heading("Author Review Notes", level=1)
+        _ensure_run_style(notes_h, bold=True)
+        notes_h.paragraph_format.keep_with_next = True
+        lead_p = document.add_paragraph()
+        lead_run = lead_p.add_run(
+            "The following unresolved research and editorial review notes pertain to this manuscript:"
+        )
+        lead_run.font.name = "Times New Roman"
+        lead_run.font.italic = True
+        lead_run.font.size = Pt(8.5)
+        lead_p.paragraph_format.space_after = Pt(3)
+
+        for n_idx, note in enumerate(review_notes, start=1):
+            p = document.add_paragraph()
+            p.paragraph_format.left_indent = Inches(0.18)
+            p.paragraph_format.space_before = Pt(2)
+            p.paragraph_format.space_after = Pt(2)
+            num_run = p.add_run(f"{n_idx}. [{note['section']}] ")
+            num_run.font.name = "Times New Roman"
+            num_run.font.bold = True
+            num_run.font.size = Pt(8.5)
+            msg_run = p.add_run(note["message"])
+            msg_run.font.name = "Times New Roman"
+            msg_run.font.size = Pt(8.5)
+
     return document
 
 
@@ -530,97 +594,50 @@ def _insert_equation_block(document: Any, latex_formula: str) -> None:
 
 def _insert_figure_from_bytes(document: Any, img_bytes: bytes, caption: str) -> None:
     try:
-        target_w = 5.2
-        target_h = 3.0
-        try:
-            with PILImage.open(BytesIO(img_bytes)) as pil_img:
-                orig_w, orig_h = pil_img.size
-                if orig_w > 0:
-                    aspect = orig_h / orig_w
-                    target_w = min(5.5, max(2.5, orig_w / 150.0))
-                    target_h = target_w * aspect
-                    if target_h > 4.5:
-                        target_h = 4.5
-                        target_w = target_h / aspect
-        except Exception as exc:
-            logger.warning(
-                "Failed to determine chart image dimensions, using fallback dimensions: %s", exc
-            )
+        processed = process_image_for_document(img_bytes, max_width_pt=396.0, max_height_pt=300.0)
+        if processed is not None:
+            buf, target_w_pt, target_h_pt = processed
+            target_w_in = target_w_pt / 72.0
+            target_h_in = target_h_pt / 72.0
 
-        p = document.add_paragraph()
-        p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p.paragraph_format.space_before = Pt(8)
-        p.paragraph_format.space_after = Pt(4)
-        run = p.add_run()
-        run.add_picture(BytesIO(img_bytes), width=Inches(target_w), height=Inches(target_h))
+            p = document.add_paragraph()
+            p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.paragraph_format.space_before = Pt(8)
+            p.paragraph_format.space_after = Pt(4)
+            p.paragraph_format.keep_with_next = True
+            run = p.add_run()
+            run.add_picture(buf, width=Inches(target_w_in), height=Inches(target_h_in))
 
-        caption_p = document.add_paragraph()
-        caption_p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        caption_p.paragraph_format.space_before = Pt(2)
-        caption_p.paragraph_format.space_after = Pt(12)
-        c_run = caption_p.add_run(caption)
-        c_run.font.name = "Times New Roman"
-        c_run.font.size = Pt(9.5)
-        c_run.font.italic = True
-        c_run.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
-    except Exception:
-        p = document.add_paragraph()
-        p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = p.add_run(f"[{caption}]")
-        run.font.name = "Times New Roman"
-        run.font.italic = True
+            caption_p = document.add_paragraph()
+            caption_p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            caption_p.paragraph_format.space_before = Pt(2)
+            caption_p.paragraph_format.space_after = Pt(12)
+            c_run = caption_p.add_run(caption)
+            c_run.font.name = "Times New Roman"
+            c_run.font.size = Pt(9.5)
+            c_run.font.italic = True
+            c_run.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
+            return
+    except Exception as exc:
+        logger.warning("Failed to render figure bytes to DOCX: %s", exc)
+
+    p = document.add_paragraph()
+    p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run(f"[{caption}]")
+    run.font.name = "Times New Roman"
+    run.font.italic = True
 
 
 def _insert_figure_from_src(document: Any, img_src: str, caption: str) -> None:
-    try:
-        raw_b64 = img_src.strip()
-        if "base64," in raw_b64:
-            raw_b64 = raw_b64.split("base64,", 1)[1]
-        raw_b64 = re.sub(r"\s+", "", raw_b64)
-        img_bytes = base64.b64decode(raw_b64)
-
-        target_w = 5.2
-        target_h = 3.2
-        try:
-            with PILImage.open(BytesIO(img_bytes)) as pil_img:
-                orig_w, orig_h = pil_img.size
-                if orig_w > 0:
-                    aspect = orig_h / orig_w
-                    target_w = min(5.5, max(2.0, orig_w / 96.0))
-                    target_h = target_w * aspect
-                    if target_h > 4.5:
-                        target_h = 4.5
-                        target_w = target_h / aspect
-        except Exception as exc:
-            logger.warning(
-                "Failed to determine figure image dimensions, using fallback dimensions: %s", exc
-            )
-
+    img_bytes = decode_image_source(img_src)
+    if img_bytes is not None:
+        _insert_figure_from_bytes(document, img_bytes, caption)
+    else:
         p = document.add_paragraph()
         p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p.paragraph_format.space_before = Pt(8)
-        p.paragraph_format.space_after = Pt(4)
-        run = p.add_run()
-        run.add_picture(BytesIO(img_bytes), width=Inches(target_w), height=Inches(target_h))
-
-        caption_p = document.add_paragraph()
-        caption_p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        caption_p.paragraph_format.space_before = Pt(2)
-        caption_p.paragraph_format.space_after = Pt(12)
-        c_run = caption_p.add_run(caption)
-        c_run.font.name = "Times New Roman"
-        c_run.font.size = Pt(9.5)
-        c_run.font.italic = True
-        c_run.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
-    except Exception:
-        p = document.add_paragraph()
-        p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p.paragraph_format.space_before = Pt(6)
-        p.paragraph_format.space_after = Pt(6)
         run = p.add_run(f"[{caption}]")
         run.font.name = "Times New Roman"
         run.font.italic = True
-        run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
 
 
 def _insert_table(document: Any, lines: list[str]) -> None:

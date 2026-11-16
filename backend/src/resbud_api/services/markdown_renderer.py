@@ -7,7 +7,6 @@ Unicode font embedding, and zero Markdown token leakage.
 
 from __future__ import annotations
 
-import base64
 import html
 import io
 import logging
@@ -36,9 +35,10 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.pdfmetrics import registerFontFamily
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Image as RLImage
-from reportlab.platypus import Paragraph, Preformatted, Spacer, Table, TableStyle
+from reportlab.platypus import KeepTogether, Paragraph, Preformatted, Spacer, Table, TableStyle
 
 from resbud_api.services.chart_generator import render_academic_chart_from_spec
+from resbud_api.services.image_processor import decode_image_source, process_image_for_document
 
 matplotlib.use("Agg")
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -154,6 +154,8 @@ INLINE_TOKEN_RE = re.compile(
 BLOCK_MATH_PATTERN = re.compile(
     r"^(?:\$\$([\s\S]*?)\$\$|\\\[([\s\S]*?)\\\]|\\begin\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?}([\s\S]*?)\\end\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?})$"
 )
+
+FIGURE_TAG_PATTERN = re.compile(r"!\[([\s\S]*?)\]\(((?:data:[^)\s]+|https?://[^)\s]+|[^)\s]+))\)")
 
 MATH_EXTRACT_RE = re.compile(
     r"(?P<code>`[^`\n]+`)|"
@@ -515,9 +517,11 @@ def parse_markdown_blocks(content: str) -> list[MarkdownBlock]:
             continue
 
         # 3. Figure (![caption](src))
-        fig_match = re.match(r"^!\[(.*?)\]\((.*?)\)$", trimmed)
-        if fig_match:
-            blocks.append(FigureBlock(caption=fig_match.group(1), src=fig_match.group(2)))
+        fig_match = FIGURE_TAG_PATTERN.match(trimmed)
+        if fig_match and fig_match.end() == len(trimmed):
+            blocks.append(
+                FigureBlock(caption=fig_match.group(1).strip(), src=fig_match.group(2).strip())
+            )
             i += 1
             continue
 
@@ -596,6 +600,12 @@ def parse_markdown_blocks(content: str) -> list[MarkdownBlock]:
             and not re.match(r"^\d+\.\s+", lines[i].strip())
             and not BLOCK_MATH_PATTERN.match(lines[i].strip())
             and not re.match(r"^\\begin\{[a-zA-Z0-9*]+\}", lines[i].strip())
+            and not lines[i].strip().startswith("![")
+            and not (
+                FIGURE_TAG_PATTERN.match(lines[i].strip())
+                and (m := FIGURE_TAG_PATTERN.match(lines[i].strip())) is not None
+                and m.end() == len(lines[i].strip())
+            )
             and lines[i].strip() not in ("$$", r"\[")
         ):
             para_lines.append(lines[i].strip())
@@ -603,7 +613,25 @@ def parse_markdown_blocks(content: str) -> list[MarkdownBlock]:
 
         if para_lines:
             para_text = " ".join(para_lines)
-            blocks.extend(extract_equation_blocks_from_paragraph(para_text))
+            if FIGURE_TAG_PATTERN.search(para_text):
+                last_idx = 0
+                for f_match in FIGURE_TAG_PATTERN.finditer(para_text):
+                    start, end = f_match.span()
+                    before = para_text[last_idx:start].strip()
+                    if before:
+                        blocks.extend(extract_equation_blocks_from_paragraph(before))
+                    blocks.append(
+                        FigureBlock(
+                            caption=f_match.group(1).strip(),
+                            src=f_match.group(2).strip(),
+                        )
+                    )
+                    last_idx = end
+                after = para_text[last_idx:].strip()
+                if after:
+                    blocks.extend(extract_equation_blocks_from_paragraph(after))
+            else:
+                blocks.extend(extract_equation_blocks_from_paragraph(para_text))
 
     return blocks
 
@@ -715,12 +743,14 @@ def render_blocks_to_docx(
             )
 
         elif isinstance(block, FigureBlock):
+            is_full = "full_width" in block.src or "full_width" in block.caption.lower()
+            fig_w = 6.2 if is_full else max_fig_width
             _render_figure_src_to_docx(
                 document,
                 block.src,
                 block.caption,
                 academic_font,
-                max_width_in=max_fig_width,
+                max_width_in=fig_w,
                 caption_size_pt=caption_size,
             )
 
@@ -885,47 +915,42 @@ def _render_figure_bytes_to_docx(
     caption_size_pt: float = 9.5,
 ) -> None:
     try:
-        target_w, target_h = min(max_width_in, 5.2), 3.0
-        try:
-            with PILImage.open(io.BytesIO(img_bytes)) as pil_img:
-                orig_w, orig_h = pil_img.size
-                if orig_w > 0:
-                    aspect = orig_h / orig_w
-                    target_w = min(max_width_in, max(1.8, orig_w / 150.0))
-                    target_h = target_w * aspect
-                    max_h = 4.5 if max_width_in > 4.0 else 3.2
-                    if target_h > max_h:
-                        target_h = max_h
-                        target_w = target_h / aspect
-        except Exception as exc:
-            logger.warning(
-                "Failed to determine figure image dimensions for DOCX, using defaults: %s", exc
-            )
+        max_w_pt = max_width_in * 72.0
+        max_h_pt = 320.0 if max_width_in > 4.0 else 230.0
+        processed = process_image_for_document(
+            img_bytes, max_width_pt=max_w_pt, max_height_pt=max_h_pt
+        )
+        if processed is not None:
+            buf, target_w_pt, target_h_pt = processed
+            target_w_in = target_w_pt / 72.0
+            target_h_in = target_h_pt / 72.0
 
-        p = document.add_paragraph()
-        p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p.paragraph_format.space_before = Pt(6)
-        p.paragraph_format.space_after = Pt(2)
-        p.paragraph_format.keep_with_next = True
-        run = p.add_run()
-        run.add_picture(io.BytesIO(img_bytes), width=Inches(target_w), height=Inches(target_h))
+            p = document.add_paragraph()
+            p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p.paragraph_format.space_before = Pt(6)
+            p.paragraph_format.space_after = Pt(2)
+            p.paragraph_format.keep_with_next = True
+            run = p.add_run()
+            run.add_picture(buf, width=Inches(target_w_in), height=Inches(target_h_in))
 
-        caption_p = document.add_paragraph()
-        caption_p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        caption_p.paragraph_format.space_before = Pt(2)
-        caption_p.paragraph_format.space_after = Pt(8)
-        c_run = caption_p.add_run(caption)
-        c_run.font.name = font_name
-        c_run.font.size = Pt(caption_size_pt)
-        c_run.font.italic = True
-        c_run.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
+            caption_p = document.add_paragraph()
+            caption_p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            caption_p.paragraph_format.space_before = Pt(2)
+            caption_p.paragraph_format.space_after = Pt(8)
+            c_run = caption_p.add_run(caption)
+            c_run.font.name = font_name
+            c_run.font.size = Pt(caption_size_pt)
+            c_run.font.italic = True
+            c_run.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
+            return
     except Exception as exc:
         logger.warning("Failed to render figure bytes to DOCX: %s", exc)
-        p = document.add_paragraph()
-        p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = p.add_run(f"[{caption}]")
-        run.font.name = font_name
-        run.font.italic = True
+
+    p = document.add_paragraph()
+    p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run(f"[{caption}]")
+    run.font.name = font_name
+    run.font.italic = True
 
 
 def _render_figure_src_to_docx(
@@ -936,12 +961,8 @@ def _render_figure_src_to_docx(
     max_width_in: float = 5.5,
     caption_size_pt: float = 9.5,
 ) -> None:
-    try:
-        raw_b64 = img_src.strip()
-        if "base64," in raw_b64:
-            raw_b64 = raw_b64.split("base64,", 1)[1]
-        raw_b64 = re.sub(r"\s+", "", raw_b64)
-        img_bytes = base64.b64decode(raw_b64)
+    img_bytes = decode_image_source(img_src)
+    if img_bytes is not None:
         _render_figure_bytes_to_docx(
             document,
             img_bytes,
@@ -950,8 +971,7 @@ def _render_figure_src_to_docx(
             max_width_in=max_width_in,
             caption_size_pt=caption_size_pt,
         )
-    except Exception as exc:
-        logger.warning("Failed to decode and render figure src to DOCX: %s", exc)
+    else:
         p = document.add_paragraph()
         p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run = p.add_run(f"[{caption}]")
@@ -1280,7 +1300,11 @@ def render_blocks_to_pdf(
             _render_table_to_pdf(story, block.headers, block.rows, styles, max_width=max_width)
 
         elif isinstance(block, FigureBlock):
-            _render_figure_src_to_pdf(story, block.src, block.caption, styles, max_width=max_width)
+            is_full = "full_width" in block.src or "full_width" in block.caption.lower()
+            effective_w = 460.0 if (is_full and not two_column) else max_width
+            _render_figure_src_to_pdf(
+                story, block.src, block.caption, styles, max_width=effective_w
+            )
 
         elif isinstance(block, ChartBlock):
             chart_bytes = render_academic_chart_from_spec(block.spec)
@@ -1341,30 +1365,19 @@ def _render_figure_bytes_to_pdf(
     styles: dict[str, ParagraphStyle],
     max_width: float = 420.0,
 ) -> None:
-    try:
-        target_w: float = min(max_width, 360.0)
-        target_h: float = 200.0
-        try:
-            with PILImage.open(io.BytesIO(img_bytes)) as pil_img:
-                w, h = pil_img.size
-                if w > 0:
-                    aspect = h / w
-                    target_w = float(min(max_width, max(100.0, w * 0.5)))
-                    target_h = float(target_w * aspect)
-                    max_h = 280.0 if max_width > 300.0 else 180.0
-                    if target_h > max_h:
-                        target_h = max_h
-                        target_w = float(target_h / aspect)
-        except Exception as exc:
-            logger.warning("Failed to determine figure dimensions for PDF, using defaults: %s", exc)
-
-        img_flowable = RLImage(io.BytesIO(img_bytes), width=target_w, height=target_h)
-        story.append(Spacer(1, 4))
-        story.append(img_flowable)
-        story.append(Paragraph(html.escape(caption), styles["Caption"]))
-        story.append(Spacer(1, 6))
-    except Exception:
-        story.append(Paragraph(f"<i>[{html.escape(caption)}]</i>", styles["Caption"]))
+    max_h = 280.0 if max_width > 300.0 else 220.0
+    processed = process_image_for_document(img_bytes, max_width_pt=max_width, max_height_pt=max_h)
+    if processed is not None:
+        buf, target_w, target_h = processed
+        rl_img = RLImage(buf, width=target_w, height=target_h)
+        rl_img.hAlign = "CENTER"
+        caption_p = Paragraph(html.escape(caption), styles["Caption"])
+        story.append(KeepTogether([Spacer(1, 4), rl_img, caption_p, Spacer(1, 6)]))
+    else:
+        logger.warning("Rendering placeholder for unprocessable figure bytes: %s", caption)
+        placeholder_text = caption if caption.lower().startswith("figure") else f"Figure: {caption}"
+        placeholder = Paragraph(f"<i>[{html.escape(placeholder_text)}]</i>", styles["Caption"])
+        story.append(KeepTogether([Spacer(1, 4), placeholder, Spacer(1, 6)]))
 
 
 def _render_figure_src_to_pdf(
@@ -1374,12 +1387,11 @@ def _render_figure_src_to_pdf(
     styles: dict[str, ParagraphStyle],
     max_width: float = 420.0,
 ) -> None:
-    try:
-        raw_b64 = img_src.strip()
-        if "base64," in raw_b64:
-            raw_b64 = raw_b64.split("base64,", 1)[1]
-        raw_b64 = re.sub(r"\s+", "", raw_b64)
-        img_bytes = base64.b64decode(raw_b64)
+    img_bytes = decode_image_source(img_src)
+    if img_bytes is not None:
         _render_figure_bytes_to_pdf(story, img_bytes, caption, styles, max_width=max_width)
-    except Exception:
-        story.append(Paragraph(f"<i>[{html.escape(caption)}]</i>", styles["Caption"]))
+    else:
+        logger.warning("Rendering placeholder for unprocessable figure source: %s", caption)
+        placeholder_text = caption if caption.lower().startswith("figure") else f"Figure: {caption}"
+        placeholder = Paragraph(f"<i>[{html.escape(placeholder_text)}]</i>", styles["Caption"])
+        story.append(KeepTogether([Spacer(1, 4), placeholder, Spacer(1, 6)]))

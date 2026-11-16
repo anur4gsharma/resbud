@@ -33,6 +33,9 @@ REQUEST_ID_RESPONSE_HEADER = {
     operation_id="liveness",
     responses={200: {"headers": REQUEST_ID_RESPONSE_HEADER}},
 )
+@router.get("/health", response_model=HealthResponse)
+@router.get("/api/v1/health", response_model=HealthResponse)
+@router.get("/api/v1/health/live", response_model=HealthResponse)
 async def liveness() -> HealthResponse:
     return HealthResponse(status="alive")
 
@@ -46,6 +49,7 @@ async def liveness() -> HealthResponse:
         503: {"model": NotReadyResponse, "headers": REQUEST_ID_RESPONSE_HEADER},
     },
 )
+@router.get("/api/v1/health/ready")
 async def readiness(request: Request) -> JSONResponse:
     settings: Settings = request.app.state.settings
     if settings.readiness_issues():

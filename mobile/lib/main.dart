@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -228,11 +230,13 @@ class _ProjectListPageState extends State<ProjectListPage> {
     if (title.trim().isEmpty) return;
 
     try {
+      final figures = result is _NewProjectResult ? result.figures : const <Map<String, dynamic>>[];
       final project = await widget.repository.createProject(
         title: title,
         projectContext: {
           'description': description,
           'creation_mode': isDocumentMode ? 'document' : 'manual',
+          if (figures.isNotEmpty) 'figures': figures,
         },
         sourceDraft: sourceDraft,
       );
@@ -742,12 +746,14 @@ class _NewProjectResult {
     this.description = '',
     this.sourceDraft = '',
     this.isDocumentMode = true,
+    this.figures = const [],
   });
 
   final String title;
   final String description;
   final String sourceDraft;
   final bool isDocumentMode;
+  final List<Map<String, dynamic>> figures;
 }
 
 class _NewProjectDialog extends StatefulWidget {
@@ -764,6 +770,7 @@ class _NewProjectDialogState extends State<_NewProjectDialog> {
   final TextEditingController _descriptionController = TextEditingController();
   String _sourceDraft = '';
   String? _sourceFileName;
+  List<Map<String, dynamic>> _attachedFigures = [];
   bool _readingFile = false;
 
   @override
@@ -783,7 +790,10 @@ class _NewProjectDialogState extends State<_NewProjectDialog> {
       } else {
         final result = await FilePicker.pickFiles(
           type: FileType.custom,
-          allowedExtensions: ['txt', 'md', 'markdown', 'docx', 'pdf'],
+          allowedExtensions: [
+            'txt', 'md', 'markdown', 'docx', 'pdf',
+            'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp',
+          ],
         );
         if (result.isNotEmpty) {
           final file = result.single;
@@ -791,14 +801,48 @@ class _NewProjectDialogState extends State<_NewProjectDialog> {
         }
       }
       if (picked != null) {
+        final ext = picked.name.split('.').last.toLowerCase();
+        final isImage = const {'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'}.contains(ext);
         final imported = const SourceDocumentImporter().importBytes(
           fileName: picked.name,
           bytes: picked.bytes,
           allowPdf: true,
         );
+        final figures = <Map<String, dynamic>>[];
+        if (isImage) {
+          final mediaType = switch (ext) {
+            'jpg' || 'jpeg' => 'image/jpeg',
+            'webp' => 'image/webp',
+            'gif' => 'image/gif',
+            'bmp' => 'image/bmp',
+            _ => 'image/png',
+          };
+          final b64 = 'data:$mediaType;base64,${base64Encode(picked.bytes)}';
+          final cleanName = picked.name
+              .replaceAll(RegExp(r'\.[a-zA-Z0-9]+$'), '')
+              .replaceAll(RegExp(r'[-_]'), ' ')
+              .trim();
+          final titleName = cleanName
+              .split(' ')
+              .where((w) => w.isNotEmpty)
+              .map((w) => w[0].toUpperCase() + w.substring(1))
+              .join(' ');
+          figures.add({
+            'id': 'fig_1',
+            'name': picked.name,
+            'caption': 'Figure 1: $titleName',
+            'description': 'Visual research material: $titleName ($ext).',
+            'base64': b64,
+            'bytes': picked.bytes,
+          });
+          if (_titleController.text.trim().isEmpty) {
+            _titleController.text = titleName;
+          }
+        }
         setState(() {
           _sourceDraft = imported.text;
           _sourceFileName = picked!.name;
+          _attachedFigures = figures;
         });
       }
     } catch (e) {
@@ -822,6 +866,7 @@ class _NewProjectDialogState extends State<_NewProjectDialog> {
         description: _descriptionController.text.trim(),
         sourceDraft: _sourceDraft,
         isDocumentMode: true,
+        figures: _attachedFigures,
       ),
     );
   }
@@ -847,7 +892,7 @@ class _NewProjectDialogState extends State<_NewProjectDialog> {
             ),
             const SizedBox(height: 16),
             Text(
-              'Attach research material (.txt, .md, .docx, .pdf)',
+              'Attach research material (.txt, .md, .docx, .pdf, images)',
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),

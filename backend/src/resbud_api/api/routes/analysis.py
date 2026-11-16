@@ -57,7 +57,7 @@ async def extract_document_endpoint(
     file: UploadFile | None = None,
     body: DocumentExtractRequest | None = None,
 ) -> DocumentExtractResponse:
-    """Extract readable text from .txt, .md, .docx, or .pdf files."""
+    """Extract readable text and metadata from .txt, .md, .docx, .pdf, or image files."""
     if file is not None:
         file_name = file.filename or "uploaded_document"
         content_bytes = await file.read()

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import html
 import io
 import logging
@@ -22,6 +21,7 @@ from reportlab.platypus import (
     Frame,
     FrameBreak,
     HRFlowable,
+    KeepTogether,
     NextPageTemplate,
     PageTemplate,
     Paragraph,
@@ -37,6 +37,8 @@ from reportlab.platypus import (
 from resbud_api.core.errors import ResbudError
 from resbud_api.domain.models import PaperDraft
 from resbud_api.services.chart_generator import render_academic_chart_from_spec
+from resbud_api.services.editorial_notes import prepare_paper_for_export
+from resbud_api.services.image_processor import decode_image_source, process_image_for_document
 from resbud_api.services.markdown_renderer import (
     clean_heading_text,
     parse_markdown_blocks,
@@ -95,11 +97,24 @@ class _NumberedCanvas(canvas.Canvas):
         self.restoreState()
 
 
-def export_paper_pdf(paper: PaperDraft, layout: str | None = None) -> bytes:
+def export_paper_pdf(
+    paper: PaperDraft,
+    layout: str | None = None,
+    include_review_notes_appendix: bool | None = None,
+) -> bytes:
     """Render the submitted paper into a formal academic PDF and return binary bytes."""
     effective_layout = layout or getattr(paper, "page_layout", "single_column")
+    effective_notes = (
+        include_review_notes_appendix
+        if include_review_notes_appendix is not None
+        else getattr(paper, "include_review_notes_appendix", False)
+    )
+    sanitized_paper, review_notes = prepare_paper_for_export(
+        paper, include_review_notes_appendix=effective_notes
+    )
+
     if effective_layout == "two_column_academic":
-        return _export_two_column_academic_pdf(paper)
+        return _export_two_column_academic_pdf(sanitized_paper, review_notes=review_notes)
 
     try:
         buffer = io.BytesIO()
@@ -113,7 +128,7 @@ def export_paper_pdf(paper: PaperDraft, layout: str | None = None) -> bytes:
         )
 
         styles = _create_academic_styles()
-        story = _build_story(paper, styles)
+        story = _build_story(sanitized_paper, styles, review_notes=review_notes)
 
         doc.build(story, canvasmaker=_NumberedCanvas)
         result = buffer.getvalue()
@@ -126,7 +141,9 @@ def export_paper_pdf(paper: PaperDraft, layout: str | None = None) -> bytes:
     return result
 
 
-def _export_two_column_academic_pdf(paper: PaperDraft) -> bytes:
+def _export_two_column_academic_pdf(
+    paper: PaperDraft, review_notes: list[dict[str, str]] | None = None
+) -> bytes:
     """Render a formal Two-Column Academic research paper PDF (IEEE style) with full-width front matter."""
     try:
         buffer = io.BytesIO()
@@ -284,6 +301,21 @@ def _export_two_column_academic_pdf(paper: PaperDraft) -> bytes:
                 if not re.match(r"^\[\d+\]", ref_text) and not re.match(r"^\d+\.", ref_text):
                     ref_text = f"[{ref_idx}] {ref_text}"
                 story.append(Paragraph(html.escape(ref_text), styles["Reference"]))
+
+        if review_notes:
+            story.append(Spacer(1, 8))
+            story.append(Paragraph("Author Review Notes", styles["Heading1"]))
+            story.append(
+                Paragraph(
+                    "<i>The following unresolved research and editorial review notes pertain to this manuscript:</i>",
+                    styles["Body"],
+                )
+            )
+            for n_idx, note in enumerate(review_notes, start=1):
+                sec_name = html.escape(note["section"])
+                msg_text = html.escape(note["message"])
+                note_html = f"<b>{n_idx}. [{sec_name}]</b> {msg_text}"
+                story.append(Paragraph(note_html, styles["ListItem"]))
 
         doc.build(story, canvasmaker=_NumberedCanvas)
         result = buffer.getvalue()
@@ -697,7 +729,11 @@ def _create_two_column_academic_styles() -> dict[str, ParagraphStyle]:
     return styles
 
 
-def _build_story(paper: PaperDraft, styles: dict[str, ParagraphStyle]) -> list[Any]:
+def _build_story(
+    paper: PaperDraft,
+    styles: dict[str, ParagraphStyle],
+    review_notes: list[dict[str, str]] | None = None,
+) -> list[Any]:
     story: list[Any] = []
 
     # Title
@@ -753,6 +789,21 @@ def _build_story(paper: PaperDraft, styles: dict[str, ParagraphStyle]) -> list[A
             if not re.match(r"^\[\d+\]", ref_text) and not re.match(r"^\d+\.", ref_text):
                 ref_text = f"[{ref_idx}] {ref_text}"
             story.append(Paragraph(html.escape(ref_text), styles["Reference"]))
+
+    if review_notes:
+        story.append(Spacer(1, 12))
+        story.append(Paragraph("Author Review Notes", styles["Heading1"]))
+        story.append(
+            Paragraph(
+                "<i>The following unresolved research and editorial review notes pertain to this manuscript:</i>",
+                styles["Body"],
+            )
+        )
+        for n_idx, note in enumerate(review_notes, start=1):
+            sec_name = html.escape(note["section"])
+            msg_text = html.escape(note["message"])
+            note_html = f"<b>{n_idx}. [{sec_name}]</b> {msg_text}"
+            story.append(Paragraph(note_html, styles["ListItem"]))
 
     return story
 
@@ -896,33 +947,18 @@ def _insert_figure_from_bytes_pdf(
     caption: str,
     styles: dict[str, ParagraphStyle],
 ) -> None:
-    try:
-        buf = io.BytesIO(img_bytes)
-        target_pt_w = 380.0
-        target_pt_h = 220.0
-        try:
-            with PILImage.open(buf) as pil_img:
-                orig_w, orig_h = pil_img.size
-                if orig_w > 0:
-                    aspect = orig_h / orig_w
-                    target_pt_w = min(420.0, max(200.0, orig_w * 72.0 / 200.0))
-                    target_pt_h = target_pt_w * aspect
-                    if target_pt_h > 280.0:
-                        target_pt_h = 280.0
-                        target_pt_w = target_pt_h / aspect
-        except Exception as exc:
-            logger.warning(
-                "Failed to determine figure dimensions from bytes for PDF, using defaults: %s", exc
-            )
-
-        buf.seek(0)
+    processed = process_image_for_document(img_bytes, max_width_pt=420.0, max_height_pt=280.0)
+    if processed is not None:
+        buf, target_pt_w, target_pt_h = processed
         rl_img = RLImage(buf, width=target_pt_w, height=target_pt_h)
         rl_img.hAlign = "CENTER"
-        story.append(Spacer(1, 6))
-        story.append(rl_img)
-        story.append(Paragraph(html.escape(caption), styles["Caption"]))
-    except Exception:
-        story.append(Paragraph(f"<i>[{html.escape(caption)}]</i>", styles["Caption"]))
+        caption_p = Paragraph(html.escape(caption), styles["Caption"])
+        story.append(KeepTogether([Spacer(1, 4), rl_img, caption_p, Spacer(1, 6)]))
+    else:
+        logger.warning("Rendering fallback caption for figure in PDF: %s", caption)
+        placeholder_text = caption if caption.lower().startswith("figure") else f"Figure: {caption}"
+        placeholder = Paragraph(f"<i>[{html.escape(placeholder_text)}]</i>", styles["Caption"])
+        story.append(KeepTogether([Spacer(1, 4), placeholder, Spacer(1, 6)]))
 
 
 def _insert_figure_pdf(
@@ -931,40 +967,13 @@ def _insert_figure_pdf(
     caption: str,
     styles: dict[str, ParagraphStyle],
 ) -> None:
-    try:
-        raw_b64 = img_src.strip()
-        if "base64," in raw_b64:
-            raw_b64 = raw_b64.split("base64,", 1)[1]
-        raw_b64 = re.sub(r"\s+", "", raw_b64)
-        img_bytes = base64.b64decode(raw_b64)
-
-        buf = io.BytesIO(img_bytes)
-        target_pt_w = 380.0
-        target_pt_h = 240.0
-        try:
-            with PILImage.open(buf) as pil_img:
-                orig_w, orig_h = pil_img.size
-                if orig_w > 0:
-                    aspect = orig_h / orig_w
-                    target_pt_w = min(420.0, max(150.0, orig_w * 72.0 / 96.0))
-                    target_pt_h = target_pt_w * aspect
-                    if target_pt_h > 300.0:
-                        target_pt_h = 300.0
-                        target_pt_w = target_pt_h / aspect
-        except Exception as exc:
-            logger.warning(
-                "Failed to determine figure dimensions from src for PDF, using defaults: %s", exc
-            )
-
-        buf.seek(0)
-        rl_img = RLImage(buf, width=target_pt_w, height=target_pt_h)
-        rl_img.hAlign = "CENTER"
-        story.append(Spacer(1, 6))
-        story.append(rl_img)
-        story.append(Paragraph(html.escape(caption), styles["Caption"]))
-    except Exception:
-        placeholder = Paragraph(f"<i>[{html.escape(caption)}]</i>", styles["Caption"])
-        story.append(placeholder)
+    img_bytes = decode_image_source(img_src)
+    if img_bytes is not None:
+        _insert_figure_from_bytes_pdf(story, img_bytes, caption, styles)
+    else:
+        placeholder_text = caption if caption.lower().startswith("figure") else f"Figure: {caption}"
+        placeholder = Paragraph(f"<i>[{html.escape(placeholder_text)}]</i>", styles["Caption"])
+        story.append(KeepTogether([Spacer(1, 4), placeholder, Spacer(1, 6)]))
 
 
 def _insert_table_pdf(

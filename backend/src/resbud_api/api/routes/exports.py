@@ -42,9 +42,22 @@ EXPORT_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
         },
     },
 )
-async def export_docx(paper: PaperDraft, layout: str | None = None) -> Response:
+async def export_docx(
+    paper: PaperDraft,
+    layout: str | None = None,
+    include_review_notes_appendix: bool | None = None,
+) -> Response:
     effective_layout = layout or getattr(paper, "page_layout", "single_column")
-    content = export_paper_docx(paper, layout=effective_layout)
+    effective_notes = (
+        include_review_notes_appendix
+        if include_review_notes_appendix is not None
+        else getattr(paper, "include_review_notes_appendix", False)
+    )
+    content = export_paper_docx(
+        paper,
+        layout=effective_layout,
+        include_review_notes_appendix=effective_notes,
+    )
     filename = safe_docx_filename(paper.title)
     return Response(
         content=content,
@@ -71,9 +84,22 @@ async def export_docx(paper: PaperDraft, layout: str | None = None) -> Response:
         },
     },
 )
-async def export_pdf(paper: PaperDraft, layout: str | None = None) -> Response:
+async def export_pdf(
+    paper: PaperDraft,
+    layout: str | None = None,
+    include_review_notes_appendix: bool | None = None,
+) -> Response:
     effective_layout = layout or getattr(paper, "page_layout", "single_column")
-    content = export_paper_pdf(paper, layout=effective_layout)
+    effective_notes = (
+        include_review_notes_appendix
+        if include_review_notes_appendix is not None
+        else getattr(paper, "include_review_notes_appendix", False)
+    )
+    content = export_paper_pdf(
+        paper,
+        layout=effective_layout,
+        include_review_notes_appendix=effective_notes,
+    )
     filename = safe_pdf_filename(paper.title)
     return Response(
         content=content,

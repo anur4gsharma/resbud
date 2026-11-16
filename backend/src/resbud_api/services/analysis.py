@@ -82,9 +82,37 @@ def extract_document_text(file_name: str, content_bytes: bytes) -> tuple[str, st
                 "The .pdf file is corrupted or could not be read."
             ) from exc
 
+    elif lower_name.endswith((".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")):
+        try:
+            from PIL import Image
+
+            img = Image.open(BytesIO(content_bytes))
+            width, height = img.size
+            format_name = (img.format or "IMAGE").upper()
+            clean_name = (
+                re.sub(r"\.[a-zA-Z0-9]+$", "", file_name)
+                .replace("_", " ")
+                .replace("-", " ")
+                .strip()
+            )
+            title_case = " ".join(w.capitalize() for w in clean_name.split())
+            text = (
+                f"=== RESEARCH FIGURE / IMAGE: {file_name} ===\n"
+                f"Figure: {title_case}\n"
+                f"Format: {format_name} ({width}x{height})\n"
+                f"Visual Material: Attached empirical research figure and visualization for {title_case}.\n"
+            )
+            return text, "image"
+        except Exception as exc:
+            if isinstance(exc, DocumentExtractionError):
+                raise
+            raise DocumentExtractionError(
+                "The image file is corrupted or could not be read."
+            ) from exc
+
     else:
         raise DocumentExtractionError(
-            "Unsupported file format. Please upload a .txt, .md, .docx, or .pdf file."
+            "Unsupported file format. Please upload a .txt, .md, .docx, .pdf, or image file (.png, .jpg, .webp, .gif, .bmp)."
         )
 
 

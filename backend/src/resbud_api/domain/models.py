@@ -275,6 +275,7 @@ class ResearchAnalysisRequest(ContractModel):
     ]
     file_names: Annotated[list[str], Field(default_factory=list, max_length=20)]
     title_hint: Annotated[str, Field(max_length=300)] | None = None
+    user_guidance: Annotated[str, Field(max_length=5000)] | None = None
     user_clarifications: dict[str, str] = Field(default_factory=dict)
 
 

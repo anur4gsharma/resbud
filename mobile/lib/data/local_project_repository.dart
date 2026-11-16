@@ -5,7 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
-const currentDatabaseSchemaVersion = 2;
+import 'project_figure.dart';
+import 'project_image_storage.dart';
+
+const currentDatabaseSchemaVersion = 3;
 const _databaseFileName = 'resbud_projects.sqlite';
 
 enum PaperVersionOrigin { generation, sectionAcceptance, manualEdit, import }
@@ -87,18 +90,25 @@ class PaperVersion {
 class LocalProjectRepository {
   LocalProjectRepository(
     this._database, {
+    ProjectImageStorage? imageStorage,
     String Function()? idGenerator,
     DateTime Function()? clock,
-  }) : _idGenerator = idGenerator ?? _uuidV4,
+  }) : _imageStorage = imageStorage,
+       _idGenerator = idGenerator ?? _uuidV4,
        _clock = clock ?? DateTime.now;
 
   final Database _database;
+  final ProjectImageStorage? _imageStorage;
   final String Function() _idGenerator;
   final DateTime Function() _clock;
+
+  ProjectImageStorage get imageStorage =>
+      _imageStorage ?? DatabaseProjectImageStorage(_database);
 
   static Future<LocalProjectRepository> open({
     String? path,
     DatabaseFactory? factory,
+    ProjectImageStorage? imageStorage,
     String Function()? idGenerator,
     DateTime Function()? clock,
   }) async {
@@ -114,8 +124,10 @@ class LocalProjectRepository {
         onUpgrade: _upgradeSchema,
       ),
     );
+    final storage = imageStorage ?? await ProjectImageStorage.create(database: database);
     return LocalProjectRepository(
       database,
+      imageStorage: storage,
       idGenerator: idGenerator,
       clock: clock,
     );
@@ -141,6 +153,43 @@ class LocalProjectRepository {
     return rows.isEmpty ? null : LocalProject.fromRow(rows.single);
   }
 
+  Future<(Map<String, Object?>, List<ProjectFigure>)> _prepareFiguresAndContext(
+    String projectId,
+    Map<String, Object?> projectContext,
+  ) async {
+    final sanitized = Map<String, Object?>.from(projectContext);
+    final figuresToPersist = <ProjectFigure>[];
+    final rawFigures = projectContext['figures'];
+    if (rawFigures is List && rawFigures.isNotEmpty) {
+      final sanitizedFigures = <Map<String, Object?>>[];
+      for (var i = 0; i < rawFigures.length; i++) {
+        final raw = rawFigures[i];
+        if (raw is Map) {
+          final figMap = Map<String, dynamic>.from(raw);
+          final fig = ProjectFigure.fromMap(
+            figMap,
+            projectId: projectId,
+            defaultNumber: i + 1,
+          );
+          var finalFig = fig;
+          if (fig.cachedBytes != null && fig.cachedBytes!.isNotEmpty) {
+            final key = await imageStorage.saveImage(
+              projectId: projectId,
+              figureId: fig.id,
+              filename: fig.filename,
+              bytes: fig.cachedBytes!,
+            );
+            finalFig = fig.copyWith(storageKey: key);
+          }
+          figuresToPersist.add(finalFig);
+          sanitizedFigures.add(finalFig.toMetadataMap());
+        }
+      }
+      sanitized['figures'] = sanitizedFigures;
+    }
+    return (sanitized, figuresToPersist);
+  }
+
   Future<LocalProject> createProject({
     required String title,
     required Map<String, Object?> projectContext,
@@ -148,20 +197,36 @@ class LocalProjectRepository {
     String? originalDraft,
   }) async {
     final normalizedTitle = title.trim();
-    if (normalizedTitle.isEmpty)
+    if (normalizedTitle.isEmpty) {
       throw ArgumentError.value(title, 'title', 'must not be blank');
+    }
     final id = _idGenerator();
     final now = _clock().toUtc().toIso8601String();
-    await _database.insert('projects', {
-      'id': id,
-      'title': normalizedTitle,
-      'project_context_json': jsonEncode(projectContext),
-      'source_draft': sourceDraft,
-      'original_draft': originalDraft ?? sourceDraft,
-      'created_at': now,
-      'updated_at': now,
-      'current_paper_version_id': null,
+
+    final (sanitizedContext, figuresToPersist) =
+        await _prepareFiguresAndContext(id, projectContext);
+
+    await _database.transaction((transaction) async {
+      await transaction.insert('projects', {
+        'id': id,
+        'title': normalizedTitle,
+        'project_context_json': jsonEncode(sanitizedContext),
+        'source_draft': sourceDraft,
+        'original_draft': originalDraft ?? sourceDraft,
+        'created_at': now,
+        'updated_at': now,
+        'current_paper_version_id': null,
+      });
+
+      for (final fig in figuresToPersist) {
+        await transaction.insert(
+          'project_figures',
+          fig.toDatabaseRow(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
     });
+
     return (await getProject(id))!;
   }
 
@@ -172,14 +237,19 @@ class LocalProjectRepository {
     required String sourceDraft,
   }) async {
     final normalizedTitle = title.trim();
-    if (normalizedTitle.isEmpty)
+    if (normalizedTitle.isEmpty) {
       throw ArgumentError.value(title, 'title', 'must not be blank');
+    }
+
+    final (sanitizedContext, figuresToPersist) =
+        await _prepareFiguresAndContext(projectId, projectContext);
+
     await _database.transaction((transaction) async {
       final changed = await transaction.update(
         'projects',
         {
           'title': normalizedTitle,
-          'project_context_json': jsonEncode(projectContext),
+          'project_context_json': jsonEncode(sanitizedContext),
           'source_draft': sourceDraft,
           'updated_at': _clock().toUtc().toIso8601String(),
         },
@@ -187,7 +257,16 @@ class LocalProjectRepository {
         whereArgs: [projectId],
       );
       if (changed != 1) throw StateError('Project not found');
+
+      for (final fig in figuresToPersist) {
+        await transaction.insert(
+          'project_figures',
+          fig.toDatabaseRow(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
     });
+
     return (await getProject(projectId))!;
   }
 
@@ -199,7 +278,73 @@ class LocalProjectRepository {
         whereArgs: [projectId],
       );
       if (deleted != 1) throw StateError('Project not found');
+      await transaction.delete(
+        'project_figures',
+        where: 'project_id = ?',
+        whereArgs: [projectId],
+      );
     });
+    await imageStorage.deleteProjectImages(projectId);
+  }
+
+  Future<List<ProjectFigure>> listProjectFigures(String projectId) async {
+    final rows = await _database.query(
+      'project_figures',
+      where: 'project_id = ?',
+      whereArgs: [projectId],
+      orderBy: 'figure_number ASC, id ASC',
+    );
+    return rows.map(ProjectFigure.fromDatabaseRow).toList(growable: false);
+  }
+
+  Future<Uint8List?> getFigureBytes(String storageKey) async {
+    return imageStorage.readImage(storageKey);
+  }
+
+  Future<void> saveProjectFigures(String projectId, List<ProjectFigure> figures) async {
+    final updatedFigures = <ProjectFigure>[];
+    for (final figure in figures) {
+      var key = figure.storageKey;
+      if (figure.cachedBytes != null && figure.cachedBytes!.isNotEmpty) {
+        key = await imageStorage.saveImage(
+          projectId: projectId,
+          figureId: figure.id,
+          filename: figure.filename,
+          bytes: figure.cachedBytes!,
+        );
+      }
+      updatedFigures.add(figure.copyWith(storageKey: key));
+    }
+    await _database.transaction((transaction) async {
+      for (final figure in updatedFigures) {
+        await transaction.insert(
+          'project_figures',
+          figure.toDatabaseRow(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+  }
+
+  Future<void> deleteProjectFigure(String projectId, String figureId) async {
+    final rows = await _database.query(
+      'project_figures',
+      columns: ['storage_key'],
+      where: 'project_id = ? AND id = ?',
+      whereArgs: [projectId, figureId],
+      limit: 1,
+    );
+    if (rows.isNotEmpty) {
+      final key = rows.first['storage_key'] as String?;
+      if (key != null && key.isNotEmpty) {
+        await imageStorage.deleteImage(key);
+      }
+    }
+    await _database.delete(
+      'project_figures',
+      where: 'project_id = ? AND id = ?',
+      whereArgs: [projectId, figureId],
+    );
   }
 
   Future<PaperVersion> savePaperVersion({
@@ -389,6 +534,32 @@ class LocalProjectRepository {
         schema_version INTEGER NOT NULL
       )
     ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS project_figures (
+        id TEXT NOT NULL,
+        project_id TEXT NOT NULL,
+        figure_number INTEGER NOT NULL DEFAULT 1,
+        filename TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        width INTEGER NOT NULL DEFAULT 0,
+        height INTEGER NOT NULL DEFAULT 0,
+        file_size INTEGER NOT NULL DEFAULT 0,
+        caption TEXT NOT NULL,
+        alt_text TEXT NOT NULL DEFAULT '',
+        placement TEXT NOT NULL DEFAULT 'column_width',
+        section_id TEXT,
+        storage_key TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY (project_id, id),
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS project_image_blobs (
+        storage_key TEXT PRIMARY KEY NOT NULL,
+        image_bytes BLOB NOT NULL
+      )
+    ''');
     await db.insert('database_meta', {
       'id': 1,
       'schema_version': currentDatabaseSchemaVersion,
@@ -414,6 +585,36 @@ class LocalProjectRepository {
       );
       await db.update('database_meta', {'schema_version': 2}, where: 'id = 1');
       version = 2;
+    }
+    if (version == 2) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS project_figures (
+          id TEXT NOT NULL,
+          project_id TEXT NOT NULL,
+          figure_number INTEGER NOT NULL DEFAULT 1,
+          filename TEXT NOT NULL,
+          mime_type TEXT NOT NULL,
+          width INTEGER NOT NULL DEFAULT 0,
+          height INTEGER NOT NULL DEFAULT 0,
+          file_size INTEGER NOT NULL DEFAULT 0,
+          caption TEXT NOT NULL,
+          alt_text TEXT NOT NULL DEFAULT '',
+          placement TEXT NOT NULL DEFAULT 'column_width',
+          section_id TEXT,
+          storage_key TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (project_id, id),
+          FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS project_image_blobs (
+          storage_key TEXT PRIMARY KEY NOT NULL,
+          image_bytes BLOB NOT NULL
+        )
+      ''');
+      await db.update('database_meta', {'schema_version': 3}, where: 'id = 1');
+      version = 3;
     }
     if (version != newVersion)
       throw StateError('No migration found for local database version');

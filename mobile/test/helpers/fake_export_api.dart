@@ -29,15 +29,21 @@ class FakePaperExportApi implements PaperExportApi {
   int exportCallCount = 0;
   PaperDraftPayload? lastExportedPaper;
   String? lastExportedLayout;
+  bool? lastExportedIncludeReviewNotes;
   DocxExportResult? resultToReturn;
   PdfExportResult? pdfResultToReturn;
   Object? errorToThrow;
 
   @override
-  Future<DocxExportResult> exportDocx(PaperDraftPayload paper, {String? layout}) async {
+  Future<DocxExportResult> exportDocx(
+    PaperDraftPayload paper, {
+    String? layout,
+    bool? includeReviewNotesAppendix,
+  }) async {
     exportCallCount++;
     lastExportedPaper = paper;
     lastExportedLayout = layout ?? paper.pageLayout;
+    lastExportedIncludeReviewNotes = includeReviewNotesAppendix;
     if (errorToThrow != null) {
       throw errorToThrow!;
     }
@@ -55,10 +61,15 @@ class FakePaperExportApi implements PaperExportApi {
   }
 
   @override
-  Future<PdfExportResult> exportPdf(PaperDraftPayload paper, {String? layout}) async {
+  Future<PdfExportResult> exportPdf(
+    PaperDraftPayload paper, {
+    String? layout,
+    bool? includeReviewNotesAppendix,
+  }) async {
     exportCallCount++;
     lastExportedPaper = paper;
     lastExportedLayout = layout ?? paper.pageLayout;
+    lastExportedIncludeReviewNotes = includeReviewNotesAppendix;
     if (errorToThrow != null) {
       throw errorToThrow!;
     }
