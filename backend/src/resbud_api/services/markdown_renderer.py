@@ -651,6 +651,7 @@ def render_blocks_to_docx(
     academic_font: str = "Times New Roman",
     two_column: bool = False,
     template_id: str = "default",
+    figure_lookup: dict[str, Any] | None = None,
 ) -> None:
     """Render structured Markdown blocks into a Word document with hierarchical numbering."""
     sub_index = 0
@@ -775,15 +776,25 @@ def render_blocks_to_docx(
             )
 
         elif isinstance(block, FigureBlock):
-            is_full = "full_width" in block.src or "full_width" in block.caption.lower()
+            fig_obj = (figure_lookup or {}).get(block.src)
+            if fig_obj is not None:
+                is_full = getattr(fig_obj, "column_span", "column_width") == "full_width"
+                img_src = getattr(fig_obj, "data_uri", None) or block.src
+                caption_text = getattr(fig_obj, "caption", None) or block.caption
+            else:
+                is_full = "full_width" in block.src or "full_width" in block.caption.lower()
+                img_src = block.src
+                caption_text = block.caption
+
             fig_w = 6.2 if is_full else max_fig_width
             _render_figure_src_to_docx(
                 document,
-                block.src,
-                block.caption,
+                img_src,
+                caption_text,
                 academic_font,
                 max_width_in=fig_w,
                 caption_size_pt=caption_size,
+                figure_lookup=figure_lookup,
             )
 
         elif isinstance(block, ChartBlock):
@@ -953,8 +964,13 @@ def _render_figure_src_to_docx(
     font_name: str,
     max_width_in: float = 5.5,
     caption_size_pt: float = 9.5,
+    figure_lookup: dict[str, Any] | None = None,
 ) -> None:
     img_bytes = decode_image_source(img_src)
+    if img_bytes is None and figure_lookup and img_src in figure_lookup:
+        fig_obj = figure_lookup[img_src]
+        img_bytes = decode_image_source(getattr(fig_obj, "data_uri", "") or "")
+
     if img_bytes is not None:
         _render_figure_bytes_to_docx(
             document,
@@ -1237,6 +1253,7 @@ def render_blocks_to_pdf(
     numbered: bool = True,
     max_width: float = 460.0,
     two_column: bool = False,
+    figure_lookup: dict[str, Any] | None = None,
 ) -> None:
     """Render structured Markdown blocks into a ReportLab PDF story with hierarchical numbering."""
     sub_index = 0
@@ -1293,10 +1310,24 @@ def render_blocks_to_pdf(
             _render_table_to_pdf(story, block.headers, block.rows, styles, max_width=max_width)
 
         elif isinstance(block, FigureBlock):
-            is_full = "full_width" in block.src or "full_width" in block.caption.lower()
+            fig_obj = (figure_lookup or {}).get(block.src)
+            if fig_obj is not None:
+                is_full = getattr(fig_obj, "column_span", "column_width") == "full_width"
+                img_src = getattr(fig_obj, "data_uri", None) or block.src
+                caption_text = getattr(fig_obj, "caption", None) or block.caption
+            else:
+                is_full = "full_width" in block.src or "full_width" in block.caption.lower()
+                img_src = block.src
+                caption_text = block.caption
+
             effective_w = 460.0 if (is_full and not two_column) else max_width
             _render_figure_src_to_pdf(
-                story, block.src, block.caption, styles, max_width=effective_w
+                story,
+                img_src,
+                caption_text,
+                styles,
+                max_width=effective_w,
+                figure_lookup=figure_lookup,
             )
 
         elif isinstance(block, ChartBlock):
@@ -1379,8 +1410,13 @@ def _render_figure_src_to_pdf(
     caption: str,
     styles: dict[str, ParagraphStyle],
     max_width: float = 420.0,
+    figure_lookup: dict[str, Any] | None = None,
 ) -> None:
     img_bytes = decode_image_source(img_src)
+    if img_bytes is None and figure_lookup and img_src in figure_lookup:
+        fig_obj = figure_lookup[img_src]
+        img_bytes = decode_image_source(getattr(fig_obj, "data_uri", "") or "")
+
     if img_bytes is not None:
         _render_figure_bytes_to_pdf(story, img_bytes, caption, styles, max_width=max_width)
     else:

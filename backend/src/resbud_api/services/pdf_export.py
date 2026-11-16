@@ -346,6 +346,12 @@ def _export_two_column_academic_pdf(
         ]
 
         is_ieee = template_id == "ieee_conference"
+        figure_lookup: dict[str, Any] = {}
+        if paper.figures:
+            for fig in paper.figures:
+                figure_lookup[fig.id] = fig
+                figure_lookup[fig.filename] = fig
+
         for sec_idx, section in enumerate(body_sections, start=1):
             clean_title = clean_heading_text(section.heading)
             heading_text = (
@@ -363,6 +369,7 @@ def _export_two_column_academic_pdf(
                 numbered=True,
                 max_width=col_w,
                 two_column=True,
+                figure_lookup=figure_lookup,
             )
 
         if paper.references:
@@ -844,13 +851,26 @@ def _build_story(
         and sec.heading.strip().lower() not in ("references", "bibliography", "6. references")
     ]
 
+    figure_lookup: dict[str, Any] = {}
+    if paper.figures:
+        for fig in paper.figures:
+            figure_lookup[fig.id] = fig
+            figure_lookup[fig.filename] = fig
+
     # Sections with Markdown interpretation and hierarchical numbering
     for section_idx, section in enumerate(body_sections, start=1):
         clean_title = clean_heading_text(section.heading)
         heading_text = f"{section_idx}. {clean_title}"
         story.append(Paragraph(html.escape(heading_text), styles["Heading1"]))
         blocks = parse_markdown_blocks(section.content)
-        render_blocks_to_pdf(story, blocks, styles, section_index=section_idx, numbered=True)
+        render_blocks_to_pdf(
+            story,
+            blocks,
+            styles,
+            section_index=section_idx,
+            numbered=True,
+            figure_lookup=figure_lookup,
+        )
 
     # References (only bibliographic entries)
     if paper.references:

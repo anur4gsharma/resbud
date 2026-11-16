@@ -287,6 +287,12 @@ def _create_document(paper: PaperDraft, review_notes: list[dict[str, str]] | Non
         and sec.heading.strip().lower() not in ("references", "bibliography", "6. references")
     ]
 
+    figure_lookup: dict[str, Any] = {}
+    if paper.figures:
+        for fig in paper.figures:
+            figure_lookup[fig.id] = fig
+            figure_lookup[fig.filename] = fig
+
     for sec_idx, section in enumerate(body_sections, start=1):
         clean_title = clean_heading_text(section.heading)
         heading_text = f"{sec_idx}. {clean_title}"
@@ -299,6 +305,7 @@ def _create_document(paper: PaperDraft, review_notes: list[dict[str, str]] | Non
             section_index=sec_idx,
             numbered=True,
             academic_font="Times New Roman",
+            figure_lookup=figure_lookup,
         )
 
     if paper.references:
@@ -666,6 +673,12 @@ def _create_ieee_conference_document(
         and sec.heading.strip().lower() not in ("references", "bibliography", "6. references")
     ]
 
+    figure_lookup: dict[str, Any] = {}
+    if paper.figures:
+        for fig in paper.figures:
+            figure_lookup[fig.id] = fig
+            figure_lookup[fig.filename] = fig
+
     for sec_idx, section in enumerate(body_sections, start=1):
         clean_title = clean_heading_text(section.heading)
         heading_text = format_ieee_heading_1(sec_idx, clean_title)
@@ -691,6 +704,7 @@ def _create_ieee_conference_document(
             academic_font="Times New Roman",
             two_column=True,
             template_id="ieee_conference",
+            figure_lookup=figure_lookup,
         )
 
     # References in Section 2 (flows across the two columns)
@@ -912,8 +926,17 @@ def _insert_figure_from_bytes(document: Any, img_bytes: bytes, caption: str) -> 
     run.font.italic = True
 
 
-def _insert_figure_from_src(document: Any, img_src: str, caption: str) -> None:
+def _insert_figure_from_src(
+    document: Any,
+    img_src: str,
+    caption: str,
+    figure_lookup: dict[str, Any] | None = None,
+) -> None:
     img_bytes = decode_image_source(img_src)
+    if img_bytes is None and figure_lookup and img_src in figure_lookup:
+        fig_obj = figure_lookup[img_src]
+        img_bytes = decode_image_source(getattr(fig_obj, "data_uri", "") or "")
+
     if img_bytes is not None:
         _insert_figure_from_bytes(document, img_bytes, caption)
     else:

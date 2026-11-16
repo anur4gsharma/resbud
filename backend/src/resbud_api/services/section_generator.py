@@ -7,7 +7,7 @@ import re
 from typing import Any, cast
 
 from resbud_api.domain.manuscript_plan import ManuscriptPlan, PlannedSection
-from resbud_api.domain.models import PaperSection, SectionState
+from resbud_api.domain.models import PaperSection, SectionState, StructuredFigure
 from resbud_api.providers.base import (
     GenerationPrompt,
     ProviderResult,
@@ -49,6 +49,13 @@ ACADEMIC RIGOR & DEPTH INVARIANTS:
 5. Rich Formatting & Terminology:
    * Use formal mathematical notation ($k$, $\\mathcal{D}$, formulas) and structured markdown comparison tables (`| Column | Column |`) where academically relevant.
    * Maintain strict consistency with the canonical terminology glossary.
+
+6. Contextual Figure Integration:
+   * When planned_figures are provided, integrate each figure contextually:
+     - Introduce the figure in the preceding prose using IEEE style: 'as shown in Fig. N', 'see Fig. N'.
+     - Place the figure marker `![<caption text>](<figure_id>)` immediately after the introductory paragraph.
+     - Discuss its architectural or experimental implications in the following paragraph.
+     - Never bundle all figures at the end of the section.
 
 Return exactly one valid JSON object matching the PaperSection schema:
 {
@@ -216,6 +223,7 @@ def build_section_prompt(
     plan: ManuscriptPlan,
     section: PlannedSection,
     previous_section_summary: str | None = None,
+    planned_figures: list[StructuredFigure] | None = None,
 ) -> GenerationPrompt:
     """Build a targeted, context-preserving prompt for generating a single academic section."""
     all_headings = [s.heading for s in plan.sections]
@@ -229,6 +237,24 @@ def build_section_prompt(
         f"  - [{r.id}]: {r.text}"
         for r in brief.references
         if r.id in section.relevant_references or not section.relevant_references
+    ]
+
+    figures_desc = [
+        {
+            "id": f.id,
+            "figure_number": f.figure_order,
+            "title": f.title or f.category.replace("_", " "),
+            "category": f.category,
+            "caption": f.caption,
+            "description": f.description or f.caption,
+            "placement_anchor": f.target_anchor or f"Contextually in {section.heading}",
+            "column_span": f.column_span,
+            "directive": (
+                f"Reference this figure in the text as 'Fig. {f.figure_order}' and insert "
+                f"the markdown tag `![{f.caption}]({f.id})` after its introductory paragraph."
+            ),
+        }
+        for f in (planned_figures or [])
     ]
 
     has_results = (
@@ -265,6 +291,7 @@ def build_section_prompt(
             "missing_source_information": section.missing_information,
             "relevant_references": references_desc[:5],
             "requires_input_notice": section.requires_input_notice,
+            "planned_figures": figures_desc,
         },
         "section_academic_directives": directives,
         "continuity_and_transition": {

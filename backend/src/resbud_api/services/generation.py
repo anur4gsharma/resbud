@@ -23,6 +23,7 @@ from resbud_api.providers.base import (
     ProviderUnavailable,
     ResearchBrief,
 )
+from resbud_api.services.figure_distributor import distribute_and_reindex_figures
 from resbud_api.services.integrity import has_meaningful_content, run_integrity_checks
 from resbud_api.services.long_form_engine import generate_long_form_manuscript
 from resbud_api.services.prompt_builder import (
@@ -92,8 +93,12 @@ async def generate_paper(
             "document_template": getattr(request.preferences, "document_template", "default"),
             "authors": getattr(request.preferences, "authors", None),
             "affiliations": getattr(request.preferences, "affiliations", None),
+            "figures": getattr(request.preferences, "figures", None),
         }
     )
+    if paper.figures:
+        paper = distribute_and_reindex_figures(paper)
+    warnings = list(paper.review_warnings)
     try:
         return GenerationResponse(
             schema_version=1,

@@ -403,6 +403,155 @@
               }
             }
           }
+        },
+        "figures": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "filename",
+              "caption"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 50
+              },
+              "filename": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "caption": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "storage_key": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 500
+              },
+              "data_uri": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 15000000
+              },
+              "width": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 0
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 0,
+                "default": 0
+              },
+              "mime_type": {
+                "type": "string",
+                "maxLength": 100,
+                "default": "image/png"
+              },
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 200
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 2000
+              },
+              "category": {
+                "type": "string",
+                "enum": [
+                  "flowchart",
+                  "architecture_diagram",
+                  "screenshot",
+                  "graph",
+                  "photograph",
+                  "experimental_result",
+                  "table_image",
+                  "other"
+                ],
+                "default": "other"
+              },
+              "related_section": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 100
+              },
+              "target_anchor": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 300
+              },
+              "placement_rationale": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 1000
+              },
+              "preferred_placement": {
+                "type": "string",
+                "enum": [
+                  "after_paragraph",
+                  "top_of_column",
+                  "bottom_of_column",
+                  "inline"
+                ],
+                "default": "after_paragraph"
+              },
+              "column_span": {
+                "type": "string",
+                "enum": [
+                  "column_width",
+                  "full_width"
+                ],
+                "default": "column_width"
+              },
+              "figure_order": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 50,
+                "default": 1
+              },
+              "referenced_in_text": {
+                "type": "boolean",
+                "default": false
+              },
+              "placement_status": {
+                "type": "string",
+                "enum": [
+                  "assigned",
+                  "suggested",
+                  "unplaced",
+                  "omitted"
+                ],
+                "default": "unplaced"
+              }
+            }
+          }
         }
       }
     }

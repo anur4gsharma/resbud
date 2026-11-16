@@ -15,6 +15,7 @@ from resbud_api.domain.models import (
     PaperDraft,
     PaperSection,
     ReviewWarning,
+    StructuredFigure,
 )
 from resbud_api.providers.base import (
     GenerationProvider,
@@ -24,6 +25,9 @@ from resbud_api.providers.base import (
     ProviderUnavailable,
     ResearchBrief,
 )
+from resbud_api.services.figure_analyzer import analyze_figures
+from resbud_api.services.figure_distributor import distribute_and_reindex_figures
+from resbud_api.services.figure_planner import plan_figure_placements
 from resbud_api.services.integrity import has_meaningful_content, run_integrity_checks
 from resbud_api.services.manuscript_planner import create_manuscript_plan
 from resbud_api.services.section_generator import (
@@ -83,6 +87,25 @@ async def generate_long_form_manuscript(
     # Stage 1: Manuscript Planning
     plan: ManuscriptPlan = create_manuscript_plan(brief, provider)
 
+    # Figure Analysis & Placement Planning
+    input_figures = getattr(brief.preferences, "figures", None) or []
+    planned_figures: list[StructuredFigure] = []
+    figures_by_section: dict[str, list[StructuredFigure]] = {}
+
+    if input_figures:
+        analyzed_figures = analyze_figures(
+            figures=input_figures,
+            brief=brief,
+            available_sections=[s.id for s in plan.sections],
+        )
+        planned_figures = plan_figure_placements(
+            figures=analyzed_figures,
+            section_ids=[s.id for s in plan.sections],
+        )
+        for fig in planned_figures:
+            if fig.related_section and fig.placement_status != "omitted":
+                figures_by_section.setdefault(fig.related_section, []).append(fig)
+
     assembled_sections: list[PaperSection] = []
     failure_warnings: list[ReviewWarning] = []
     previous_summary: str | None = None
@@ -94,6 +117,7 @@ async def generate_long_form_manuscript(
             plan=plan,
             section=section_plan,
             previous_section_summary=previous_summary,
+            planned_figures=figures_by_section.get(section_plan.id, []),
         )
 
         section: PaperSection | None = None
@@ -183,7 +207,11 @@ async def generate_long_form_manuscript(
         document_template=getattr(brief.preferences, "document_template", "default"),
         authors=getattr(brief.preferences, "authors", None),
         affiliations=getattr(brief.preferences, "affiliations", None),
+        figures=planned_figures if planned_figures else None,
     )
+
+    if planned_figures:
+        paper = distribute_and_reindex_figures(paper)
 
     if not has_meaningful_content(paper):
         raise ResbudError(502)
