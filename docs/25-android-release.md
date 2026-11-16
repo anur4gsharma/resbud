@@ -20,20 +20,20 @@ Live runtime verification on an Android emulator (Android 17 API 37) confirmed s
 | Attribute | Verified Value |
 |---|---|
 | **Binary Path** | `releases/android/Resbud-release.apk` |
-| **Artifact Size** | `64,814,640 bytes` (~61.81 MiB / 64.8 MB) |
-| **SHA-256 Checksum** | `5f7cf3c5754b3859bf5bd16f4dfd83a4897eb67d848a04933da6f54867f0543a` |
+| **Artifact Size** | `83,358,411 bytes` (~79.49 MiB / 83.4 MB) |
+| **SHA-256 Checksum** | `b86513c0e40b10610e176941243ebdac038cb0e0f33bbbbbb39b9d43e0a8beb7` |
 | **Package Name** | `org.resbud.mobile` |
 | **Version Name** | `0.1.0` |
 | **Version Code** | `1` |
 | **Minimum SDK** | `24` (Android 7.0 Nougat) |
 | **Target SDK** | `36` (Android 16) |
 | **Compile SDK** | `36` (Android 16) |
-| **Native Architectures (ABIs)**| `arm64-v8a`, `armeabi-v7a`, `x86_64` (Universal APK) |
+| **Native Architectures (ABIs)**| `arm64-v8a`, `armeabi-v7a`, `x86_64` (Universal APK with PDFium native vector core) |
 
 ### Checksum Verification
 ```bash
 sha256sum releases/android/Resbud-release.apk
-# 5f7cf3c5754b3859bf5bd16f4dfd83a4897eb67d848a04933da6f54867f0543a  releases/android/Resbud-release.apk
+# b86513c0e40b10610e176941243ebdac038cb0e0f33bbbbbb39b9d43e0a8beb7  releases/android/Resbud-release.apk
 ```
 
 ---

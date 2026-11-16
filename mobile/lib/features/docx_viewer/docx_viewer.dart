@@ -75,6 +75,14 @@ class _DocxViewerState extends State<DocxViewer> {
     if (kIsWeb && _docxBytes == null) {
       _loadDocxBytes();
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final screenWidth = MediaQuery.maybeOf(context)?.size.width;
+        if (screenWidth != null && screenWidth < 700) {
+          _fitToWidth();
+        }
+      }
+    });
   }
 
   @override
@@ -249,42 +257,61 @@ class _DocxViewerState extends State<DocxViewer> {
   Widget build(BuildContext context) {
     return Container(
       color: const Color(0xFF525659), // Adobe Acrobat / Word Document Reader grey
-      child: Column(
+      child: Stack(
         children: [
-          // 1. Clean, minimalist Document Viewer Toolbar
-          _buildViewerToolbar(),
+          Column(
+            children: [
+              // 1. Clean, minimalist Document Viewer Toolbar
+              if (!_isFullscreen) _buildViewerToolbar(),
 
-          // 2. Central Document Canvas
-          Expanded(
-            child: Stack(
-              children: [
-                _buildViewerContent(),
-                if (_isExportingDocx && _docxBytes == null)
-                  Container(
-                    color: Colors.black26,
-                    child: const Center(
-                      child: Card(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+              // 2. Central Document Canvas
+              Expanded(
+                child: Stack(
+                  children: [
+                    _buildViewerContent(),
+                    if (_isExportingDocx && _docxBytes == null)
+                      Container(
+                        color: Colors.black26,
+                        child: const Center(
+                          child: Card(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Text('Rendering academic document layout…'),
+                                ],
                               ),
-                              SizedBox(width: 12),
-                              Text('Rendering academic document layout…'),
-                            ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-              ],
-            ),
+                  ],
+                ),
+              ),
+            ],
           ),
+          if (_isFullscreen)
+            Positioned(
+              top: 12,
+              right: 12,
+              child: SafeArea(
+                child: FloatingActionButton.small(
+                  key: const ValueKey('button-docx-viewer-fullscreen'),
+                  backgroundColor: Colors.black87,
+                  foregroundColor: Colors.white,
+                  tooltip: 'Exit fullscreen',
+                  onPressed: () => setState(() => _isFullscreen = false),
+                  child: const Icon(Icons.fullscreen_exit, size: 20),
+                ),
+              ),
+            ),
         ],
       ),
     );

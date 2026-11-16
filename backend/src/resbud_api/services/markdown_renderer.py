@@ -18,14 +18,11 @@ from pathlib import Path
 from typing import Any, Literal
 
 import latex2mathml.converter
-import math2docx
 
 # fixmyslop-ignore[deps/phantom-import] Top-level import provided by mathml2omml-as package
-import mathml2omml
 import matplotlib
 import matplotlib.pyplot as plt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
-from docx.oxml import parse_xml
 from docx.shared import Inches, Pt, RGBColor
 from PIL import Image as PILImage
 from PIL import ImageFile
@@ -39,6 +36,9 @@ from reportlab.platypus import KeepTogether, Paragraph, Preformatted, Spacer, Ta
 
 from resbud_api.services.chart_generator import render_academic_chart_from_spec
 from resbud_api.services.image_processor import decode_image_source, process_image_for_document
+from resbud_api.services.math_omml import (
+    insert_omml_into_paragraph,
+)
 
 matplotlib.use("Agg")
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -289,43 +289,43 @@ def clean_post_equation_prose(text: str) -> str:
 
 def is_big_equation(m: re.Match[str], full_text: str) -> bool:
     """Determine whether a regex math match represents a standalone/display equation
-
     or should remain inline within its paragraph prose.
+
+    Adheres strictly to author delimiters and semantic structure:
+    - $$...$$, \\[...\\], and \\begin{...} are display mathematics.
+    - Multiline equations with explicit \\\\ line breaks are display mathematics.
+    - Standalone equations occupying an entire paragraph are display mathematics.
+    - Complete standalone equation definitions embedded in prose (with equality,
+      structural math operators, and substantial length) are extracted as display blocks.
+    - Inline variables ($x$, $\\alpha$, $k_1$, $f(t,d)$) strictly remain inline within prose.
     """
     if m.lastgroup in ("math_display", "math_env"):
         return True
 
     raw = m.group(0)
+    if raw.startswith("$$") or raw.startswith(r"\["):
+        return True
+
     # Multiline math with LaTeX newline breaks or environments embedded within parens/dollars
     if r"\\" in raw or re.search(r"\\begin\{[a-zA-Z0-9*]+\}", raw):
         return True
 
-    inner = clean_math_source(raw)
-
-    # Large display operators with tall vertical bounds (limits, integrals, products, sums)
-    large_operators_pattern = re.compile(
-        r"\\(?:prod|sum|int|iint|iiint|oint|coprod|bigcup|bigcap|lim|max|min|inf|sup)\b"
-    )
-    if large_operators_pattern.search(inner):
+    # Standalone equation occupying the entire paragraph
+    if full_text.strip() == raw.strip():
         return True
 
-    # Complex vertical structures: fractions with relations or compound terms
-    if re.search(r"\\(?:frac|dfrac|cfrac)\b", inner) and any(
-        rel in inner for rel in ("=", r"\le", r"\ge", r"\sim", r"\approx", r"\equiv")
+    inner = clean_math_source(raw)
+
+    # Complete standalone equation definitions embedded in prose
+    # (e.g. "... is defined as $O(S) = \prod_{i=1}^n f(P_i, C_i)$, where ...")
+    if (
+        any(rel in inner for rel in ("=", ":=", r"\equiv", r"\approx"))
+        and len(inner) >= 15
+        and any(op in inner for op in (r"\sum", r"\prod", r"\int", r"\frac", r"\sqrt"))
     ):
         return True
 
-    # Standalone equation occupying the entire paragraph
-    if full_text.strip() == raw.strip():
-        if any(
-            op in inner for op in ("=", r"\le", r"\ge", r"\sim", r"\approx", r"\equiv", r"\frac")
-        ):
-            return True
-
-    # Equation definitions embedded in introductory prose with equality and substantial length
-    if re.search(r"(?:=|:=|\\equiv|\\approx)", inner) and len(inner) >= 20:
-        return True
-
+    # Author inline delimiters ($...$ and \(...\)) strictly remain inline
     return False
 
 
@@ -728,8 +728,10 @@ def render_blocks_to_docx(
                 p,
                 block.latex,
                 academic_font,
+                is_display=True,
                 status=block.rendering_status,
                 error_msg=block.validation_error,
+                equation_number=block.equation_id,
             )
 
         elif isinstance(block, TableBlock):
@@ -776,57 +778,18 @@ def _render_math_to_docx(
     paragraph: Any,
     latex_str: str,
     font_name: str,
+    is_display: bool = True,
     status: Literal["ok", "warning", "error"] = "ok",
     error_msg: str | None = None,
+    equation_number: str | None = None,
 ) -> None:
-    """Render LaTeX equation into Word paragraph using native OMML, with resilient fallback."""
-    clean = latex_str.strip()
-    if clean.startswith("$$") and clean.endswith("$$") and len(clean) > 4:
-        clean = clean[2:-2].strip()
-    elif clean.startswith(r"\[") and clean.endswith(r"\]") and len(clean) > 4:
-        clean = clean[2:-2].strip()
-    elif clean.startswith(r"\(") and clean.endswith(r"\)") and len(clean) > 4:
-        clean = clean[2:-2].strip()
-    elif clean.startswith("$") and clean.endswith("$") and len(clean) > 2:
-        clean = clean[1:-1].strip()
-
-    # Pre-clean alignment tokens for latex2mathml compatibility
-    sanitized = clean
-    if "&" in sanitized and ("aligned" in sanitized or "align" in sanitized):
-        sanitized = re.sub(r"\\begin\{(?:align|aligned)\*?\}", r"\\begin{matrix}", sanitized)
-        sanitized = re.sub(r"\\end\{(?:align|aligned)\*?\}", r"\\end{matrix}", sanitized)
-        sanitized = re.sub(r"&=", "=", sanitized)
-
-    rendered_omml = False
-    if status == "ok":
-        try:
-            mathml = latex2mathml.converter.convert(sanitized)
-            mathml = mathml.replace("<mi>&</mi>", "").replace("<mi>&amp;</mi>", "")
-            omml = mathml2omml.convert(mathml)
-            xml = f'<p xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">{omml}</p>'
-            paragraph._p.append(parse_xml(xml)[0])
-            rendered_omml = True
-        except Exception as exc:
-            logger.debug(
-                "Primary mathml conversion failed (%s), attempting math2docx fallback", exc
-            )
-            try:
-                math2docx.add_math(paragraph, clean)
-                rendered_omml = True
-            except Exception as fallback_exc:
-                logger.warning("math2docx fallback also failed: %s", fallback_exc)
-
-    if not rendered_omml:
-        # Fallback with visible warning if status was warning/error or rendering failed
-        run = paragraph.add_run(clean)
-        run.font.name = font_name
-        run.font.italic = True
-        run.font.color.rgb = RGBColor(0, 0, 0)
-
-        warn_run = paragraph.add_run(" [Warning: Unsupported mathematical syntax]")
-        warn_run.font.name = font_name
-        warn_run.font.bold = True
-        warn_run.font.color.rgb = RGBColor(0xCC, 0x00, 0x00)
+    """Render LaTeX equation into Word paragraph using native OMML."""
+    insert_omml_into_paragraph(
+        paragraph,
+        latex_str,
+        is_display=is_display,
+        equation_number=equation_number,
+    )
 
 
 def _render_spans_to_docx_paragraph(
@@ -839,7 +802,7 @@ def _render_spans_to_docx_paragraph(
     pure_black = RGBColor(0, 0, 0)
     for span in spans:
         if span.kind == "math":
-            _render_math_to_docx(paragraph, span.content, font_name)
+            _render_math_to_docx(paragraph, span.content, font_name, is_display=False)
             continue
 
         run = paragraph.add_run(span.content)

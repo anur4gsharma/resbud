@@ -9,7 +9,6 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
-import math2docx
 from docx import Document
 from docx.enum.section import WD_SECTION
 from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_BREAK
@@ -27,6 +26,7 @@ from resbud_api.services.markdown_renderer import (
     parse_markdown_blocks,
     render_blocks_to_docx,
 )
+from resbud_api.services.math_omml import insert_omml_into_paragraph
 
 logger = logging.getLogger(__name__)
 
@@ -583,13 +583,7 @@ def _insert_equation_block(document: Any, latex_formula: str) -> None:
     p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_before = Pt(8)
     p.paragraph_format.space_after = Pt(8)
-    try:
-        math2docx.add_math(p, clean_latex)
-    except Exception:
-        run = p.add_run(formula)
-        run.font.name = "Times New Roman"
-        run.font.italic = True
-        run.font.color.rgb = RGBColor(0, 0, 0)
+    insert_omml_into_paragraph(p, clean_latex, is_display=True)
 
 
 def _insert_figure_from_bytes(document: Any, img_bytes: bytes, caption: str) -> None:
@@ -696,7 +690,7 @@ def _append_line_with_math(paragraph: Any, line: str) -> None:
 
         if is_math and clean_math:
             try:
-                math2docx.add_math(paragraph, clean_math)
+                insert_omml_into_paragraph(paragraph, clean_math, is_display=False)
                 continue
             except Exception as exc:
                 logger.warning(
