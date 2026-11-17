@@ -53,6 +53,7 @@ class GenerationRequest {
       'authors',
       'affiliations',
       'figures',
+      'include_review_notes_appendix',
     };
     final filteredPrefs = <String, Object?>{
       for (final entry in rawPrefs.entries)
@@ -640,6 +641,7 @@ class PaperPreferencesPayload {
     this.authors,
     this.affiliations,
     this.figures,
+    this.includeReviewNotesAppendix = false,
   });
 
   final int targetWordCount;
@@ -650,6 +652,7 @@ class PaperPreferencesPayload {
   final List<AuthorMetadataPayload>? authors;
   final List<AuthorAffiliationPayload>? affiliations;
   final List<StructuredFigurePayload>? figures;
+  final bool includeReviewNotesAppendix;
 
   factory PaperPreferencesPayload.fromJson(Map<String, Object?> json) {
     _requireKeys(
@@ -660,7 +663,14 @@ class PaperPreferencesPayload {
         'citation_style',
       },
       'preferences',
-      optional: const {'page_layout', 'document_template', 'authors', 'affiliations', 'figures'},
+      optional: const {
+        'page_layout',
+        'document_template',
+        'authors',
+        'affiliations',
+        'figures',
+        'include_review_notes_appendix',
+      },
     );
     final wordCount = _integer(json['target_word_count'], 'target_word_count');
     if (wordCount < 500 || wordCount > 8000) {
@@ -709,6 +719,7 @@ class PaperPreferencesPayload {
       authors: authors,
       affiliations: affiliations,
       figures: figures,
+      includeReviewNotesAppendix: json['include_review_notes_appendix'] == true,
     );
   }
 
@@ -718,6 +729,7 @@ class PaperPreferencesPayload {
     'citation_style': citationStyle,
     'page_layout': pageLayout,
     'document_template': documentTemplate,
+    if (includeReviewNotesAppendix) 'include_review_notes_appendix': true,
     if (authors != null) 'authors': authors!.map((a) => a.toJson()).toList(),
     if (affiliations != null) 'affiliations': affiliations!.map((a) => a.toJson()).toList(),
     if (figures != null) 'figures': figures!.map((f) => f.toJson()).toList(),
@@ -788,6 +800,7 @@ class PaperDraftPayload {
     this.authors,
     this.affiliations,
     this.figures,
+    this.includeReviewNotesAppendix = false,
   });
 
   final int schemaVersion;
@@ -804,6 +817,7 @@ class PaperDraftPayload {
   final List<AuthorMetadataPayload>? authors;
   final List<AuthorAffiliationPayload>? affiliations;
   final List<StructuredFigurePayload>? figures;
+  final bool includeReviewNotesAppendix;
 
   factory PaperDraftPayload.fromJson(Map<String, Object?> json) {
     _requireKeys(
@@ -826,6 +840,7 @@ class PaperDraftPayload {
         'authors',
         'affiliations',
         'figures',
+        'include_review_notes_appendix',
       },
     );
     if (_integer(json['schema_version'], 'paper.schema_version') != 1) {
@@ -888,6 +903,7 @@ class PaperDraftPayload {
       authors: authors,
       affiliations: affiliations,
       figures: figures,
+      includeReviewNotesAppendix: json['include_review_notes_appendix'] == true,
     );
   }
 
@@ -906,6 +922,7 @@ class PaperDraftPayload {
     if (authors != null) 'authors': authors!.map((a) => a.toJson()).toList(),
     if (affiliations != null) 'affiliations': affiliations!.map((a) => a.toJson()).toList(),
     if (figures != null) 'figures': figures!.map((f) => f.toJson()).toList(),
+    if (includeReviewNotesAppendix) 'include_review_notes_appendix': true,
   };
 
   PaperDraftPayload copyWith({
@@ -923,6 +940,7 @@ class PaperDraftPayload {
     List<AuthorMetadataPayload>? authors,
     List<AuthorAffiliationPayload>? affiliations,
     List<StructuredFigurePayload>? figures,
+    bool? includeReviewNotesAppendix,
   }) => PaperDraftPayload(
     schemaVersion: schemaVersion ?? this.schemaVersion,
     title: title ?? this.title,
@@ -938,6 +956,7 @@ class PaperDraftPayload {
     authors: authors ?? this.authors,
     affiliations: affiliations ?? this.affiliations,
     figures: figures ?? this.figures,
+    includeReviewNotesAppendix: includeReviewNotesAppendix ?? this.includeReviewNotesAppendix,
   );
 }
 
@@ -1256,10 +1275,13 @@ void _requireKeys(
   Set<String> optional = const {},
 }) {
   final missing = required.difference(value.keys.toSet());
-  if (missing.isNotEmpty) throw FormatException('$label is missing required fields.');
+  if (missing.isNotEmpty) {
+    throw FormatException('$label is missing required fields: ${missing.join(", ")}.');
+  }
   final allowed = {...required, ...optional};
-  if (value.keys.any((key) => !allowed.contains(key))) {
-    throw FormatException('$label contains unsupported fields.');
+  final unsupported = value.keys.toSet().difference(allowed);
+  if (unsupported.isNotEmpty) {
+    throw FormatException('$label contains unsupported fields: ${unsupported.join(", ")}.');
   }
 }
 

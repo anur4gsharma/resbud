@@ -355,10 +355,7 @@ components:
           type: [array, 'null']
           maxItems: 50
           items: { $ref: '#/components/schemas/StructuredFigure' }
-        figures:
-          type: [array, 'null']
-          maxItems: 50
-          items: { $ref: '#/components/schemas/StructuredFigure' }
+        include_review_notes_appendix: { type: boolean, default: false }
     GenerationRequest:
       type: object
       additionalProperties: false

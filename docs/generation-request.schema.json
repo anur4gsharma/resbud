@@ -329,6 +329,10 @@
           "maxLength": 50,
           "default": "default"
         },
+        "include_review_notes_appendix": {
+          "type": "boolean",
+          "default": false
+        },
         "authors": {
           "type": [
             "array",

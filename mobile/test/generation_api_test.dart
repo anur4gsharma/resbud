@@ -229,12 +229,15 @@ void main() {
         'PROVIDER_INVALID_RESPONSE': GenerationFailureCode.providerInvalidResponse,
         'PROVIDER_UNAVAILABLE': GenerationFailureCode.providerUnavailable,
         'PROVIDER_TIMEOUT': GenerationFailureCode.providerTimeout,
+        'UNSUPPORTED_PAPER_FORMAT': GenerationFailureCode.unsupportedPaperFormat,
+        'DESERIALIZATION_FAILURE': GenerationFailureCode.deserializationFailure,
       };
       for (final entry in mapping.entries) {
         final failure = GenerationApiFailure(code: entry.value);
         expect(failure.code, entry.value);
         expect(failure.userMessage, isNotEmpty);
       }
+      expect(const GenerationApiFailure(code: GenerationFailureCode.localPersistenceFailure).userMessage, isNotEmpty);
     });
 
     test('unknown code produces a user-visible message', () {
@@ -258,12 +261,14 @@ void main() {
       expect(failure.retryNotice, isNot(contains('may still have completed')));
     });
 
-    test('supportDetail includes request ID when present', () {
+    test('supportDetail includes request ID and detail when present', () {
       const failure = GenerationApiFailure(
         code: GenerationFailureCode.internalError,
         requestId: 'abc-123',
+        detail: 'paper contains unsupported fields: foo',
       );
       expect(failure.supportDetail, contains('abc-123'));
+      expect(failure.supportDetail, contains('paper contains unsupported fields: foo'));
     });
   });
 
@@ -453,7 +458,7 @@ void main() {
       );
     });
 
-    test('handles malformed 200 response body as invalidResponse', () async {
+    test('handles malformed 200 response body as deserializationFailure', () async {
       final mock = MockClient((request) async => http.Response('not json', 200));
       final client = GenerationApiClient(
         baseUri: Uri.parse('http://127.0.0.1:8000'),
@@ -462,11 +467,17 @@ void main() {
       expect(
         () => client.generate(validRequest),
         throwsA(
-          isA<GenerationApiFailure>().having(
-            (f) => f.code,
-            'code',
-            GenerationFailureCode.invalidResponse,
-          ),
+          isA<GenerationApiFailure>()
+              .having(
+                (f) => f.code,
+                'code',
+                GenerationFailureCode.deserializationFailure,
+              )
+              .having(
+                (f) => f.detail,
+                'detail',
+                isNotNull,
+              ),
         ),
       );
     });
@@ -663,7 +674,7 @@ void main() {
       expect(result.response.section.content, 'Brand new methodology text.');
     });
 
-    test('throws invalidResponse if response section ID does not match request', () async {
+    test('throws deserializationFailure if response section ID does not match request', () async {
       final mock = MockClient((request) async => http.Response(
         jsonEncode({
           'schema_version': 1,
@@ -687,7 +698,7 @@ void main() {
           isA<GenerationApiFailure>().having(
             (f) => f.code,
             'code',
-            GenerationFailureCode.invalidResponse,
+            GenerationFailureCode.deserializationFailure,
           ),
         ),
       );
