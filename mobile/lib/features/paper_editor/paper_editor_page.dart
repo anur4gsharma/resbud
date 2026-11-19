@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -17,9 +19,16 @@ import '../readiness/manuscript_readiness_service.dart';
 import '../readiness/manuscript_readiness_sheet.dart';
 import '../../shared/design_tokens.dart';
 
+import 'figure_manager_sheet.dart';
+import 'manuscript_outline_view.dart';
+import 'manuscript_review_panel.dart';
+import 'section_formatting_toolbar.dart';
+
 enum _RegenerationReviewChoice { reject, accept }
 
 enum PaperWorkspaceMode { document, pdf, editor }
+
+enum EditorSaveStatus { saved, unsaved, saving, saveFailed }
 
 class PaperEditorPage extends StatefulWidget {
   const PaperEditorPage({
@@ -31,6 +40,7 @@ class PaperEditorPage extends StatefulWidget {
     this.initialMode = PaperWorkspaceMode.editor,
     this.exportApi,
     this.fileSaver,
+    this.enableAutosaveTimer = true,
   });
 
   final LocalProjectRepository repository;
@@ -40,6 +50,7 @@ class PaperEditorPage extends StatefulWidget {
   final PaperWorkspaceMode initialMode;
   final PaperExportApi? exportApi;
   final DocxFileSaver? fileSaver;
+  final bool enableAutosaveTimer;
 
   @override
   State<PaperEditorPage> createState() => _PaperEditorPageState();
@@ -48,12 +59,16 @@ class PaperEditorPage extends StatefulWidget {
 class _PaperEditorPageState extends State<PaperEditorPage> {
   final _scrollController = ScrollController();
   late PaperWorkspaceMode _workspaceMode;
+  int _editorSubArea = 1; // 0: Outline, 1: Editor Surface, 2: Review & Settings
   late Future<List<PaperVersion>> _versionsFuture;
   late PaperVersion _currentVersion;
   late PaperDraftPayload _paper;
   late final TextEditingController _titleController;
   late final TextEditingController _abstractController;
   late final Map<String, TextEditingController> _sectionControllers;
+  late final Map<String, UndoHistoryController> _sectionUndoControllers;
+  late final UndoHistoryController _titleUndoController;
+  late final UndoHistoryController _abstractUndoController;
   late final Map<String, GlobalKey> _sectionKeys;
   late final PaperExportApi _exportApi;
   late final DocxFileSaver _fileSaver;
@@ -64,6 +79,8 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
   bool _includeReviewNotesAppendix = false;
   String? _activeRegeneratingSectionId;
   final Set<String> _previewingSectionIds = {};
+  Timer? _autosaveTimer;
+  EditorSaveStatus _saveStatus = EditorSaveStatus.saved;
 
   final _referencesKey = GlobalKey();
   final _abstractKey = GlobalKey();
@@ -83,9 +100,15 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
     _paper = PaperDraftPayload.fromJson(_currentVersion.paper);
     _titleController = TextEditingController(text: _paper.title);
     _abstractController = TextEditingController(text: _paper.abstractText);
+    _titleUndoController = UndoHistoryController();
+    _abstractUndoController = UndoHistoryController();
     _sectionControllers = {
       for (final section in _paper.sections)
         section.id: TextEditingController(text: section.content),
+    };
+    _sectionUndoControllers = {
+      for (final section in _paper.sections)
+        section.id: UndoHistoryController(),
     };
     _sectionKeys = {
       for (final section in _paper.sections) section.id: GlobalKey(),
@@ -99,23 +122,43 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
   }
 
   void _markDirty() {
-    if (!_isDirty && mounted) {
-      setState(() => _isDirty = true);
+    if (_saveStatus != EditorSaveStatus.unsaved && mounted) {
+      setState(() {
+        _isDirty = true;
+        _saveStatus = EditorSaveStatus.unsaved;
+      });
+    }
+    _autosaveTimer?.cancel();
+    if (widget.enableAutosaveTimer && !Platform.environment.containsKey('FLUTTER_TEST')) {
+      _autosaveTimer = Timer(const Duration(milliseconds: 1800), () {
+        if (mounted && _isDirty && !_isSaving) {
+          _performAutosave();
+        }
+      });
     }
   }
 
   @override
   void dispose() {
+    _autosaveTimer?.cancel();
     _scrollController.dispose();
     _titleController.dispose();
     _abstractController.dispose();
+    _titleUndoController.dispose();
+    _abstractUndoController.dispose();
     for (final controller in _sectionControllers.values) {
       controller.dispose();
+    }
+    for (final undo in _sectionUndoControllers.values) {
+      undo.dispose();
     }
     super.dispose();
   }
 
   void _jumpToSection(String sectionId) {
+    if (_editorSubArea != 1) {
+      setState(() => _editorSubArea = 1);
+    }
     if (sectionId == 'abstract' || sectionId == 'title') {
       _scrollController.animateTo(
         0,
@@ -132,6 +175,12 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
           curve: Curves.easeInOut,
           alignment: 0.1,
         );
+      } else if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeInOut,
+        );
       }
       return;
     }
@@ -143,10 +192,81 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
         curve: Curves.easeInOut,
         alignment: 0.1,
       );
+    } else if (_scrollController.hasClients) {
+      // If not yet laid out because it is further down in the ListView,
+      // scroll towards it based on section index, then ensureVisible when laid out.
+      final idx = _paper.sections.indexWhere((s) => s.id == sectionId);
+      if (idx != -1) {
+        final estimatedOffset = 450.0 + (idx * 300.0);
+        final targetOffset = estimatedOffset.clamp(0.0, _scrollController.position.maxScrollExtent);
+        _scrollController.jumpTo(targetOffset);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (key?.currentContext != null) {
+            Scrollable.ensureVisible(
+              key!.currentContext!,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              alignment: 0.1,
+            );
+          }
+        });
+      }
+    }
+  }
+
+  Future<void> _performAutosave() async {
+    if (_isSaving || !mounted) return;
+    final title = _titleController.text.trim();
+    if (title.isEmpty) return; // Do not autosave blank title
+
+    setState(() {
+      _isSaving = true;
+      _saveStatus = EditorSaveStatus.saving;
+    });
+
+    final updatedSections = _paper.sections.map((section) {
+      final controller = _sectionControllers[section.id];
+      final newContent = controller?.text ?? section.content;
+      return section.copyWith(content: newContent);
+    }).toList(growable: false);
+
+    final updatedPaper = _paper.copyWith(
+      title: title,
+      abstractText: _abstractController.text.trim(),
+      sections: updatedSections,
+    );
+
+    try {
+      final savedVersion = await widget.repository.savePaperVersion(
+        projectId: widget.project.id,
+        schemaVersion: updatedPaper.schemaVersion,
+        paper: updatedPaper.toJson(),
+        origin: PaperVersionOrigin.manualEdit,
+        metadata: {
+          'source_version_number': _currentVersion.versionNumber,
+          'is_autosave': true,
+        },
+      );
+      if (!mounted) return;
+      setState(() {
+        _currentVersion = savedVersion;
+        _paper = updatedPaper;
+        _versionsFuture = widget.repository.listPaperVersions(widget.project.id);
+        _isDirty = false;
+        _isSaving = false;
+        _saveStatus = EditorSaveStatus.saved;
+      });
+    } on Object {
+      if (!mounted) return;
+      setState(() {
+        _isSaving = false;
+        _saveStatus = EditorSaveStatus.saveFailed;
+      });
     }
   }
 
   Future<void> _saveManualEdits() async {
+    _autosaveTimer?.cancel();
     if (_isSaving) return;
     final title = _titleController.text.trim();
     if (title.isEmpty) {
@@ -154,7 +274,10 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
       return;
     }
 
-    setState(() => _isSaving = true);
+    setState(() {
+      _isSaving = true;
+      _saveStatus = EditorSaveStatus.saving;
+    });
 
     final updatedSections = _paper.sections.map((section) {
       final controller = _sectionControllers[section.id];
@@ -185,16 +308,131 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
         _versionsFuture = widget.repository.listPaperVersions(widget.project.id);
         _isDirty = false;
         _isSaving = false;
+        _saveStatus = EditorSaveStatus.saved;
       });
       _showFeedback('Version ${savedVersion.versionNumber} saved.');
     } on Object {
       if (!mounted) return;
-      setState(() => _isSaving = false);
+      setState(() {
+        _isSaving = false;
+        _saveStatus = EditorSaveStatus.saveFailed;
+      });
       _showFeedback(
         'Could not save your changes. Your unsaved edits are preserved in the editor.',
         isError: true,
       );
     }
+  }
+
+  void _insertTextIntoSection(
+    String sectionId,
+    String insertion, {
+    int selectionOffset = 0,
+    int selectionLength = 0,
+  }) {
+    final controller = _sectionControllers[sectionId];
+    if (controller == null) return;
+    final text = controller.text;
+    final selection = controller.selection;
+    final start = selection.start >= 0 ? selection.start : text.length;
+    final end = selection.end >= 0 ? selection.end : text.length;
+
+    final newText = text.replaceRange(start, end, insertion);
+    controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection(
+        baseOffset: (start + insertion.length + selectionOffset).clamp(0, newText.length),
+        extentOffset: (start + insertion.length + selectionOffset + selectionLength).clamp(0, newText.length),
+      ),
+    );
+    _markDirty();
+  }
+
+  void _moveSection(int index, int delta) {
+    final targetIndex = index + delta;
+    if (targetIndex < 0 || targetIndex >= _paper.sections.length) return;
+    final sections = List<PaperSectionPayload>.from(_paper.sections);
+    final moved = sections.removeAt(index);
+    sections.insert(targetIndex, moved);
+    setState(() {
+      _paper = _paper.copyWith(sections: sections);
+    });
+    _markDirty();
+  }
+
+  void _renameSection(int index, String newHeading) {
+    if (index < 0 || index >= _paper.sections.length) return;
+    final sections = List<PaperSectionPayload>.from(_paper.sections);
+    sections[index] = sections[index].copyWith(heading: newHeading);
+    setState(() {
+      _paper = _paper.copyWith(sections: sections);
+    });
+    _markDirty();
+  }
+
+  void _addSection(String heading) {
+    final newId = 'sec_${DateTime.now().millisecondsSinceEpoch}';
+    final newController = TextEditingController();
+    newController.addListener(_markDirty);
+    _sectionControllers[newId] = newController;
+    _sectionKeys[newId] = GlobalKey();
+    _sectionUndoControllers[newId] = UndoHistoryController();
+
+    final sections = List<PaperSectionPayload>.from(_paper.sections);
+    sections.add(PaperSectionPayload(
+      id: newId,
+      heading: heading,
+      content: '',
+      state: 'draft',
+    ));
+    setState(() {
+      _paper = _paper.copyWith(sections: sections);
+    });
+    _markDirty();
+    _showFeedback('Added section "$heading".');
+  }
+
+  void _deleteSection(int index) {
+    if (_paper.sections.length <= 1) {
+      _showFeedback('Cannot remove the only section.', isError: true);
+      return;
+    }
+    final sections = List<PaperSectionPayload>.from(_paper.sections);
+    final removed = sections.removeAt(index);
+    final controller = _sectionControllers.remove(removed.id);
+    controller?.dispose();
+    _sectionUndoControllers.remove(removed.id)?.dispose();
+    _sectionKeys.remove(removed.id);
+    _previewingSectionIds.remove(removed.id);
+
+    setState(() {
+      _paper = _paper.copyWith(sections: sections);
+    });
+    _markDirty();
+    _showFeedback('Removed section "${removed.heading}".');
+  }
+
+  void _openFigureManager() {
+    _autosaveTimer?.cancel();
+    FigureManagerSheet.show(
+      context,
+      projectId: widget.project.id,
+      sections: _paper.sections,
+      repository: widget.repository,
+      onFiguresUpdated: () {
+        setState(() {});
+      },
+      onInsertFigureIntoActiveSection: (fig) {
+        final targetSecId = fig.sectionId ?? _paper.sections.firstOrNull?.id;
+        if (targetSecId != null) {
+          _insertTextIntoSection(
+            targetSecId,
+            '\n\n![${fig.caption}](${fig.id})\n\n',
+          );
+          _showFeedback('Inserted figure into section.');
+        }
+      },
+    );
   }
 
   Future<void> _compareSourceDraft() async {
@@ -638,9 +876,21 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
               ),
               const Divider(),
               Expanded(
-                child: _buildOutlineList(
+                child: ManuscriptOutlineView(
+                  paper: _paper,
                   scrollController: scrollController,
-                  onSelect: () => Navigator.pop(sheetContext),
+                  editedSectionIds: {
+                    for (final s in _paper.sections)
+                      if (_sectionControllers[s.id]?.text != s.content) s.id,
+                  },
+                  onSelectSection: (id) {
+                    Navigator.pop(sheetContext);
+                    _jumpToSection(id);
+                  },
+                  onMoveSection: _moveSection,
+                  onRenameSection: _renameSection,
+                  onAddSection: _addSection,
+                  onDeleteSection: _deleteSection,
                 ),
               ),
             ],
@@ -716,90 +966,87 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
           ),
           const Divider(height: 1),
           Expanded(
-            child: _buildOutlineList(),
+            child: ManuscriptOutlineView(
+              paper: _paper,
+              editedSectionIds: {
+                for (final s in _paper.sections)
+                  if (_sectionControllers[s.id]?.text != s.content) s.id,
+              },
+              onSelectSection: _jumpToSection,
+              onMoveSection: _moveSection,
+              onRenameSection: _renameSection,
+              onAddSection: _addSection,
+              onDeleteSection: _deleteSection,
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildOutlineList({
-    ScrollController? scrollController,
-    VoidCallback? onSelect,
-  }) {
-    final theme = Theme.of(context);
+  Widget _buildSaveStatusBadge() {
+    Color bgColor;
+    Color textColor;
+    String label;
+    Widget? icon;
 
-    return ListView(
-      controller: scrollController,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      children: [
-        ListTile(
-          dense: true,
-          leading: const Icon(Icons.article_outlined, size: 18),
-          title: const Text('Title & Abstract', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-          onTap: () {
-            _jumpToSection('abstract');
-            onSelect?.call();
-          },
+    if (_isSaving || _saveStatus == EditorSaveStatus.saving) {
+      bgColor = Colors.blue.shade50;
+      textColor = Colors.blue.shade800;
+      label = 'Saving…';
+      icon = SizedBox(
+        width: 8,
+        height: 8,
+        child: CircularProgressIndicator(strokeWidth: 1.5, color: textColor),
+      );
+    } else if (_saveStatus == EditorSaveStatus.saveFailed) {
+      bgColor = Colors.red.shade50;
+      textColor = Colors.red.shade800;
+      label = 'Save failed';
+      icon = Icon(Icons.error_outline, size: 10, color: textColor);
+    } else if (_isDirty || _saveStatus == EditorSaveStatus.unsaved) {
+      bgColor = Colors.amber.shade100;
+      textColor = Colors.amber.shade900;
+      label = 'Unsaved';
+    } else {
+      bgColor = Colors.green.shade50;
+      textColor = Colors.green.shade800;
+      label = 'Saved';
+    }
+
+    return InkWell(
+      onTap: _saveStatus == EditorSaveStatus.saveFailed ? _saveManualEdits : null,
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(4),
         ),
-        for (final section in _paper.sections) ...[
-          Builder(builder: (context) {
-            final hasWarning = _paper.reviewWarnings.any((w) => w.sectionId == section.id);
-            final isNeedsInput = section.state == 'needs_input';
-            final isNotApplicable = section.state == 'not_applicable';
-            final controller = _sectionControllers[section.id];
-            final isEdited = controller != null && controller.text != section.content;
-
-            final iconColor = hasWarning || isNeedsInput
-                ? Colors.amber.shade800
-                : (isNotApplicable ? Colors.grey.shade500 : theme.colorScheme.primary);
-
-            return ListTile(
-              dense: true,
-              leading: Icon(
-                hasWarning || isNeedsInput
-                    ? Icons.warning_amber_rounded
-                    : (isNotApplicable ? Icons.remove_circle_outline : Icons.subject),
-                size: 18,
-                color: iconColor,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              icon,
+              const SizedBox(width: 3),
+            ],
+            Text(
+              label,
+              key: const ValueKey('save-status-badge'),
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: textColor,
               ),
-              title: Text(
-                section.heading,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: hasWarning || isNeedsInput ? FontWeight.bold : FontWeight.w500,
-                ),
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: isEdited
-                  ? const Text('Edited · Unsaved', style: TextStyle(fontSize: 10, color: Colors.blue))
-                  : (isNeedsInput
-                      ? Text('Needs input', style: TextStyle(fontSize: 10, color: Colors.amber.shade900))
-                      : null),
-              onTap: () {
-                _jumpToSection(section.id);
-                onSelect?.call();
-              },
-            );
-          }),
-        ],
-        ListTile(
-          dense: true,
-          leading: const Icon(Icons.format_list_numbered, size: 18),
-          title: Text(
-            'References (${_paper.references.length})',
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-          ),
-          onTap: () {
-            _jumpToSection('references');
-            onSelect?.call();
-          },
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
   Future<void> _openVersionHistory() async {
+    _autosaveTimer?.cancel();
     final versions = await widget.repository.listPaperVersions(widget.project.id);
     if (!mounted) return;
 
@@ -1009,6 +1256,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
   }
 
   Future<void> _switchVersion(PaperVersion targetVersion) async {
+    _autosaveTimer?.cancel();
     if (targetVersion.id == _currentVersion.id) return;
 
     if (_isDirty) {
@@ -1423,6 +1671,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
   }
 
   Future<void> _exportDocx() async {
+    _autosaveTimer?.cancel();
     if (_isExporting) return;
 
     PaperDraftPayload paperToExport = _paper;
@@ -1514,6 +1763,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
   }
 
   Future<void> _exportPdf() async {
+    _autosaveTimer?.cancel();
     if (_isExporting) return;
 
     PaperDraftPayload paperToExport = _paper;
@@ -1613,6 +1863,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
   }
 
   Future<void> _handleBack() async {
+    _autosaveTimer?.cancel();
     if (!_isDirty) {
       Navigator.pop(context);
       return;
@@ -1670,43 +1921,27 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
               tooltip: 'Back',
               onPressed: _handleBack,
             ),
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Paper draft',
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildCompactVersionSelector(),
-                    ),
-                    const SizedBox(width: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: _isSaving
-                            ? Colors.blue.shade50
-                            : (_isDirty ? Colors.amber.shade100 : Colors.green.shade50),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        _isSaving ? 'Saving…' : (_isDirty ? 'Unsaved' : 'Saved'),
-                        key: const ValueKey('save-status-badge'),
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: _isSaving
-                              ? Colors.blue.shade800
-                              : (_isDirty ? Colors.amber.shade900 : Colors.green.shade800),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+            title: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Paper draft',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildCompactVersionSelector(),
+                      const SizedBox(width: 4),
+                      _buildSaveStatusBadge(),
+                    ],
+                  ),
+                ],
+              ),
             ),
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(38),
@@ -1761,6 +1996,15 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
             ),
             actions: [
               IconButton(
+                key: const ValueKey('button-manage-figures'),
+                padding: EdgeInsets.zero,
+                visualDensity: VisualDensity.compact,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                icon: const Icon(Icons.photo_library_outlined, size: 19),
+                tooltip: 'Manage Figures',
+                onPressed: _openFigureManager,
+              ),
+              IconButton(
                 key: const ValueKey('button-readiness-review'),
                 padding: EdgeInsets.zero,
                 visualDensity: VisualDensity.compact,
@@ -1808,8 +2052,8 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                         : 'two_column_academic';
                     setState(() {
                       _paper = _paper.copyWith(pageLayout: newLayout);
-                      _isDirty = true;
                     });
+                    _markDirty();
                     _showFeedback(
                       newLayout == 'two_column_academic'
                           ? 'Switched layout to Two-Column Academic (IEEE format).'
@@ -1877,10 +2121,41 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 840),
                       child: ListView(
+                        key: const ValueKey('editor-list-view'),
                         controller: _scrollController,
                         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                         padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
                         children: [
+                          if (!isWide && _paper.sections.isNotEmpty) ...[
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: [
+                                  ActionChip(
+                                    label: const Text('Title & Abstract', style: TextStyle(fontSize: 11)),
+                                    onPressed: () => _jumpToSection('abstract'),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  for (final s in _paper.sections) ...[
+                                    ActionChip(
+                                      key: ValueKey('quick-chip-${s.id}'),
+                                      label: Text('§ ${s.heading}', style: const TextStyle(fontSize: 11)),
+                                      onPressed: () => _jumpToSection(s.id),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                    const SizedBox(width: 6),
+                                  ],
+                                  ActionChip(
+                                    label: Text('References (${_paper.references.length})', style: const TextStyle(fontSize: 11)),
+                                    onPressed: () => _jumpToSection('references'),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                          ],
                           _buildCompletionStatusBanner(),
                           _buildIntegrityBanner(),
                           const SizedBox(height: ResbudDesignTokens.contentSpacing),
@@ -1901,7 +2176,7 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                     return Row(
                       children: [
                         SizedBox(
-                          width: 250,
+                          width: 280,
                           child: _buildOutlineRail(context),
                         ),
                         const VerticalDivider(width: 1, thickness: 1),
@@ -1910,7 +2185,87 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                     );
                   }
 
-                  return editorContent;
+                  return Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surface,
+                          border: Border(
+                            bottom: BorderSide(
+                              color: Theme.of(context).dividerColor.withValues(alpha: 0.2),
+                            ),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: SegmentedButton<int>(
+                                key: const ValueKey('segmented-editor-subarea'),
+                                showSelectedIcon: false,
+                                style: ButtonStyle(
+                                  visualDensity: VisualDensity.compact,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  padding: WidgetStateProperty.all(
+                                    const EdgeInsets.symmetric(horizontal: 6),
+                                  ),
+                                ),
+                                segments: const [
+                                  ButtonSegment(
+                                    value: 0,
+                                    icon: Icon(Icons.list_alt, size: 14),
+                                    label: Text('Outline', style: TextStyle(fontSize: 11)),
+                                  ),
+                                  ButtonSegment(
+                                    value: 1,
+                                    icon: Icon(Icons.edit_note, size: 14),
+                                    label: Text('Editor', style: TextStyle(fontSize: 11)),
+                                  ),
+                                  ButtonSegment(
+                                    value: 2,
+                                    icon: Icon(Icons.fact_check_outlined, size: 14),
+                                    label: Text('Review', style: TextStyle(fontSize: 11)),
+                                  ),
+                                ],
+                                selected: {_editorSubArea},
+                                onSelectionChanged: (set) => setState(() => _editorSubArea = set.first),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Expanded(
+                        child: _editorSubArea == 0
+                            ? ManuscriptOutlineView(
+                                paper: _paper,
+                                editedSectionIds: {
+                                  for (final s in _paper.sections)
+                                    if (_sectionControllers[s.id]?.text != s.content) s.id,
+                                },
+                                onSelectSection: (id) {
+                                  setState(() => _editorSubArea = 1);
+                                  WidgetsBinding.instance.addPostFrameCallback((_) => _jumpToSection(id));
+                                },
+                                onMoveSection: _moveSection,
+                                onRenameSection: _renameSection,
+                                onAddSection: _addSection,
+                                onDeleteSection: _deleteSection,
+                              )
+                            : _editorSubArea == 1
+                                ? editorContent
+                                : ManuscriptReviewPanel(
+                                    paper: _paper,
+                                    projectContext: widget.project.projectContext,
+                                    includeReviewNotesAppendix: _includeReviewNotesAppendix,
+                                    onJumpToSection: (id) {
+                                      setState(() => _editorSubArea = 1);
+                                      WidgetsBinding.instance.addPostFrameCallback((_) => _jumpToSection(id));
+                                    },
+                                    onToggleAppendix: (val) => setState(() => _includeReviewNotesAppendix = val),
+                                  ),
+                      ),
+                    ],
+                  );
                 },
               ),
               DocxViewer(
@@ -2266,9 +2621,26 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
               ),
             ],
             const SizedBox(height: 12),
+            if (!isNotApplicable) ...[
+              SectionFormattingToolbar(
+                section: section,
+                references: _paper.references,
+                undoController: _sectionUndoControllers[section.id],
+                onInsertText: (insertion, {selectionOffset = 0, selectionLength = 0}) {
+                  _insertTextIntoSection(
+                    section.id,
+                    insertion,
+                    selectionOffset: selectionOffset,
+                    selectionLength: selectionLength,
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
             TextFormField(
               key: ValueKey('section-content-${section.id}'),
               controller: controller,
+              undoController: _sectionUndoControllers[section.id],
               minLines: 4,
               maxLines: null,
               maxLength: 25000000,
@@ -2299,12 +2671,14 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
                       children: [
                         const Icon(Icons.preview, size: 14, color: Colors.blueGrey),
                         const SizedBox(width: 6),
-                        Text(
-                          'Rendered Mathematics & Formatting Preview',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.blueGrey.shade700,
+                        Expanded(
+                          child: Text(
+                            'Rendered Mathematics & Formatting Preview',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blueGrey.shade700,
+                            ),
                           ),
                         ),
                       ],
@@ -2554,8 +2928,8 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
       setState(() {
         final updatedRefs = List<ReferencePayload>.from(_paper.references)..add(newRef);
         _paper = _paper.copyWith(references: updatedRefs);
-        _isDirty = true;
       });
+      _markDirty();
     }
   }
 
@@ -2665,8 +3039,8 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
       setState(() {
         final updatedList = _paper.references.map((r) => r.id == ref.id ? updatedRef : r).toList();
         _paper = _paper.copyWith(references: updatedList);
-        _isDirty = true;
       });
+      _markDirty();
     }
   }
 
@@ -2694,8 +3068,8 @@ class _PaperEditorPageState extends State<PaperEditorPage> {
       setState(() {
         final updatedList = _paper.references.where((r) => r.id != refId).toList();
         _paper = _paper.copyWith(references: updatedList);
-        _isDirty = true;
       });
+      _markDirty();
     }
   }
 

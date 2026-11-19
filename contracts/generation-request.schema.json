@@ -346,6 +346,13 @@
               "name"
             ],
             "properties": {
+              "id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 50
+              },
               "name": {
                 "type": "string",
                 "minLength": 1,
@@ -370,6 +377,13 @@
                   "null"
                 ],
                 "maxLength": 150
+              },
+              "orcid": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 50
               },
               "role_or_title": {
                 "type": [

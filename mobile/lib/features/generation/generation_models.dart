@@ -400,6 +400,24 @@ class AuthorAffiliationPayload {
   final String? state;
   final String? country;
 
+  AuthorAffiliationPayload copyWith({
+    String? id,
+    String? department,
+    String? institution,
+    String? city,
+    String? state,
+    String? country,
+  }) {
+    return AuthorAffiliationPayload(
+      id: id ?? this.id,
+      department: department ?? this.department,
+      institution: institution ?? this.institution,
+      city: city ?? this.city,
+      state: state ?? this.state,
+      country: country ?? this.country,
+    );
+  }
+
   factory AuthorAffiliationPayload.fromJson(Map<String, Object?> json) {
     return AuthorAffiliationPayload(
       id: _boundedString(json['id'], 'affiliation.id', 1, 50),
@@ -423,25 +441,62 @@ class AuthorAffiliationPayload {
 
 class AuthorMetadataPayload {
   const AuthorMetadataPayload({
+    this.id,
     required this.name,
     this.order = 1,
     this.affiliationIds = const [],
     this.email,
+    this.orcid,
     this.roleOrTitle,
     this.isCorresponding = false,
     this.fundingAcknowledgment,
   });
 
+  final String? id;
   final String name;
   final int order;
   final List<String> affiliationIds;
   final String? email;
+  final String? orcid;
   final String? roleOrTitle;
   final bool isCorresponding;
   final String? fundingAcknowledgment;
 
+  String get effectiveId {
+    final cleanId = id?.trim();
+    if (cleanId != null && cleanId.isNotEmpty) {
+      return cleanId;
+    }
+    return 'author_${order}_${name.replaceAll(RegExp(r'\s+'), '_').toLowerCase()}';
+  }
+
+  AuthorMetadataPayload copyWith({
+    String? id,
+    String? name,
+    int? order,
+    List<String>? affiliationIds,
+    String? email,
+    String? orcid,
+    String? roleOrTitle,
+    bool? isCorresponding,
+    String? fundingAcknowledgment,
+  }) {
+    return AuthorMetadataPayload(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      order: order ?? this.order,
+      affiliationIds: affiliationIds ?? this.affiliationIds,
+      email: email ?? this.email,
+      orcid: orcid ?? this.orcid,
+      roleOrTitle: roleOrTitle ?? this.roleOrTitle,
+      isCorresponding: isCorresponding ?? this.isCorresponding,
+      fundingAcknowledgment: fundingAcknowledgment ?? this.fundingAcknowledgment,
+    );
+  }
+
   factory AuthorMetadataPayload.fromJson(Map<String, Object?> json) {
     return AuthorMetadataPayload(
+      id: _optionalBoundedString(json['id'], 'author.id', 50),
       name: _boundedString(json['name'], 'author.name', 1, 150),
       order: json['order'] != null ? _integer(json['order'], 'author.order') : 1,
       affiliationIds: json['affiliation_ids'] != null
@@ -450,6 +505,7 @@ class AuthorMetadataPayload {
               .toList(growable: false)
           : const [],
       email: _optionalBoundedString(json['email'], 'author.email', 150),
+      orcid: _optionalBoundedString(json['orcid'], 'author.orcid', 50),
       roleOrTitle: _optionalBoundedString(json['role_or_title'], 'author.role_or_title', 150),
       isCorresponding: json['is_corresponding'] == true,
       fundingAcknowledgment: _optionalBoundedString(
@@ -461,14 +517,89 @@ class AuthorMetadataPayload {
   }
 
   Map<String, Object?> toJson() => {
+    if (id != null) 'id': id,
     'name': name,
     'order': order,
     'affiliation_ids': affiliationIds,
     if (email != null) 'email': email,
+    if (orcid != null) 'orcid': orcid,
     if (roleOrTitle != null) 'role_or_title': roleOrTitle,
     'is_corresponding': isCorresponding,
     if (fundingAcknowledgment != null) 'funding_acknowledgment': fundingAcknowledgment,
   };
+}
+
+/// Calculate the row/column distribution of author blocks across any number of authors.
+List<int> calculateIeeeAuthorGrid(int authorCount) {
+  if (authorCount <= 0) return const [];
+  if (authorCount == 1) return const [1];
+  if (authorCount == 2) return const [2];
+  if (authorCount == 3) return const [3];
+  if (authorCount == 4) return const [2, 2];
+  if (authorCount == 5) return const [3, 2];
+  if (authorCount == 6) return const [3, 3];
+  if (authorCount == 7) return const [4, 3];
+  if (authorCount == 8) return const [4, 4];
+  if (authorCount == 9) return const [3, 3, 3];
+  if (authorCount == 10) return const [4, 3, 3];
+
+  final rows = <int>[];
+  var remaining = authorCount;
+  while (remaining > 0) {
+    final chunk = remaining >= 4 && (remaining % 3 != 0 || remaining == 4) ? 4 : (remaining >= 3 ? 3 : remaining);
+    rows.add(chunk);
+    remaining -= chunk;
+  }
+  return rows;
+}
+
+/// Convert an ASCII number string or comma-separated numbers (e.g. "1,2") into unicode superscript digits ("¹,²").
+String toSuperscriptDigits(String input) {
+  final buffer = StringBuffer();
+  for (final rune in input.runes) {
+    final char = String.fromCharCode(rune);
+    switch (char) {
+      case '0':
+        buffer.write('\u2070');
+        break;
+      case '1':
+        buffer.write('\u00B9');
+        break;
+      case '2':
+        buffer.write('\u00B2');
+        break;
+      case '3':
+        buffer.write('\u00B3');
+        break;
+      case '4':
+        buffer.write('\u2074');
+        break;
+      case '5':
+        buffer.write('\u2075');
+        break;
+      case '6':
+        buffer.write('\u2076');
+        break;
+      case '7':
+        buffer.write('\u2077');
+        break;
+      case '8':
+        buffer.write('\u2078');
+        break;
+      case '9':
+        buffer.write('\u2079');
+        break;
+      case ',':
+        buffer.write(',');
+        break;
+      case '*':
+        buffer.write('*');
+        break;
+      default:
+        buffer.write(char);
+    }
+  }
+  return buffer.toString();
 }
 
 class StructuredFigurePayload {

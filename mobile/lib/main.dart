@@ -12,9 +12,12 @@ import 'features/auth/auth_session_dialog.dart';
 import 'features/export/docx_export_client.dart';
 import 'features/export/docx_file_saver.dart';
 import 'features/generation/generation_api_client.dart';
+import 'features/generation/generation_models.dart';
+import 'features/paper_editor/paper_editor_page.dart';
 import 'features/project_input/project_input_page.dart';
 import 'import/source_document_importer.dart';
 import 'shared/design_tokens.dart';
+import 'shared/widgets/resbud_status_badge.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -190,18 +193,51 @@ class ProjectListPage extends StatefulWidget {
   State<ProjectListPage> createState() => _ProjectListPageState();
 }
 
-class _ProjectListPageState extends State<ProjectListPage> {
+class _ProjectListPageState extends State<ProjectListPage>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
   late Future<List<LocalProject>> _projects;
+  late Future<List<SavedManuscript>> _savedManuscripts;
+  late Future<List<LocalProject>> _unfinishedProjects;
   bool _showGuide = true;
+  bool _isExporting = false;
+
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  String _selectedFormat = 'All';
+  String _sortBy = 'date_desc';
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 3, vsync: this);
     _refresh();
+  }
+
+  @override
+  void didUpdateWidget(covariant ProjectListPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.repository != widget.repository) {
+      _refresh();
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _refresh() {
     _projects = widget.repository.listProjects();
+    _savedManuscripts = widget.repository.listSavedManuscripts(
+      search: _searchQuery,
+      format: _selectedFormat == 'All' ? null : _selectedFormat,
+      sortBy: _sortBy,
+      onlyCurrent: true,
+    );
+    _unfinishedProjects = widget.repository.listUnfinishedProjects();
   }
 
   Future<void> _createProject() async {
@@ -334,27 +370,31 @@ class _ProjectListPageState extends State<ProjectListPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Resbud'),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withAlpha(25),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: theme.colorScheme.primary.withAlpha(50)),
-              ),
-              child: Text(
-                'Local-first',
-                style: theme.textTheme.labelSmall?.copyWith(
-                  color: theme.colorScheme.primary,
-                  fontWeight: FontWeight.bold,
+        title: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Resbud'),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primary.withAlpha(25),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: theme.colorScheme.primary.withAlpha(50)),
+                ),
+                child: Text(
+                  'Local-first',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           IconButton(
@@ -384,6 +424,16 @@ class _ProjectListPageState extends State<ProjectListPage> {
             ),
           const SizedBox(width: 8),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
+          tabs: const [
+            Tab(key: ValueKey('tab-dashboard'), text: 'Dashboard'),
+            Tab(key: ValueKey('tab-my-papers'), text: 'My Papers'),
+            Tab(key: ValueKey('tab-projects'), text: 'Projects'),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _createProject,
@@ -395,8 +445,8 @@ class _ProjectListPageState extends State<ProjectListPage> {
           constraints: const BoxConstraints(maxWidth: 960),
           child: FutureBuilder<List<LocalProject>>(
             future: _projects,
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
+            builder: (context, projectSnap) {
+              if (projectSnap.hasError) {
                 return Center(
                   child: Padding(
                     padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
@@ -417,10 +467,10 @@ class _ProjectListPageState extends State<ProjectListPage> {
                   ),
                 );
               }
-              if (!snapshot.hasData) {
+              if (!projectSnap.hasData) {
                 return const Center(child: CircularProgressIndicator());
               }
-              final projects = snapshot.data!;
+              final projects = projectSnap.data!;
               if (projects.isEmpty) {
                 return Center(
                   child: SingleChildScrollView(
@@ -454,17 +504,28 @@ class _ProjectListPageState extends State<ProjectListPage> {
                   ),
                 );
               }
-              return ListView(
-                padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
-                children: [
-                  if (_showGuide) ...[
-                    _buildOnboardingGuide(theme),
-                    const SizedBox(height: 12),
-                  ],
-                  for (final project in projects)
-                    _buildProjectCard(project, theme),
-                  const SizedBox(height: 48),
-                ],
+
+              return FutureBuilder<List<SavedManuscript>>(
+                future: _savedManuscripts,
+                builder: (context, manuscriptSnap) {
+                  final manuscripts = manuscriptSnap.data ?? [];
+
+                  return FutureBuilder<List<LocalProject>>(
+                    future: _unfinishedProjects,
+                    builder: (context, unfinishedSnap) {
+                      final unfinished = unfinishedSnap.data ?? [];
+
+                      return TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildDashboardView(projects, manuscripts, unfinished, theme),
+                          _buildMyPapersView(manuscripts, theme),
+                          _buildProjectsView(projects, theme),
+                        ],
+                      );
+                    },
+                  );
+                },
               );
             },
           ),
@@ -480,6 +541,777 @@ class _ProjectListPageState extends State<ProjectListPage> {
         ),
       ),
     );
+  }
+
+  Widget _buildDashboardView(
+    List<LocalProject> projects,
+    List<SavedManuscript> manuscripts,
+    List<LocalProject> unfinished,
+    ThemeData theme,
+  ) {
+    return ListView(
+      padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
+      children: [
+        if (_showGuide) ...[
+          _buildOnboardingGuide(theme),
+          const SizedBox(height: 8),
+        ],
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              ActionChip(
+                avatar: const Icon(Icons.menu_book, size: 14, color: Colors.teal),
+                label: Text('My Papers (${manuscripts.length})', style: const TextStyle(fontSize: 11)),
+                onPressed: () => _tabController.animateTo(1),
+              ),
+              const SizedBox(width: 6),
+              if (unfinished.isNotEmpty) ...[
+                ActionChip(
+                  avatar: Icon(Icons.pending_actions, size: 14, color: Colors.amber.shade800),
+                  label: Text('Drafts (${unfinished.length})', style: const TextStyle(fontSize: 11)),
+                  onPressed: () => _tabController.animateTo(1),
+                ),
+                const SizedBox(width: 6),
+              ],
+              ActionChip(
+                avatar: const Icon(Icons.folder_outlined, size: 14, color: Colors.blue),
+                label: Text('Projects (${projects.length})', style: const TextStyle(fontSize: 11)),
+                onPressed: () => _tabController.animateTo(2),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        for (final project in projects)
+          _buildProjectCard(project, theme),
+        const SizedBox(height: 48),
+      ],
+    );
+  }
+
+  Widget _buildMyPapersView(List<SavedManuscript> manuscripts, ThemeData theme) {
+    return ListView(
+      padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.menu_book, color: ResbudDesignTokens.seedColor, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'My Papers',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          'All saved academic manuscripts, drafts, and version histories stored locally.',
+          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 12),
+        // Search bar
+        TextField(
+          controller: _searchController,
+          decoration: InputDecoration(
+            hintText: 'Search papers by title or abstract...',
+            prefixIcon: const Icon(Icons.search, size: 18),
+            suffixIcon: _searchQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear, size: 16),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {
+                        _searchQuery = '';
+                        _refresh();
+                      });
+                    },
+                  )
+                : null,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          onChanged: (val) {
+            setState(() {
+              _searchQuery = val.trim();
+              _refresh();
+            });
+          },
+        ),
+        const SizedBox(height: 8),
+        // Filter chips and Sort row
+        Row(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final fmt in ['All', 'IEEE Conference', 'Nature', 'ACM Standard', 'Academic Standard'])
+                      Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: FilterChip(
+                          visualDensity: VisualDensity.compact,
+                          label: Text(fmt, style: const TextStyle(fontSize: 11)),
+                          selected: _selectedFormat == fmt,
+                          onSelected: (sel) {
+                            setState(() {
+                              _selectedFormat = sel ? fmt : 'All';
+                              _refresh();
+                            });
+                          },
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            DropdownButton<String>(
+              value: _sortBy,
+              underline: const SizedBox.shrink(),
+              style: theme.textTheme.bodySmall?.copyWith(fontSize: 11.5),
+              items: const [
+                DropdownMenuItem(value: 'date_desc', child: Text('Newest')),
+                DropdownMenuItem(value: 'date_asc', child: Text('Oldest')),
+                DropdownMenuItem(value: 'title_asc', child: Text('A–Z')),
+                DropdownMenuItem(value: 'title_desc', child: Text('Z–A')),
+              ],
+              onChanged: (val) {
+                if (val != null) {
+                  setState(() {
+                    _sortBy = val;
+                    _refresh();
+                  });
+                }
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '${manuscripts.length} saved manuscript${manuscripts.length == 1 ? '' : 's'}',
+          style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold, fontSize: 11),
+        ),
+        const SizedBox(height: 8),
+        if (manuscripts.isEmpty)
+          Card(
+            elevation: 0,
+            color: theme.colorScheme.surfaceContainerHighest.withAlpha(30),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.menu_book_outlined, size: 40, color: Colors.grey),
+                  const SizedBox(height: 12),
+                  Text(
+                    _searchQuery.isNotEmpty
+                        ? 'No manuscripts matching "$_searchQuery".'
+                        : 'No saved papers yet.',
+                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _searchQuery.isNotEmpty
+                        ? 'Try clearing the search query or changing format filters.'
+                        : 'Generate a paper from one of your projects to build your library.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 12),
+                  if (_searchQuery.isNotEmpty)
+                    TextButton(
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() {
+                          _searchQuery = '';
+                          _selectedFormat = 'All';
+                          _refresh();
+                        });
+                      },
+                      child: const Text('Clear Filters'),
+                    )
+                  else
+                    FilledButton.tonal(
+                      onPressed: () => _tabController.animateTo(2),
+                      child: const Text('View Projects'),
+                    ),
+                ],
+              ),
+            ),
+          )
+        else
+          for (final m in manuscripts)
+            _buildManuscriptCard(m, theme),
+        const SizedBox(height: 48),
+      ],
+    );
+  }
+
+  Widget _buildProjectsView(List<LocalProject> projects, ThemeData theme) {
+    return ListView(
+      padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.folder_outlined, color: ResbudDesignTokens.seedColor, size: 22),
+            const SizedBox(width: 8),
+            Text(
+              'Research Projects',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '${projects.length} research initiative${projects.length == 1 ? '' : 's'} containing inputs, figures, and drafts.',
+          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 12),
+        for (final project in projects)
+          _buildProjectCard(project, theme),
+        const SizedBox(height: 48),
+      ],
+    );
+  }
+
+  Widget _buildManuscriptCard(SavedManuscript m, ThemeData theme) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top tag row
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withAlpha(25),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: Colors.teal.withAlpha(60)),
+                  ),
+                  child: Text(
+                    m.paperFormat,
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.teal),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withAlpha(20),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    m.citationStyle,
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.blue),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'v${m.versionNumber}',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+                ),
+                const Spacer(),
+                if (m.isUnfinishedDraft)
+                  const ResbudStatusBadge(
+                    label: 'Unfinished draft',
+                    type: ResbudStatusType.unsaved,
+                    icon: Icons.pending_outlined,
+                  )
+                else
+                  const ResbudStatusBadge(
+                    label: 'Saved',
+                    type: ResbudStatusType.saved,
+                    icon: Icons.check_circle_outline,
+                  ),
+                PopupMenuButton<String>(
+                  key: ValueKey('paper-menu-${m.id}'),
+                  tooltip: 'Manuscript options',
+                  icon: const Icon(Icons.more_vert, size: 18),
+                  onSelected: (action) {
+                    if (action == 'history') {
+                      _showVersionHistorySheet(m);
+                    } else if (action == 'docx') {
+                      _exportManuscriptDocx(m);
+                    } else if (action == 'pdf') {
+                      _exportManuscriptPdf(m);
+                    } else if (action == 'rename') {
+                      _renameManuscript(m);
+                    } else if (action == 'duplicate') {
+                      _duplicateManuscript(m);
+                    } else if (action == 'delete') {
+                      _deleteManuscript(m);
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                      value: 'history',
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.history, size: 16),
+                          SizedBox(width: 8),
+                          Text('Version history', style: TextStyle(fontSize: 12.5)),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'docx',
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.download, size: 16),
+                          SizedBox(width: 8),
+                          Text('Export DOCX', style: TextStyle(fontSize: 12.5)),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'pdf',
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.picture_as_pdf, size: 16),
+                          SizedBox(width: 8),
+                          Text('Export PDF', style: TextStyle(fontSize: 12.5)),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'rename',
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.edit_outlined, size: 16),
+                          SizedBox(width: 8),
+                          Text('Rename paper', style: TextStyle(fontSize: 12.5)),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'duplicate',
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.copy_outlined, size: 16),
+                          SizedBox(width: 8),
+                          Text('Duplicate', style: TextStyle(fontSize: 12.5)),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'delete',
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                          SizedBox(width: 8),
+                          Text('Delete paper', style: TextStyle(fontSize: 12.5, color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            // Title
+            InkWell(
+              onTap: () => _openManuscript(m, PaperWorkspaceMode.document),
+              child: Text(
+                m.paperTitle,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14.5,
+                  letterSpacing: -0.1,
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            // Metadata line
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 6,
+              runSpacing: 2,
+              children: [
+                Text(
+                  'Project: ${m.projectTitle}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 11,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  '· Modified ${_dateLabel(m.createdAt)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontSize: 10.5,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (m.authorCount > 0)
+                  Text(
+                    '· ${m.authorCount} author${m.authorCount == 1 ? '' : 's'}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontSize: 10.5,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                if (m.sectionCount > 0)
+                  Text(
+                    '· ${m.sectionCount} sections',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontSize: 10.5,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+              ],
+            ),
+            if (m.abstractSnippet.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                m.abstractSnippet,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            Divider(
+              height: 1,
+              thickness: 0.8,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: 8),
+            // Action buttons
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              children: [
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    minimumSize: const Size(0, 30),
+                  ),
+                  icon: const Icon(Icons.article_outlined, size: 14),
+                  label: const Text('Read DOCX', style: TextStyle(fontSize: 11.5)),
+                  onPressed: () => _openManuscript(m, PaperWorkspaceMode.document),
+                ),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    minimumSize: const Size(0, 30),
+                  ),
+                  icon: const Icon(Icons.picture_as_pdf_outlined, size: 14),
+                  label: const Text('View PDF', style: TextStyle(fontSize: 11.5)),
+                  onPressed: () => _openManuscript(m, PaperWorkspaceMode.pdf),
+                ),
+                FilledButton.tonalIcon(
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    minimumSize: const Size(0, 30),
+                  ),
+                  icon: const Icon(Icons.edit_note, size: 15),
+                  label: Text(
+                    m.isUnfinishedDraft ? 'Continue Draft' : 'Edit Manuscript',
+                    style: const TextStyle(fontSize: 11.5),
+                  ),
+                  onPressed: () => _openManuscript(m, PaperWorkspaceMode.editor),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openManuscript(SavedManuscript manuscript, PaperWorkspaceMode mode) async {
+    final project = await widget.repository.getProject(manuscript.projectId);
+    final version = await widget.repository.getCurrentPaperVersion(manuscript.projectId) ??
+        (await widget.repository.listPaperVersions(manuscript.projectId))
+            .where((v) => v.id == manuscript.id)
+            .firstOrNull;
+    if (!mounted || project == null || version == null) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => PaperEditorPage(
+          repository: widget.repository,
+          generationApi: widget.generationApi,
+          project: project,
+          initialVersion: version,
+          initialMode: mode,
+          exportApi: widget.exportApi,
+          fileSaver: widget.fileSaver,
+        ),
+      ),
+    );
+    if (mounted) setState(_refresh);
+  }
+
+  Future<void> _openManuscriptVersion(
+    String projectId,
+    PaperVersion version,
+    PaperWorkspaceMode mode,
+  ) async {
+    final project = await widget.repository.getProject(projectId);
+    if (!mounted || project == null) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => PaperEditorPage(
+          repository: widget.repository,
+          generationApi: widget.generationApi,
+          project: project,
+          initialVersion: version,
+          initialMode: mode,
+          exportApi: widget.exportApi,
+          fileSaver: widget.fileSaver,
+        ),
+      ),
+    );
+    if (mounted) setState(_refresh);
+  }
+
+  Future<void> _renameManuscript(SavedManuscript manuscript) async {
+    final newTitle = await showDialog<String>(
+      context: context,
+      builder: (_) => _RenameProjectDialog(initialTitle: manuscript.paperTitle),
+    );
+    if (!mounted || newTitle == null || newTitle.trim().isEmpty || newTitle.trim() == manuscript.paperTitle) return;
+
+    try {
+      await widget.repository.renamePaper(
+        projectId: manuscript.projectId,
+        newTitle: newTitle.trim(),
+        versionId: manuscript.id,
+      );
+      if (mounted) {
+        setState(_refresh);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Paper renamed to "${newTitle.trim()}".')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('The paper could not be renamed. Please try again.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _duplicateManuscript(SavedManuscript manuscript) async {
+    try {
+      final newProj = await widget.repository.duplicatePaper(
+        projectId: manuscript.projectId,
+        versionId: manuscript.id,
+      );
+      if (mounted) {
+        setState(_refresh);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Duplicated manuscript into "${newProj.title}".')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to duplicate manuscript. Please try again.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteManuscript(SavedManuscript manuscript) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete this manuscript?'),
+        content: const Text(
+          'This permanently deletes all saved versions of this paper. The research project inputs and attached figures will remain saved.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await widget.repository.deletePaper(projectId: manuscript.projectId);
+      if (mounted) {
+        setState(_refresh);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Manuscript deleted.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to delete manuscript. Please try again.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showVersionHistorySheet(SavedManuscript manuscript) async {
+    final versions = await widget.repository.listPaperVersions(manuscript.projectId);
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Version History',
+                      style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                Text(
+                  manuscript.paperTitle,
+                  style: Theme.of(ctx).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 12),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: versions.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, i) {
+                      final v = versions[i];
+                      final isCurrent = v.id == manuscript.id;
+                      return ListTile(
+                        leading: CircleAvatar(
+                          radius: 14,
+                          backgroundColor: isCurrent ? Colors.teal : Colors.grey.shade400,
+                          child: Text(
+                            'v${v.versionNumber}',
+                            style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        title: Text('Version ${v.versionNumber} ${isCurrent ? "(Current)" : ""}'),
+                        subtitle: Text('${v.origin.name} · ${_dateLabel(v.createdAt)}'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(ctx);
+                                _openManuscriptVersion(manuscript.projectId, v, PaperWorkspaceMode.document);
+                              },
+                              child: const Text('Preview'),
+                            ),
+                            if (!isCurrent)
+                              IconButton(
+                                icon: const Icon(Icons.restore, size: 20),
+                                tooltip: 'Restore this version',
+                                onPressed: () async {
+                                  Navigator.pop(ctx);
+                                  await widget.repository.restorePaperVersion(
+                                    projectId: manuscript.projectId,
+                                    targetVersionId: v.id,
+                                  );
+                                  if (mounted) {
+                                    setState(_refresh);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Restored version ${v.versionNumber} as new snapshot.')),
+                                    );
+                                  }
+                                },
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _exportManuscriptDocx(SavedManuscript manuscript) async {
+    if (_isExporting) return;
+    setState(() => _isExporting = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Exporting DOCX...')),
+    );
+    try {
+      final draft = PaperDraftPayload.fromJson(manuscript.rawPaper);
+      final response = await widget.exportApi.exportDocx(draft);
+      final filename = '${manuscript.paperTitle.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_')}.docx';
+      await widget.fileSaver.saveDocx(
+        bytes: response.bytes,
+        suggestedFilename: response.suggestedFilename.isNotEmpty ? response.suggestedFilename : filename,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Saved $filename successfully.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to export DOCX: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
+  Future<void> _exportManuscriptPdf(SavedManuscript manuscript) async {
+    _openManuscript(manuscript, PaperWorkspaceMode.pdf);
   }
 
   Widget _buildOnboardingGuide(ThemeData theme) => Card(
@@ -602,6 +1434,26 @@ class _ProjectListPageState extends State<ProjectListPage> {
     ],
   );
 
+  Future<void> _openProjectPaper(LocalProject project, PaperWorkspaceMode mode) async {
+    final version = await widget.repository.getCurrentPaperVersion(project.id) ??
+        (await widget.repository.listPaperVersions(project.id)).firstOrNull;
+    if (!mounted || version == null) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => PaperEditorPage(
+          repository: widget.repository,
+          generationApi: widget.generationApi,
+          project: project,
+          initialVersion: version,
+          initialMode: mode,
+          exportApi: widget.exportApi,
+          fileSaver: widget.fileSaver,
+        ),
+      ),
+    );
+    if (mounted) setState(_refresh);
+  }
+
   Widget _buildProjectCard(LocalProject project, ThemeData theme) {
     final projectContext = project.projectContext;
     final isDocMode = projectContext['creation_mode'] == 'document' ||
@@ -610,83 +1462,93 @@ class _ProjectListPageState extends State<ProjectListPage> {
             (projectContext['research_question'] == null ||
                 (projectContext['research_question'] as String).isEmpty));
     final researchField = projectContext['research_field'] as String?;
+    final hasGeneratedPaper = project.currentPaperVersionId != null;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        leading: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: isDocMode
-                ? Colors.blue.withAlpha(24)
-                : theme.colorScheme.primary.withAlpha(24),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            isDocMode ? Icons.description_outlined : Icons.edit_note_outlined,
-            color: isDocMode ? Colors.blue.shade700 : theme.colorScheme.primary,
-            size: 22,
-          ),
-        ),
-        title: Text(
-          project.title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            letterSpacing: -0.1,
-          ),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 8,
-            runSpacing: 4,
-            children: [
-              Text(
-                'Updated ${_dateLabel(project.updatedAt)}',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            leading: Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: isDocMode
+                    ? Colors.blue.withAlpha(24)
+                    : theme.colorScheme.primary.withAlpha(24),
+                borderRadius: BorderRadius.circular(8),
               ),
-              if (researchField != null && researchField.trim().isNotEmpty)
-                Text(
-                  researchField.trim(),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(
-                  color: isDocMode
-                      ? Colors.blue.withAlpha(22)
-                      : theme.colorScheme.secondaryContainer.withAlpha(60),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  isDocMode ? 'Document Mode' : 'Structured',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: isDocMode ? Colors.blue.shade800 : theme.colorScheme.secondary,
-                  ),
-                ),
+              child: Icon(
+                isDocMode ? Icons.description_outlined : Icons.edit_note_outlined,
+                color: isDocMode ? Colors.blue.shade700 : theme.colorScheme.primary,
+                size: 20,
               ),
-            ],
-          ),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            PopupMenuButton<String>(
+            ),
+            title: Text(
+              project.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                letterSpacing: -0.1,
+              ),
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  Text(
+                    'Updated ${_dateLabel(project.updatedAt)}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      fontSize: 11,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  if (researchField != null && researchField.trim().isNotEmpty)
+                    Text(
+                      researchField.trim(),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontSize: 11,
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: isDocMode
+                          ? Colors.blue.withAlpha(22)
+                          : theme.colorScheme.secondaryContainer.withAlpha(60),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      isDocMode ? 'Document Mode' : 'Structured',
+                      style: TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.bold,
+                        color: isDocMode ? Colors.blue.shade800 : theme.colorScheme.secondary,
+                      ),
+                    ),
+                  ),
+                  if (hasGeneratedPaper)
+                    const ResbudStatusBadge(
+                      label: 'Draft Ready',
+                      type: ResbudStatusType.saved,
+                      icon: Icons.check_circle_outline,
+                    ),
+                ],
+              ),
+            ),
+            trailing: PopupMenuButton<String>(
               key: ValueKey('project-menu-${project.id}'),
               tooltip: 'Project options',
-              icon: const Icon(Icons.more_vert),
+              icon: const Icon(Icons.more_vert, size: 20),
               onSelected: (action) {
                 if (action == 'rename') {
                   _renameProject(project);
@@ -699,9 +1561,9 @@ class _ProjectListPageState extends State<ProjectListPage> {
                   value: 'rename',
                   child: Row(
                     children: [
-                      Icon(Icons.edit_outlined, size: 20),
+                      Icon(Icons.edit_outlined, size: 18),
                       SizedBox(width: 8),
-                      Text('Rename'),
+                      Text('Rename', style: TextStyle(fontSize: 13)),
                     ],
                   ),
                 ),
@@ -709,32 +1571,78 @@ class _ProjectListPageState extends State<ProjectListPage> {
                   value: 'delete',
                   child: Row(
                     children: [
-                      Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                      Icon(Icons.delete_outline, size: 18, color: Colors.red),
                       SizedBox(width: 8),
-                      Text('Delete', style: TextStyle(color: Colors.red)),
+                      Text('Delete', style: TextStyle(color: Colors.red, fontSize: 13)),
                     ],
                   ),
                 ),
               ],
             ),
-            const Icon(Icons.chevron_right),
-          ],
-        ),
-        onTap: () async {
-          await Navigator.of(context).push<void>(
-            MaterialPageRoute<void>(
-              builder: (_) => ProjectDetailPage(
-                repository: widget.repository,
-                generationApi: widget.generationApi,
-                exportApi: widget.exportApi,
-                fileSaver: widget.fileSaver,
-                sourcePicker: widget.sourcePicker,
-                project: project,
+            onTap: () async {
+              await Navigator.of(context).push<void>(
+                MaterialPageRoute<void>(
+                  builder: (_) => ProjectDetailPage(
+                    repository: widget.repository,
+                    generationApi: widget.generationApi,
+                    exportApi: widget.exportApi,
+                    fileSaver: widget.fileSaver,
+                    sourcePicker: widget.sourcePicker,
+                    project: project,
+                  ),
+                ),
+              );
+              if (mounted) setState(_refresh);
+            },
+          ),
+          if (hasGeneratedPaper) ...[
+            Divider(
+              height: 1,
+              thickness: 0.8,
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      minimumSize: const Size(0, 30),
+                    ),
+                    icon: const Icon(Icons.article_outlined, size: 14),
+                    label: const Text('Read DOCX', style: TextStyle(fontSize: 11.5)),
+                    onPressed: () => _openProjectPaper(project, PaperWorkspaceMode.document),
+                  ),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      minimumSize: const Size(0, 30),
+                    ),
+                    icon: const Icon(Icons.picture_as_pdf_outlined, size: 14),
+                    label: const Text('View PDF', style: TextStyle(fontSize: 11.5)),
+                    onPressed: () => _openProjectPaper(project, PaperWorkspaceMode.pdf),
+                  ),
+                  FilledButton.tonalIcon(
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      minimumSize: const Size(0, 30),
+                    ),
+                    icon: const Icon(Icons.edit_note, size: 15),
+                    label: const Text('Edit Manuscript', style: TextStyle(fontSize: 11.5)),
+                    onPressed: () => _openProjectPaper(project, PaperWorkspaceMode.editor),
+                  ),
+                ],
               ),
             ),
-          );
-          if (mounted) setState(_refresh);
-        },
+          ],
+        ],
       ),
     );
   }

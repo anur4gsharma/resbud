@@ -188,33 +188,44 @@ def _export_two_column_academic_pdf(
                 a_idx += num_cols
                 cell_data: list[Any] = []
                 for author in row_authors:
-                    lines = [f"<b>{html.escape(author.name)}</b>"]
+                    paper_affs = getattr(paper, "affiliations", None) or []
+                    aff_index_map = {aff.id: str(i + 1) for i, aff in enumerate(paper_affs)}
+                    sup_indices = [aff_index_map[aid] for aid in author.affiliation_ids if aid in aff_index_map]
+
+                    name_html = f"<b>{html.escape(author.name)}</b>"
+                    if len(paper_affs) > 1 and sup_indices:
+                        name_html += f"<sup>{','.join(sup_indices)}</sup>"
+                    if author.is_corresponding:
+                        name_html += "<sup>*</sup>"
+
+                    lines = [name_html]
                     if author.role_or_title:
                         lines.append(html.escape(author.role_or_title))
+
                     author_affs = [aff_map[aid] for aid in author.affiliation_ids if aid in aff_map]
-                    paper_affs = getattr(paper, "affiliations", None) or []
-                    aff_obj = (
-                        author_affs[0]
-                        if author_affs
-                        else (paper_affs[0] if len(paper_affs) == 1 else None)
-                    )
-                    if aff_obj and aff_obj.department:
-                        lines.append(f"<i>{html.escape(aff_obj.department)}</i>")
-                    if aff_obj and aff_obj.institution:
-                        lines.append(f"<i>{html.escape(aff_obj.institution)}</i>")
-                    loc = ", ".join(
-                        filter(
-                            None,
-                            [
-                                aff_obj.city if aff_obj else None,
-                                aff_obj.country if aff_obj else None,
-                            ],
+                    display_affs = author_affs if author_affs else ([paper_affs[0]] if len(paper_affs) == 1 else [])
+
+                    for aff_obj in display_affs:
+                        if aff_obj and aff_obj.department:
+                            lines.append(f"<i>{html.escape(aff_obj.department)}</i>")
+                        if aff_obj and aff_obj.institution:
+                            lines.append(f"<i>{html.escape(aff_obj.institution)}</i>")
+                        loc = ", ".join(
+                            filter(
+                                None,
+                                [
+                                    aff_obj.city if aff_obj else None,
+                                    aff_obj.country if aff_obj else None,
+                                ],
+                            )
                         )
-                    )
-                    if loc:
-                        lines.append(html.escape(loc))
+                        if loc:
+                            lines.append(html.escape(loc))
+
                     if author.email:
                         lines.append(html.escape(author.email))
+                    if author.orcid:
+                        lines.append(f"<font size='7' color='#555555'>ORCID: {html.escape(author.orcid)}</font>")
                     cell_html = "<br/>".join(lines)
                     cell_data.append(Paragraph(cell_html, styles["Author"]))
                 t = Table([cell_data], colWidths=[printable_w / num_cols] * num_cols)

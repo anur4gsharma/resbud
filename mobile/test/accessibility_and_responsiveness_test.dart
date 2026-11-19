@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:resbud_mobile/data/local_project_repository.dart';
 import 'package:resbud_mobile/features/paper_editor/paper_editor_page.dart';
+import 'package:resbud_mobile/features/project_input/project_input_page.dart';
+import 'package:resbud_mobile/main.dart';
 import 'package:resbud_mobile/shared/design_tokens.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'helpers/fake_export_api.dart';
@@ -161,5 +163,148 @@ void main() {
 
     // Verify dark mode text is readable and contrastive
     expect(find.text('Paper draft'), findsOneWidget);
+  });
+
+  testWidgets('ProjectListPage renders without RenderFlex overflow across Android widths (320, 360, 375, 390, 430)', (tester) async {
+    const widths = [320.0, 360.0, 375.0, 390.0, 430.0];
+
+    for (final width in widths) {
+      tester.view.physicalSize = Size(width, 700);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        ResbudApp(
+          repository: repository,
+          generationApi: fakeApi,
+          exportApi: fakeExportApi,
+          fileSaver: fakeFileSaver,
+        ),
+      );
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pumpAndSettle();
+
+      final error = tester.takeException();
+      expect(error, isNull, reason: 'RenderFlex overflow on ProjectListPage at width $width');
+
+      expect(find.text('High-Throughput Consensus Benchmarks'), findsOneWidget);
+      expect(find.text('Draft Ready'), findsOneWidget);
+      expect(find.text('Read DOCX'), findsOneWidget);
+      expect(find.text('View PDF'), findsOneWidget);
+      expect(find.text('Edit Manuscript'), findsOneWidget);
+    }
+  });
+
+  testWidgets('ProjectInputPage renders without RenderFlex overflow and with all controls visible across Android widths (320, 360, 375, 390, 430)', (tester) async {
+    final docProject = (await tester.runAsync(
+      () => repository.createProject(
+        title: 'Quantum Syndrome Decoders',
+        projectContext: const {
+          'title': 'Quantum Syndrome Decoders',
+          'creation_mode': 'document',
+          'description': 'Evaluating equivariant graph neural networks for fast quantum decoding.',
+          'preferences': {
+            'document_template': 'ieee_conference',
+          },
+          'figures': [
+            {
+              'id': 'fig_1',
+              'name': 'syndrome_decoder_graph.png',
+              'caption': 'Figure 1: Equivariant Neural Graph Decoder',
+              'description': 'Syndrome graph decoding architecture.',
+            },
+          ],
+        },
+        sourceDraft: 'Topological syndrome decoders under Pauli noise models.',
+      ),
+    ))!;
+
+    const widths = [320.0, 360.0, 375.0, 390.0, 430.0];
+
+    for (final width in widths) {
+      tester.view.physicalSize = Size(width, 2400);
+      tester.view.devicePixelRatio = 1.0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ResbudDesignTokens.lightTheme(),
+          home: ProjectInputPage(
+            repository: repository,
+            generationApi: fakeApi,
+            project: docProject,
+          ),
+        ),
+      );
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      final error = tester.takeException();
+      expect(error, isNull, reason: 'RenderFlex overflow on ProjectInputPage at width $width');
+
+      // Verify persistent bottom action bar
+      expect(find.text('Back / cancel'), findsOneWidget);
+      expect(find.text('Save project'), findsOneWidget);
+      expect(find.text('Generate'), findsOneWidget);
+
+      // Scroll to author management controls and verify
+      final authorBtn = find.byKey(const ValueKey('button-add-author'));
+      await tester.scrollUntilVisible(
+        authorBtn,
+        500,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('button-add-author')), findsOneWidget);
+      expect(find.byKey(const ValueKey('button-add-affiliation')), findsOneWidget);
+      expect(find.byKey(const ValueKey('button-prefill-ieee-authors')), findsOneWidget);
+
+      // Scroll to figure management controls and verify
+      final figureBtn = find.byKey(const ValueKey('button-upload-figure'));
+      await tester.scrollUntilVisible(
+        figureBtn,
+        500,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('button-upload-figure')), findsOneWidget);
+      expect(find.byKey(const ValueKey('button-plan-figures')), findsOneWidget);
+
+      // Reset widget tree between iterations
+      await tester.pumpWidget(const SizedBox.shrink());
+    }
+
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  });
+
+  testWidgets('PaperEditorPage renders without RenderFlex overflow across Android widths (320, 360, 375, 390, 430)', (tester) async {
+    const widths = [320.0, 360.0, 375.0, 390.0, 430.0];
+
+    for (final width in widths) {
+      tester.view.physicalSize = Size(width, 740);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(buildEditorApp());
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+      await tester.pumpAndSettle();
+
+      final error = tester.takeException();
+      expect(error, isNull, reason: 'RenderFlex overflow on PaperEditorPage at width $width');
+
+      expect(find.text('Paper draft'), findsOneWidget);
+      expect(find.byKey(const ValueKey('segmented-workspace-mode')), findsOneWidget);
+      expect(find.byKey(const ValueKey('button-readiness-review')), findsOneWidget);
+      expect(find.byKey(const ValueKey('button-save-edits')), findsOneWidget);
+    }
   });
 }

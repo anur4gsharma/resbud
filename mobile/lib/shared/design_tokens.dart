@@ -9,13 +9,14 @@ abstract final class ResbudDesignTokens {
   static const seedColor = Color(0xFF244840); // Deep Academic Pine / Forest Slate
   static const primaryLight = Color(0xFF1E3A34);
   static const primaryDark = Color(0xFF68C4AF);
+  static const tealAccent = Color(0xFF2A9D8F);
 
   // Backgrounds & Surfaces (Light)
-  static const backgroundLight = Color(0xFFF9FAF9); // Clean editorial parchment
+  static const backgroundLight = Color(0xFFF8FAF9); // Clean editorial neutral
   static const surfaceLight = Colors.white;
-  static const surfaceSubtleLight = Color(0xFFF1F4F2);
-  static const borderLight = Color(0xFFE0E5E2);
-  static const borderSubtleLight = Color(0xFFECEFE8);
+  static const surfaceSubtleLight = Color(0xFFF1F5F3);
+  static const borderLight = Color(0xFFE2E8E5);
+  static const borderSubtleLight = Color(0xFFEDF2EF);
 
   // Backgrounds & Surfaces (Dark)
   static const backgroundDark = Color(0xFF131716); // Deep slate dark
@@ -58,12 +59,14 @@ abstract final class ResbudDesignTokens {
   static const infoBgDark = Color(0xFF172554);
   static const infoBorderDark = Color(0xFF1E40AF);
 
-  // Spacing Scale
+  // Spacing Scale (Predictable, compact mobile grid)
   static const spacing2 = 2.0;
   static const spacing4 = 4.0;
   static const spacing6 = 6.0;
   static const spacing8 = 8.0;
+  static const spacing10 = 10.0;
   static const spacing12 = 12.0;
+  static const spacing14 = 14.0;
   static const spacing16 = 16.0;
   static const spacing20 = 20.0;
   static const spacing24 = 24.0;
@@ -72,15 +75,33 @@ abstract final class ResbudDesignTokens {
   static const spacing48 = 48.0;
 
   // Backward-compatible spacing aliases
-  static const pagePadding = 20.0;
-  static const contentSpacing = 16.0;
-  static const cardRadius = 12.0;
+  static const pagePadding = 16.0; // Restrained for mobile viewports (was 20)
+  static const contentSpacing = 12.0;
+  static const cardRadius = 10.0;
 
   // Radii Scale (Restrained, professional)
   static const radiusSmall = 6.0;
-  static const radiusMedium = 10.0;
-  static const radiusLarge = 14.0;
+  static const radiusMedium = 8.0;
+  static const radiusLarge = 12.0;
   static const radiusFull = 999.0;
+
+  // Font Family Stacks
+  static const List<String> uiFontFamilies = [
+    'Roboto',
+    'Inter',
+    '-apple-system',
+    'BlinkMacSystemFont',
+    'Segoe UI',
+    'Helvetica Neue',
+    'Arial',
+    'sans-serif',
+  ];
+
+  static const List<String> manuscriptFontFamilies = [
+    'Times New Roman',
+    'Times',
+    'serif',
+  ];
 
   /// Build cohesive Light Theme
   static ThemeData lightTheme() {
@@ -140,7 +161,7 @@ abstract final class ResbudDesignTokens {
       typography: Typography.material2021(),
       textTheme: textTheme,
 
-      // App Bar: Restrained, clean hairline divider
+      // App Bar: Restrained, compact, clean hairline divider
       appBarTheme: AppBarTheme(
         backgroundColor: scaffoldBg,
         foregroundColor: scheme.onSurface,
@@ -151,7 +172,7 @@ abstract final class ResbudDesignTokens {
           fontWeight: FontWeight.w700,
           letterSpacing: -0.2,
         ),
-        iconTheme: IconThemeData(color: scheme.onSurface, size: 22),
+        iconTheme: IconThemeData(color: scheme.onSurface, size: 20),
       ),
 
       // Card: Clean 1px border, 0 elevation
@@ -166,11 +187,12 @@ abstract final class ResbudDesignTokens {
         ),
       ),
 
-      // Text Fields: Refined academic inputs
+      // Text Fields: Restrained, compact, consistent dimensions
       inputDecorationTheme: InputDecorationTheme(
+        isDense: true,
         filled: true,
         fillColor: isDark ? const Color(0xFF1E2624) : surfaceLight,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusMedium),
           borderSide: BorderSide(color: borderColor, width: 1.0),
@@ -193,15 +215,15 @@ abstract final class ResbudDesignTokens {
         ),
         labelStyle: TextStyle(
           color: isDark ? const Color(0xFF9EABA5) : const Color(0xFF55635E),
-          fontSize: 14,
+          fontSize: 13,
         ),
         helperStyle: TextStyle(
           color: isDark ? const Color(0xFF82908B) : const Color(0xFF6B7A75),
-          fontSize: 12,
+          fontSize: 11,
         ),
         errorStyle: TextStyle(
           color: scheme.error,
-          fontSize: 12,
+          fontSize: 11,
           fontWeight: FontWeight.w500,
         ),
       ),
@@ -210,26 +232,29 @@ abstract final class ResbudDesignTokens {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          minimumSize: const Size(40, 38),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusMedium)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
         ),
       ),
 
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          minimumSize: const Size(40, 38),
           side: BorderSide(color: borderColor, width: 1.0),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusMedium)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
         ),
       ),
 
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          minimumSize: const Size(36, 32),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusSmall)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
         ),
       ),
 
@@ -242,7 +267,7 @@ abstract final class ResbudDesignTokens {
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusMedium)),
           ),
           padding: const WidgetStatePropertyAll(
-            EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           ),
         ),
       ),
@@ -250,13 +275,13 @@ abstract final class ResbudDesignTokens {
       // Dialogs
       dialogTheme: DialogThemeData(
         backgroundColor: cardColor,
-        elevation: 6,
+        elevation: 4,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusLarge),
           side: BorderSide(color: borderColor, width: 1.0),
         ),
         titleTextStyle: textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.bold,
+          fontWeight: FontWeight.w700,
           letterSpacing: -0.2,
         ),
       ),
@@ -266,9 +291,9 @@ abstract final class ResbudDesignTokens {
         backgroundColor: isDark ? surfaceSubtleDark : surfaceSubtleLight,
         side: BorderSide(color: borderColor, width: 0.8),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(radiusSmall)),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         labelStyle: TextStyle(
-          fontSize: 12,
+          fontSize: 11.5,
           fontWeight: FontWeight.w500,
           color: scheme.onSurface,
         ),
@@ -289,78 +314,88 @@ abstract final class ResbudDesignTokens {
         ),
         textStyle: TextStyle(
           color: isDark ? const Color(0xFF1E2624) : Colors.white,
-          fontSize: 12,
+          fontSize: 11,
         ),
       ),
     );
   }
 
+  /// Restrained, highly readable sans-serif UI typography hierarchy
   static TextTheme _buildTextTheme(bool isDark) {
     final baseColor = isDark ? const Color(0xFFECEFE8) : const Color(0xFF1C2220);
     final secondaryColor = isDark ? const Color(0xFF9EABA5) : const Color(0xFF55635E);
 
     return TextTheme(
-      // Headline (Academic titles & primary headers)
+      // Headline (Academic titles & primary headers - restrained)
       headlineLarge: TextStyle(
-        fontSize: 28,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.6,
-        color: baseColor,
-        height: 1.25,
-      ),
-      headlineMedium: TextStyle(
+        fontFamilyFallback: uiFontFamilies,
         fontSize: 22,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.4,
         color: baseColor,
+        height: 1.25,
+      ),
+      headlineMedium: TextStyle(
+        fontFamilyFallback: uiFontFamilies,
+        fontSize: 18,
+        fontWeight: FontWeight.w700,
+        letterSpacing: -0.3,
+        color: baseColor,
         height: 1.3,
       ),
       headlineSmall: TextStyle(
-        fontSize: 18,
+        fontFamilyFallback: uiFontFamilies,
+        fontSize: 16,
         fontWeight: FontWeight.w600,
-        letterSpacing: -0.3,
+        letterSpacing: -0.2,
         color: baseColor,
         height: 1.35,
       ),
 
       // Titles (Section headings, modal headers)
       titleLarge: TextStyle(
-        fontSize: 18,
+        fontFamilyFallback: uiFontFamilies,
+        fontSize: 16,
         fontWeight: FontWeight.w600,
         letterSpacing: -0.2,
         color: baseColor,
         height: 1.3,
       ),
       titleMedium: TextStyle(
-        fontSize: 15,
+        fontFamilyFallback: uiFontFamilies,
+        fontSize: 14,
         fontWeight: FontWeight.w600,
         letterSpacing: -0.1,
         color: baseColor,
         height: 1.35,
       ),
       titleSmall: TextStyle(
-        fontSize: 13,
+        fontFamilyFallback: uiFontFamilies,
+        fontSize: 12.5,
         fontWeight: FontWeight.w600,
         letterSpacing: 0,
         color: secondaryColor,
         height: 1.4,
       ),
 
-      // Body (Reading manuscript text & forms)
+      // Body (Reading and form fields)
       bodyLarge: TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w400,
-        color: baseColor,
-        height: 1.55,
-      ),
-      bodyMedium: TextStyle(
+        fontFamilyFallback: uiFontFamilies,
         fontSize: 14,
         fontWeight: FontWeight.w400,
         color: baseColor,
         height: 1.5,
       ),
+      bodyMedium: TextStyle(
+        fontFamilyFallback: uiFontFamilies,
+        fontSize: 13,
+        fontWeight: FontWeight.w400,
+        color: baseColor,
+        height: 1.45,
+      ),
       bodySmall: TextStyle(
-        fontSize: 12,
+        fontFamilyFallback: uiFontFamilies,
+        fontSize: 11.5,
         fontWeight: FontWeight.w400,
         color: secondaryColor,
         height: 1.4,
@@ -368,22 +403,25 @@ abstract final class ResbudDesignTokens {
 
       // Labels (Buttons, badges, tags)
       labelLarge: TextStyle(
-        fontSize: 14,
+        fontFamilyFallback: uiFontFamilies,
+        fontSize: 13,
         fontWeight: FontWeight.w600,
         color: baseColor,
         letterSpacing: 0.1,
       ),
       labelMedium: TextStyle(
-        fontSize: 12,
+        fontFamilyFallback: uiFontFamilies,
+        fontSize: 11.5,
         fontWeight: FontWeight.w600,
         color: secondaryColor,
-        letterSpacing: 0.2,
+        letterSpacing: 0.1,
       ),
       labelSmall: TextStyle(
-        fontSize: 11,
+        fontFamilyFallback: uiFontFamilies,
+        fontSize: 10,
         fontWeight: FontWeight.w500,
         color: secondaryColor,
-        letterSpacing: 0.2,
+        letterSpacing: 0.1,
       ),
     );
   }
