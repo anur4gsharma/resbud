@@ -471,39 +471,6 @@ class _ProjectListPageState extends State<ProjectListPage>
                 return const Center(child: CircularProgressIndicator());
               }
               final projects = projectSnap.data!;
-              if (projects.isEmpty) {
-                return Center(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.description_outlined, size: 48, color: ResbudDesignTokens.seedColor),
-                        const SizedBox(height: ResbudDesignTokens.contentSpacing),
-                        Text(
-                          'Your projects will appear here.',
-                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Create a project to start saving your research locally.',
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 20),
-                        FilledButton.icon(
-                          onPressed: _createProject,
-                          icon: const Icon(Icons.add),
-                          label: const Text('Create your first project'),
-                        ),
-                        if (_showGuide) ...[
-                          const SizedBox(height: 32),
-                          _buildOnboardingGuide(theme),
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              }
 
               return FutureBuilder<List<SavedManuscript>>(
                 future: _savedManuscripts,
@@ -549,6 +516,40 @@ class _ProjectListPageState extends State<ProjectListPage>
     List<LocalProject> unfinished,
     ThemeData theme,
   ) {
+    if (projects.isEmpty) {
+      return Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.description_outlined, size: 48, color: ResbudDesignTokens.seedColor),
+              const SizedBox(height: ResbudDesignTokens.contentSpacing),
+              Text(
+                'Your projects will appear here.',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Create a project to start saving your research locally.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: _createProject,
+                icon: const Icon(Icons.add),
+                label: const Text('Create your first project'),
+              ),
+              if (_showGuide) ...[
+                const SizedBox(height: 32),
+                _buildOnboardingGuide(theme),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
     return ListView(
       padding: const EdgeInsets.all(ResbudDesignTokens.pagePadding),
       children: [
@@ -776,8 +777,40 @@ class _ProjectListPageState extends State<ProjectListPage>
           style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: 12),
-        for (final project in projects)
-          _buildProjectCard(project, theme),
+        if (projects.isEmpty)
+          Card(
+            elevation: 0,
+            color: theme.colorScheme.surfaceContainerHighest.withAlpha(30),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.folder_open_outlined, size: 40, color: Colors.grey),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No research projects yet.',
+                    style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Create a project to start authoring papers and managing figures locally.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: _createProject,
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Create Project'),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          for (final project in projects)
+            _buildProjectCard(project, theme),
         const SizedBox(height: 48),
       ],
     );
