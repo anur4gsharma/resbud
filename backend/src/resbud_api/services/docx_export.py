@@ -406,12 +406,9 @@ def _render_ieee_authors(document: Any, paper: PaperDraft) -> None:
                 )
 
                 # Determine affiliation details
+                aff_index_map = {aff.id: str(i + 1) for i, aff in enumerate(affiliations)}
                 author_affs = [aff_map[aid] for aid in author.affiliation_ids if aid in aff_map]
-                aff_obj = (
-                    author_affs[0]
-                    if author_affs
-                    else (affiliations[0] if len(affiliations) == 1 else None)
-                )
+                display_affs = author_affs if author_affs else ([affiliations[0]] if len(affiliations) == 1 else [])
 
                 # Paragraph 1: Name + optional superscript affiliation marker + asterisk
                 p_name = cell.paragraphs[0]
@@ -426,8 +423,9 @@ def _render_ieee_authors(document: Any, paper: PaperDraft) -> None:
                 r_name.font.bold = False
                 r_name.font.color.rgb = RGBColor(0, 0, 0)
 
-                if len(affiliations) > 1 and author.affiliation_ids:
-                    r_sup = p_name.add_run(" " + ",".join(author.affiliation_ids))
+                sup_indices = [aff_index_map[aid] for aid in author.affiliation_ids if aid in aff_index_map]
+                if len(affiliations) > 1 and sup_indices:
+                    r_sup = p_name.add_run(" " + ",".join(sup_indices))
                     r_sup.font.name = "Times New Roman"
                     r_sup.font.size = Pt(8)
                     r_sup.font.superscript = True
@@ -453,34 +451,53 @@ def _render_ieee_authors(document: Any, paper: PaperDraft) -> None:
                     r_role.font.size = Pt(9)
                     r_role.font.color.rgb = RGBColor(0, 0, 0)
 
-                # Paragraph 3: Department
-                dept = aff_obj.department if aff_obj and aff_obj.department else None
-                if dept and dept.strip():
-                    p_dept = cell.add_paragraph()
-                    p_dept.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    p_dept.paragraph_format.space_before = Pt(0)
-                    p_dept.paragraph_format.space_after = Pt(1)
-                    p_dept.paragraph_format.line_spacing = 1.0
-                    r_dept = p_dept.add_run(dept.strip())
-                    r_dept.font.name = "Times New Roman"
-                    r_dept.font.size = Pt(9)
-                    r_dept.font.italic = True
-                    r_dept.font.color.rgb = RGBColor(0, 0, 0)
+                # Paragraph 3-5: Affiliation details (Departments, Institutions, Locations)
+                if display_affs:
+                    for aff_obj in display_affs:
+                        dept = aff_obj.department if aff_obj and aff_obj.department else None
+                        if dept and dept.strip():
+                            p_dept = cell.add_paragraph()
+                            p_dept.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            p_dept.paragraph_format.space_before = Pt(0)
+                            p_dept.paragraph_format.space_after = Pt(1)
+                            p_dept.paragraph_format.line_spacing = 1.0
+                            r_dept = p_dept.add_run(dept.strip())
+                            r_dept.font.name = "Times New Roman"
+                            r_dept.font.size = Pt(9)
+                            r_dept.font.italic = True
+                            r_dept.font.color.rgb = RGBColor(0, 0, 0)
 
-                # Paragraph 4: Institution / University
-                inst = aff_obj.institution if aff_obj and aff_obj.institution else None
-                if inst and inst.strip():
-                    p_inst = cell.add_paragraph()
-                    p_inst.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    p_inst.paragraph_format.space_before = Pt(0)
-                    p_inst.paragraph_format.space_after = Pt(1)
-                    p_inst.paragraph_format.line_spacing = 1.0
-                    r_inst = p_inst.add_run(inst.strip())
-                    r_inst.font.name = "Times New Roman"
-                    r_inst.font.size = Pt(9)
-                    r_inst.font.italic = True
-                    r_inst.font.color.rgb = RGBColor(0, 0, 0)
-                elif not dept and not inst:
+                        inst = aff_obj.institution if aff_obj and aff_obj.institution else None
+                        if inst and inst.strip():
+                            p_inst = cell.add_paragraph()
+                            p_inst.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            p_inst.paragraph_format.space_before = Pt(0)
+                            p_inst.paragraph_format.space_after = Pt(1)
+                            p_inst.paragraph_format.line_spacing = 1.0
+                            r_inst = p_inst.add_run(inst.strip())
+                            r_inst.font.name = "Times New Roman"
+                            r_inst.font.size = Pt(9)
+                            r_inst.font.italic = True
+                            r_inst.font.color.rgb = RGBColor(0, 0, 0)
+
+                        loc_parts = []
+                        if aff_obj.city:
+                            loc_parts.append(aff_obj.city.strip())
+                        if aff_obj.state:
+                            loc_parts.append(aff_obj.state.strip())
+                        if aff_obj.country:
+                            loc_parts.append(aff_obj.country.strip())
+                        if loc_parts:
+                            p_loc = cell.add_paragraph()
+                            p_loc.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            p_loc.paragraph_format.space_before = Pt(0)
+                            p_loc.paragraph_format.space_after = Pt(1)
+                            p_loc.paragraph_format.line_spacing = 1.0
+                            r_loc = p_loc.add_run(", ".join(loc_parts))
+                            r_loc.font.name = "Times New Roman"
+                            r_loc.font.size = Pt(9)
+                            r_loc.font.color.rgb = RGBColor(0, 0, 0)
+                else:
                     p_unres = cell.add_paragraph()
                     p_unres.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     p_unres.paragraph_format.space_before = Pt(0)
@@ -491,37 +508,29 @@ def _render_ieee_authors(document: Any, paper: PaperDraft) -> None:
                     r_unres.font.italic = True
                     r_unres.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
 
-                # Paragraph 5: City, State, Country
-                loc_parts = []
-                if aff_obj:
-                    if aff_obj.city:
-                        loc_parts.append(aff_obj.city.strip())
-                    if aff_obj.state:
-                        loc_parts.append(aff_obj.state.strip())
-                    if aff_obj.country:
-                        loc_parts.append(aff_obj.country.strip())
-                if loc_parts:
-                    p_loc = cell.add_paragraph()
-                    p_loc.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    p_loc.paragraph_format.space_before = Pt(0)
-                    p_loc.paragraph_format.space_after = Pt(1)
-                    p_loc.paragraph_format.line_spacing = 1.0
-                    r_loc = p_loc.add_run(", ".join(loc_parts))
-                    r_loc.font.name = "Times New Roman"
-                    r_loc.font.size = Pt(9)
-                    r_loc.font.color.rgb = RGBColor(0, 0, 0)
-
                 # Paragraph 6: Email
                 if author.email and author.email.strip():
                     p_email = cell.add_paragraph()
                     p_email.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     p_email.paragraph_format.space_before = Pt(0)
-                    p_email.paragraph_format.space_after = Pt(2)
+                    p_email.paragraph_format.space_after = Pt(1)
                     p_email.paragraph_format.line_spacing = 1.0
                     r_email = p_email.add_run(author.email.strip())
                     r_email.font.name = "Times New Roman"
                     r_email.font.size = Pt(9)
                     r_email.font.color.rgb = RGBColor(0, 0, 0)
+
+                # Paragraph 7: ORCID
+                if author.orcid and author.orcid.strip():
+                    p_orcid = cell.add_paragraph()
+                    p_orcid.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    p_orcid.paragraph_format.space_before = Pt(0)
+                    p_orcid.paragraph_format.space_after = Pt(2)
+                    p_orcid.paragraph_format.line_spacing = 1.0
+                    r_orcid = p_orcid.add_run(f"ORCID: {author.orcid.strip()}")
+                    r_orcid.font.name = "Times New Roman"
+                    r_orcid.font.size = Pt(8.5)
+                    r_orcid.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
 
             if idx < author_count:
                 spacer = document.add_paragraph()

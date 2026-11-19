@@ -337,7 +337,7 @@ void main() {
     await tester.tap(find.text('Accept replacement'));
     await tester.pump();
     await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      () => Future<void>.delayed(const Duration(milliseconds: 250)),
     );
     await tester.pumpAndSettle();
 

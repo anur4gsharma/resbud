@@ -46,6 +46,26 @@ class LocalProject {
     updatedAt: DateTime.parse(row['updated_at']! as String).toUtc(),
     currentPaperVersionId: row['current_paper_version_id'] as String?,
   );
+
+  LocalProject copyWith({
+    String? id,
+    String? title,
+    Map<String, Object?>? projectContext,
+    String? sourceDraft,
+    String? originalDraft,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+    String? currentPaperVersionId,
+  }) => LocalProject(
+    id: id ?? this.id,
+    title: title ?? this.title,
+    projectContext: projectContext ?? this.projectContext,
+    sourceDraft: sourceDraft ?? this.sourceDraft,
+    originalDraft: originalDraft ?? this.originalDraft,
+    createdAt: createdAt ?? this.createdAt,
+    updatedAt: updatedAt ?? this.updatedAt,
+    currentPaperVersionId: currentPaperVersionId ?? this.currentPaperVersionId,
+  );
 }
 
 class PaperVersion {
@@ -85,6 +105,141 @@ class PaperVersion {
             jsonDecode(row['metadata_json']! as String) as Map,
           ),
   );
+}
+
+/// Represents a consolidated view of a generated, saved manuscript across projects.
+class SavedManuscript {
+  const SavedManuscript({
+    required this.id,
+    required this.projectId,
+    required this.projectTitle,
+    required this.paperTitle,
+    required this.versionNumber,
+    required this.schemaVersion,
+    required this.createdAt,
+    required this.updatedAt,
+    required this.origin,
+    required this.paperFormat,
+    required this.citationStyle,
+    required this.authorCount,
+    required this.sectionCount,
+    required this.referenceCount,
+    required this.figureCount,
+    required this.abstractSnippet,
+    required this.isUnfinishedDraft,
+    required this.isCurrentVersion,
+    required this.rawPaper,
+    this.metadata,
+  });
+
+  final String id;
+  final String projectId;
+  final String projectTitle;
+  final String paperTitle;
+  final int versionNumber;
+  final int schemaVersion;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final PaperVersionOrigin origin;
+  final String paperFormat;
+  final String citationStyle;
+  final int authorCount;
+  final int sectionCount;
+  final int referenceCount;
+  final int figureCount;
+  final String abstractSnippet;
+  final bool isUnfinishedDraft;
+  final bool isCurrentVersion;
+  final Map<String, Object?> rawPaper;
+  final Map<String, Object?>? metadata;
+
+  static String formatTemplateLabel(String? template) {
+    if (template == null || template.trim().isEmpty) return 'Academic Standard';
+    final lower = template.toLowerCase();
+    if (lower.contains('ieee')) return 'IEEE Conference';
+    if (lower.contains('nature')) return 'Nature';
+    if (lower.contains('acm')) return 'ACM Standard';
+    if (lower.contains('apa')) return 'APA 7th';
+    return template;
+  }
+
+  static String formatCitationStyleLabel(String? style) {
+    if (style == null || style.trim().isEmpty) return 'IEEE';
+    final lower = style.toLowerCase();
+    if (lower == 'ieee') return 'IEEE';
+    if (lower == 'apa') return 'APA';
+    if (lower == 'acm') return 'ACM';
+    if (lower == 'nature') return 'Nature';
+    if (lower == 'harvard') return 'Harvard';
+    if (lower == 'chicago') return 'Chicago';
+    return style.toUpperCase();
+  }
+
+  factory SavedManuscript.fromJoinedRow(Map<String, Object?> row) {
+    final rawPaper = Map<String, Object?>.from(
+      jsonDecode(row['paper_json']! as String) as Map,
+    );
+    final projectContext = Map<String, Object?>.from(
+      jsonDecode(row['project_context_json']! as String) as Map,
+    );
+    final projectTitle = row['project_title']! as String;
+    final paperTitleRaw = (rawPaper['title'] as String?)?.trim();
+    final paperTitle = (paperTitleRaw != null && paperTitleRaw.isNotEmpty)
+        ? paperTitleRaw
+        : projectTitle;
+
+    final templateRaw = (rawPaper['document_template'] ??
+        projectContext['paper_template']) as String?;
+    final citationStyleRaw = (rawPaper['citation_style'] ??
+        projectContext['citation_style']) as String?;
+
+    final authorsList = (rawPaper['authors'] as List?) ??
+        (projectContext['authors'] as List?);
+    final sectionsList = rawPaper['sections'] as List?;
+    final referencesList = rawPaper['references'] as List?;
+    final figuresList = (rawPaper['figures'] as List?) ??
+        (projectContext['figures'] as List?);
+
+    final abstractRaw = (rawPaper['abstract_text'] as String?) ??
+        (rawPaper['abstract'] as String?) ??
+        '';
+
+    final metadataRaw = row['metadata_json'] == null
+        ? null
+        : Map<String, Object?>.from(
+            jsonDecode(row['metadata_json']! as String) as Map,
+          );
+
+    final isPartial = metadataRaw?['completion_status'] == 'partial' ||
+        metadataRaw?['missing_sections'] != null ||
+        (sectionsList == null || sectionsList.isEmpty);
+
+    final currentPaperVerId = row['current_paper_version_id'] as String?;
+    final isCurrent = currentPaperVerId == row['version_id'];
+
+    return SavedManuscript(
+      id: row['version_id']! as String,
+      projectId: row['project_id']! as String,
+      projectTitle: projectTitle,
+      paperTitle: paperTitle,
+      versionNumber: row['version_number']! as int,
+      schemaVersion: row['schema_version']! as int,
+      createdAt: DateTime.parse(row['version_created_at']! as String).toUtc(),
+      updatedAt: DateTime.parse(row['project_updated_at']! as String).toUtc(),
+      origin: _originFromDatabase(row['origin']! as String),
+      paperFormat: formatTemplateLabel(templateRaw),
+      citationStyle: formatCitationStyleLabel(citationStyleRaw),
+      authorCount: authorsList?.length ?? 0,
+      sectionCount: sectionsList?.length ?? 0,
+      referenceCount: referencesList?.length ?? 0,
+      figureCount: figuresList?.length ?? 0,
+      abstractSnippet: abstractRaw.trim(),
+      isUnfinishedDraft: isPartial,
+      isCurrentVersion: isCurrent,
+      rawPaper: rawPaper,
+      metadata: metadataRaw,
+    );
+  }
 }
 
 class LocalProjectRepository {
@@ -134,6 +289,8 @@ class LocalProjectRepository {
   }
 
   Future<void> close() => _database.close();
+
+  Database get database => _database;
 
   Future<List<LocalProject>> listProjects() async {
     final rows = await _database.query(
@@ -453,6 +610,307 @@ class LocalProjectRepository {
         'restored_from_version_id': target.id,
       },
     );
+  }
+
+  /// Lists saved manuscripts across projects, with support for title search,
+  /// template format filtering, and custom sorting.
+  Future<List<SavedManuscript>> listSavedManuscripts({
+    String? search,
+    String? format,
+    String? sortBy, // 'date_desc', 'date_asc', 'title_asc', 'title_desc'
+    bool onlyCurrent = true,
+  }) async {
+    final query = '''
+      SELECT 
+        pv.id AS version_id,
+        pv.project_id,
+        pv.version_number,
+        pv.schema_version,
+        pv.paper_json,
+        pv.created_at AS version_created_at,
+        pv.origin,
+        pv.metadata_json,
+        p.title AS project_title,
+        p.project_context_json,
+        p.source_draft,
+        p.original_draft,
+        p.created_at AS project_created_at,
+        p.updated_at AS project_updated_at,
+        p.current_paper_version_id
+      FROM paper_versions pv
+      JOIN projects p ON pv.project_id = p.id
+      ${onlyCurrent ? 'WHERE (pv.id = p.current_paper_version_id OR (p.current_paper_version_id IS NULL AND pv.version_number = (SELECT MAX(pv2.version_number) FROM paper_versions pv2 WHERE pv2.project_id = p.id)))' : ''}
+      ORDER BY pv.created_at DESC
+    ''';
+    final rows = await _database.rawQuery(query);
+    var list = rows.map((r) => SavedManuscript.fromJoinedRow(r)).toList();
+
+    if (search != null && search.trim().isNotEmpty) {
+      final q = search.trim().toLowerCase();
+      list = list.where((m) =>
+        m.paperTitle.toLowerCase().contains(q) ||
+        m.projectTitle.toLowerCase().contains(q) ||
+        m.abstractSnippet.toLowerCase().contains(q)
+      ).toList();
+    }
+
+    if (format != null && format.trim().isNotEmpty && format.toLowerCase() != 'all') {
+      final f = format.trim().toLowerCase();
+      list = list.where((m) => m.paperFormat.toLowerCase().contains(f)).toList();
+    }
+
+    if (sortBy != null) {
+      switch (sortBy) {
+        case 'title_asc':
+          list.sort((a, b) => a.paperTitle.toLowerCase().compareTo(b.paperTitle.toLowerCase()));
+        case 'title_desc':
+          list.sort((a, b) => b.paperTitle.toLowerCase().compareTo(a.paperTitle.toLowerCase()));
+        case 'date_asc':
+          list.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        case 'date_desc':
+        default:
+          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      }
+    }
+
+    return list;
+  }
+
+  /// Retrieves a specific saved manuscript by version id.
+  Future<SavedManuscript?> getSavedManuscript(String versionId) async {
+    const query = '''
+      SELECT 
+        pv.id AS version_id,
+        pv.project_id,
+        pv.version_number,
+        pv.schema_version,
+        pv.paper_json,
+        pv.created_at AS version_created_at,
+        pv.origin,
+        pv.metadata_json,
+        p.title AS project_title,
+        p.project_context_json,
+        p.source_draft,
+        p.original_draft,
+        p.created_at AS project_created_at,
+        p.updated_at AS project_updated_at,
+        p.current_paper_version_id
+      FROM paper_versions pv
+      JOIN projects p ON pv.project_id = p.id
+      WHERE pv.id = ?
+      LIMIT 1
+    ''';
+    final rows = await _database.rawQuery(query, [versionId]);
+    if (rows.isEmpty) return null;
+    return SavedManuscript.fromJoinedRow(rows.single);
+  }
+
+  /// Renames a manuscript, updating the title in the paper JSON and synchronizing
+  /// with the parent project title.
+  Future<void> renamePaper({
+    required String projectId,
+    required String newTitle,
+    String? versionId,
+  }) async {
+    final title = newTitle.trim();
+    if (title.isEmpty) throw ArgumentError.value(newTitle, 'newTitle', 'must not be blank');
+
+    await _database.transaction((txn) async {
+      final projectRows = await txn.query(
+        'projects',
+        where: 'id = ?',
+        whereArgs: [projectId],
+        limit: 1,
+      );
+      if (projectRows.isEmpty) throw StateError('Project not found');
+      final project = LocalProject.fromRow(projectRows.single);
+
+      final targetVerId = versionId ?? project.currentPaperVersionId;
+      if (targetVerId != null) {
+        final verRows = await txn.query(
+          'paper_versions',
+          where: 'id = ? AND project_id = ?',
+          whereArgs: [targetVerId, projectId],
+          limit: 1,
+        );
+        if (verRows.isNotEmpty) {
+          final ver = PaperVersion.fromRow(verRows.single);
+          final updatedPaper = Map<String, Object?>.from(ver.paper);
+          updatedPaper['title'] = title;
+          await txn.update(
+            'paper_versions',
+            {'paper_json': jsonEncode(updatedPaper)},
+            where: 'id = ?',
+            whereArgs: [targetVerId],
+          );
+        }
+      }
+
+      await txn.update(
+        'projects',
+        {
+          'title': title,
+          'updated_at': _clock().toUtc().toIso8601String(),
+        },
+        where: 'id = ?',
+        whereArgs: [projectId],
+      );
+    });
+  }
+
+  /// Duplicates a manuscript into an independent new project with figures and context preserved.
+  Future<LocalProject> duplicatePaper({
+    required String projectId,
+    String? versionId,
+    String? newTitle,
+  }) async {
+    final origProject = await getProject(projectId);
+    if (origProject == null) throw StateError('Project not found');
+
+    final targetVerId = versionId ?? origProject.currentPaperVersionId;
+    PaperVersion? targetVer;
+    if (targetVerId != null) {
+      final verRows = await _database.query(
+        'paper_versions',
+        where: 'id = ? AND project_id = ?',
+        whereArgs: [targetVerId, projectId],
+        limit: 1,
+      );
+      if (verRows.isNotEmpty) {
+        targetVer = PaperVersion.fromRow(verRows.single);
+      }
+    }
+
+    final paperTitle = targetVer != null &&
+            (targetVer.paper['title'] as String?)?.trim().isNotEmpty == true
+        ? targetVer.paper['title'] as String
+        : origProject.title;
+    final copyTitle = newTitle?.trim().isNotEmpty == true
+        ? newTitle!.trim()
+        : '$paperTitle (Copy)';
+
+    final newProject = await createProject(
+      title: copyTitle,
+      projectContext: origProject.projectContext,
+      sourceDraft: origProject.sourceDraft,
+      originalDraft: origProject.originalDraft,
+    );
+
+    // Duplicate figures from original project if any
+    final figures = await listProjectFigures(projectId);
+    if (figures.isNotEmpty) {
+      final copiedFigures = <ProjectFigure>[];
+      for (final fig in figures) {
+        final bytes = await getFigureBytes(fig.storageKey);
+        copiedFigures.add(fig.copyWith(
+          id: _idGenerator(),
+          projectId: newProject.id,
+          cachedBytes: bytes,
+        ));
+      }
+      await saveProjectFigures(newProject.id, copiedFigures);
+    }
+
+    if (targetVer != null) {
+      final copiedPaper = Map<String, Object?>.from(targetVer.paper);
+      copiedPaper['title'] = copyTitle;
+      await savePaperVersion(
+        projectId: newProject.id,
+        schemaVersion: targetVer.schemaVersion,
+        paper: copiedPaper,
+        origin: PaperVersionOrigin.import,
+        metadata: {
+          'duplicated_from_project_id': projectId,
+          'duplicated_from_version_id': targetVer.id,
+        },
+      );
+    }
+
+    return (await getProject(newProject.id))!;
+  }
+
+  /// Deletes a paper (all versions) while preserving the parent project context,
+  /// or optionally deletes the entire project cascade.
+  Future<void> deletePaper({
+    required String projectId,
+    bool deleteEntireProject = false,
+  }) async {
+    if (deleteEntireProject) {
+      await deleteProject(projectId);
+      return;
+    }
+    await _database.transaction((txn) async {
+      await txn.update(
+        'projects',
+        {
+          'current_paper_version_id': null,
+          'updated_at': _clock().toUtc().toIso8601String(),
+        },
+        where: 'id = ?',
+        whereArgs: [projectId],
+      );
+      await txn.delete(
+        'paper_versions',
+        where: 'project_id = ?',
+        whereArgs: [projectId],
+      );
+    });
+  }
+
+  /// Deletes an individual paper version, updating the current version pointer if necessary.
+  Future<void> deletePaperVersion({
+    required String projectId,
+    required String versionId,
+  }) async {
+    await _database.transaction((txn) async {
+      final projectRows = await txn.query(
+        'projects',
+        columns: ['current_paper_version_id'],
+        where: 'id = ?',
+        whereArgs: [projectId],
+        limit: 1,
+      );
+      final currentVerId = projectRows.isNotEmpty
+          ? projectRows.first['current_paper_version_id'] as String?
+          : null;
+
+      final remaining = await txn.query(
+        'paper_versions',
+        where: 'project_id = ? AND id != ?',
+        whereArgs: [projectId, versionId],
+        orderBy: 'version_number DESC',
+      );
+      final newCurrentId =
+          remaining.isNotEmpty ? remaining.first['id'] as String : null;
+
+      if (currentVerId == versionId) {
+        await txn.update(
+          'projects',
+          {
+            'current_paper_version_id': newCurrentId,
+            'updated_at': _clock().toUtc().toIso8601String(),
+          },
+          where: 'id = ?',
+          whereArgs: [projectId],
+        );
+      }
+
+      await txn.delete(
+        'paper_versions',
+        where: 'id = ? AND project_id = ?',
+        whereArgs: [versionId, projectId],
+      );
+    });
+  }
+
+  /// Lists projects that have research materials or context but have no generated paper yet.
+  Future<List<LocalProject>> listUnfinishedProjects() async {
+    final rows = await _database.query(
+      'projects',
+      where: 'current_paper_version_id IS NULL',
+      orderBy: 'updated_at DESC',
+    );
+    return rows.map(LocalProject.fromRow).toList(growable: false);
   }
 
   Future<String?> getSetting(String key) async {

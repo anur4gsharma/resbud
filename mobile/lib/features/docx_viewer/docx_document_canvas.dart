@@ -494,36 +494,7 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
     final multipleAffils = affiliations.length > 1;
 
     final count = authors.length;
-    List<int> grid;
-    if (count == 1) {
-      grid = [1];
-    } else if (count == 2) {
-      grid = [2];
-    } else if (count == 3) {
-      grid = [3];
-    } else if (count == 4) {
-      grid = [2, 2];
-    } else if (count == 5) {
-      grid = [3, 2];
-    } else if (count == 6) {
-      grid = [3, 3];
-    } else if (count == 7) {
-      grid = [4, 3];
-    } else if (count == 8) {
-      grid = [4, 4];
-    } else if (count == 9) {
-      grid = [3, 3, 3];
-    } else if (count == 10) {
-      grid = [4, 3, 3];
-    } else {
-      grid = [];
-      var rem = count;
-      while (rem > 0) {
-        final c = rem > 3 ? 3 : rem;
-        grid.add(c);
-        rem -= c;
-      }
-    }
+    final grid = calculateIeeeAuthorGrid(count);
 
     final rows = <Widget>[];
     var currentIdx = 0;
@@ -556,18 +527,34 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
                             children: [
                               if (multipleAffils && author.affiliationIds.isNotEmpty) ...[
                                 TextSpan(
-                                  text: author.affiliationIds.map((id) {
-                                    final affIndex = affiliations.indexWhere((a) => a.id == id);
-                                    return affIndex >= 0 ? '${affIndex + 1}' : '';
-                                  }).join(','),
+                                  text: toSuperscriptDigits(
+                                    author.affiliationIds
+                                        .map((id) {
+                                          final affIndex = affiliations.indexWhere((a) => a.id == id);
+                                          return affIndex >= 0 ? '${affIndex + 1}' : '';
+                                        })
+                                        .where((s) => s.isNotEmpty)
+                                        .join(','),
+                                  ),
                                   style: TextStyle(
                                     fontSize: 8.0 * zoom,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ],
+                              if (author.isCorresponding) ...[
+                                TextSpan(
+                                  text: '*',
+                                  style: TextStyle(
+                                    fontSize: 8.0 * zoom,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
+                          textAlign: TextAlign.center,
                         ),
                         if (author.roleOrTitle != null && author.roleOrTitle!.isNotEmpty) ...[
                           SizedBox(height: 1 * zoom),
@@ -586,48 +573,59 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
                               .map((id) => affMap[id])
                               .whereType<AuthorAffiliationPayload>()
                               .toList();
-                          final effectiveAff = authorAffs.isNotEmpty
-                              ? authorAffs.first
-                              : (affiliations.length == 1 ? affiliations.first : null);
-                          if (effectiveAff == null) return <Widget>[];
-                          return [
-                            if (effectiveAff.department != null && effectiveAff.department!.isNotEmpty)
-                              Text(
-                                effectiveAff.department!,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontFamily: 'serif',
-                                  fontSize: 8.5 * zoom,
-                                  fontStyle: FontStyle.italic,
-                                  color: Colors.black87,
+                          final effectiveAffs = authorAffs.isNotEmpty
+                              ? authorAffs
+                              : (affiliations.length == 1 ? [affiliations.first] : <AuthorAffiliationPayload>[]);
+                          if (effectiveAffs.isEmpty) return <Widget>[];
+                          final affWidgets = <Widget>[];
+                          for (final effectiveAff in effectiveAffs) {
+                            if (effectiveAff.department != null && effectiveAff.department!.isNotEmpty) {
+                              affWidgets.add(
+                                Text(
+                                  effectiveAff.department!,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontFamily: 'serif',
+                                    fontSize: 8.5 * zoom,
+                                    fontStyle: FontStyle.italic,
+                                    color: Colors.black87,
+                                  ),
                                 ),
-                              ),
-                            if (effectiveAff.institution.isNotEmpty)
-                              Text(
-                                effectiveAff.institution,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontFamily: 'serif',
-                                  fontSize: 8.5 * zoom,
-                                  fontStyle: FontStyle.italic,
-                                  color: Colors.black87,
+                              );
+                            }
+                            if (effectiveAff.institution.isNotEmpty) {
+                              affWidgets.add(
+                                Text(
+                                  effectiveAff.institution,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontFamily: 'serif',
+                                    fontSize: 8.5 * zoom,
+                                    fontStyle: FontStyle.italic,
+                                    color: Colors.black87,
+                                  ),
                                 ),
-                              ),
-                            if ((effectiveAff.city != null && effectiveAff.city!.isNotEmpty) ||
-                                (effectiveAff.country != null && effectiveAff.country!.isNotEmpty))
-                              Text(
-                                [effectiveAff.city, effectiveAff.country]
-                                    .whereType<String>()
-                                    .where((s) => s.isNotEmpty)
-                                    .join(', '),
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontFamily: 'serif',
-                                  fontSize: 8.5 * zoom,
-                                  color: Colors.black87,
+                              );
+                            }
+                            final loc = [effectiveAff.city, effectiveAff.country]
+                                .whereType<String>()
+                                .where((s) => s.isNotEmpty)
+                                .join(', ');
+                            if (loc.isNotEmpty) {
+                              affWidgets.add(
+                                Text(
+                                  loc,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontFamily: 'serif',
+                                    fontSize: 8.5 * zoom,
+                                    color: Colors.black87,
+                                  ),
                                 ),
-                              ),
-                          ];
+                              );
+                            }
+                          }
+                          return affWidgets;
                         }(),
                         if (author.email != null && author.email!.isNotEmpty) ...[
                           SizedBox(height: 1 * zoom),
@@ -638,6 +636,18 @@ class _DocxDocumentCanvasState extends State<DocxDocumentCanvas> {
                               fontFamily: 'serif',
                               fontSize: 8.5 * zoom,
                               color: Colors.blue.shade900,
+                            ),
+                          ),
+                        ],
+                        if (author.orcid != null && author.orcid!.isNotEmpty) ...[
+                          SizedBox(height: 1 * zoom),
+                          Text(
+                            'ORCID: ${author.orcid}',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'serif',
+                              fontSize: 7.5 * zoom,
+                              color: Colors.grey.shade700,
                             ),
                           ),
                         ],

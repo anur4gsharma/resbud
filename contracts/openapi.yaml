@@ -284,12 +284,14 @@ components:
       additionalProperties: false
       required: [name]
       properties:
+        id: { type: [string, 'null'], maxLength: 50 }
         name: { type: string, minLength: 1, maxLength: 150 }
         order: { type: integer, minimum: 1, maximum: 50, default: 1 }
         affiliation_ids:
           type: array
           items: { type: string, maxLength: 50 }
         email: { type: [string, 'null'], maxLength: 150 }
+        orcid: { type: [string, 'null'], maxLength: 50 }
         role_or_title: { type: [string, 'null'], maxLength: 150 }
         is_corresponding: { type: boolean, default: false }
         funding_acknowledgment: { type: [string, 'null'], maxLength: 500 }

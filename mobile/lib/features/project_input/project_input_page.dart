@@ -15,6 +15,8 @@ import '../paper_editor/paper_editor_page.dart';
 import '../../import/source_document_importer.dart';
 import '../../import/document_project_extractor.dart';
 import '../../shared/design_tokens.dart';
+import '../../shared/widgets/resbud_author_card.dart';
+import 'author_affiliation_validator.dart';
 
 typedef PickedSource = ({String name, Uint8List bytes});
 typedef SourcePicker = Future<PickedSource?> Function();
@@ -547,19 +549,17 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8,
+                          runSpacing: 4,
                           children: [
-                            Expanded(
-                              child: Text(
-                                'Upload Research Material',
-                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                overflow: TextOverflow.ellipsis,
+                            Text(
+                              'Upload Research Material',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                            const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
@@ -612,7 +612,9 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                 ],
               ),
               const SizedBox(height: 16),
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   FilledButton.tonalIcon(
                     key: const ValueKey('button-choose-doc-file'),
@@ -631,7 +633,6 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                     ),
                   ),
                   if (hasContent) ...[
-                    const SizedBox(width: 8),
                     OutlinedButton.icon(
                       onPressed: () {
                         setState(() {
@@ -702,51 +703,111 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(12),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.article_outlined,
-                          color: Theme.of(context).colorScheme.primary,
-                          size: 24,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final isNarrow = constraints.maxWidth < 320;
+                        if (isNarrow) {
+                          return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                _attachedFiles.isNotEmpty
-                                    ? _attachedFiles.first.name
-                                    : 'Attached Research Material',
-                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.article_outlined,
+                                    color: Theme.of(context).colorScheme.primary,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      _attachedFiles.isNotEmpty
+                                          ? _attachedFiles.first.name
+                                          : 'Attached Research Material',
+                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 2),
+                              const SizedBox(height: 6),
                               Text(
                                 '$charCount characters • ~${(charCount / 6).round()} words ready for synthesis',
                                 style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade50,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.green.shade300),
+                                ),
+                                child: Text(
+                                  'Ready for AI analysis',
+                                  style: TextStyle(
+                                    color: Colors.green.shade900,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
                               ),
                             ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.green.shade300),
-                          ),
-                          child: Text(
-                            'Ready for AI analysis',
-                            style: TextStyle(
-                              color: Colors.green.shade900,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
+                          );
+                        }
+
+                        return Row(
+                          children: [
+                            Icon(
+                              Icons.article_outlined,
+                              color: Theme.of(context).colorScheme.primary,
+                              size: 24,
                             ),
-                          ),
-                        ),
-                      ],
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _attachedFiles.isNotEmpty
+                                        ? _attachedFiles.first.name
+                                        : 'Attached Research Material',
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    '$charCount characters • ~${(charCount / 6).round()} words ready for synthesis',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.green.shade300),
+                              ),
+                              child: Text(
+                                'Ready for AI analysis',
+                                style: TextStyle(
+                                  color: Colors.green.shade900,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -790,14 +851,12 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         hintText: 'e.g. This research develops equivariant neural graph decoders for surface code quantum error correction...',
       ),
       const SizedBox(height: 16),
-      _buildAuthorsAndAffiliationsSection(),
-      const SizedBox(height: 16),
-      // 3. Conditional AI-Triggered Additional Information
+      // 2. Research parameters: conditional AI clarification & specific parameters
       if (_analysisResponse != null || _showAdditionalInfoInterface) ...[
         _buildAdditionalInformationCard(),
         const SizedBox(height: 16),
       ],
-      // 4. Advanced: Specific Research Parameters (Optional Expandable)
+      // Advanced: Specific Research Parameters (Optional Expandable)
       Card(
         child: ExpansionTile(
           key: const ValueKey('expansion-specific-parameters'),
@@ -821,47 +880,24 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         ),
       ),
       const SizedBox(height: 16),
-      // 5. Illustrations & Figures (Optional)
+      // 3. Paper format and citation settings
+      _buildManuscriptDepthSelector(),
+      const SizedBox(height: 16),
+      // 4. Authors and affiliations
+      _buildAuthorsAndAffiliationsSection(),
+      const SizedBox(height: 16),
+      // 5. Figures and visual assets
       _buildFiguresSection(),
       const SizedBox(height: 16),
-      // 6. Manuscript Depth & Publication Format
-      _buildManuscriptDepthSelector(),
-      const SizedBox(height: 20),
+      // 6. Review preferences
       OutlinedButton.icon(
         key: const ValueKey('button-review-before-generation-docmode'),
         onPressed: _showSummary,
         icon: const Icon(Icons.fact_check_outlined),
         label: const Text('Review before generation'),
       ),
-      const SizedBox(height: 12),
-      SizedBox(
-        width: double.infinity,
-        child: FilledButton.icon(
-          key: const ValueKey('button-generate-paper-docmode'),
-          onPressed: (_generationPhase == GenerationPhase.generating || _isAnalyzing)
-              ? null
-              : _generate,
-          icon: (_generationPhase == GenerationPhase.generating || _isAnalyzing)
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                )
-              : const Icon(Icons.auto_awesome),
-          label: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Text(
-              _isAnalyzing
-                  ? 'Analyzing research material…'
-                  : (_generationPhase == GenerationPhase.generating
-                      ? 'Generating paper draft…'
-                      : 'Generate Paper with AI'),
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-      ),
-      const SizedBox(height: 20),
+      const SizedBox(height: 16),
+      // 7. Generation and saved-paper status
       _buildDocumentModeExportAndVersionsSection(),
       const SizedBox(height: 32),
     ];
@@ -1053,6 +1089,31 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     return FutureBuilder<List<PaperVersion>>(
       future: _versions,
       builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            widget.project.currentPaperVersionId != null) {
+          return Card(
+            key: const ValueKey('card-document-mode-export-versions'),
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: Colors.teal.shade300),
+            ),
+            child: const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 12),
+                    Text('Loading saved manuscript...'),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
         final versions = snapshot.data ?? [];
         final hasVersions = versions.isNotEmpty;
 
@@ -1123,7 +1184,12 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                 ] else ...[
                   Builder(
                     builder: (context) {
-                      final latest = versions.first;
+                      final latest = (widget.project.currentPaperVersionId != null
+                              ? versions
+                                  .where((v) => v.id == widget.project.currentPaperVersionId)
+                                  .firstOrNull
+                              : null) ??
+                          versions.last;
                       final paperData = latest.paper;
                       final title = paperData['title'] as String? ?? 'Research Paper';
                       final sections = paperData['sections'] as List? ?? [];
@@ -1144,7 +1210,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                                   children: [
                                     Chip(
                                       label: Text(
-                                        'Latest: v${latest.versionNumber}',
+                                        'Active: v${latest.versionNumber}',
                                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                                       ),
                                       backgroundColor: Colors.teal.shade100,
@@ -1216,13 +1282,24 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                           const SizedBox(height: 12),
                           const Divider(),
                           const SizedBox(height: 4),
-                          Text(
-                            'All Saved Versions',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey.shade800,
-                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'All Saved Versions',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey.shade800,
+                                ),
+                              ),
+                              TextButton.icon(
+                                key: const ValueKey('button-view-version-history'),
+                                onPressed: () => _viewVersion(latest),
+                                icon: const Icon(Icons.history, size: 16),
+                                label: const Text('Version History'),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 6),
                           for (final v in versions)
@@ -1264,6 +1341,45 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                                     icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
                                     onPressed: _isExporting ? null : () => _downloadVersionPdf(v),
                                   ),
+                                  if (v.id != latest.id)
+                                    IconButton(
+                                      key: ValueKey('button-restore-version-${v.versionNumber}'),
+                                      tooltip: 'Restore this version as current',
+                                      icon: const Icon(Icons.restore, size: 20),
+                                      onPressed: () async {
+                                        final confirmed = await showDialog<bool>(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                            title: Text('Restore Version ${v.versionNumber}?'),
+                                            content: const Text(
+                                              'This will save a new version snapshot containing the contents of this past version.',
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(ctx, false),
+                                                child: const Text('Cancel'),
+                                              ),
+                                              FilledButton(
+                                                onPressed: () => Navigator.pop(ctx, true),
+                                                child: const Text('Restore'),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                        if (confirmed == true && mounted) {
+                                          await widget.repository.restorePaperVersion(
+                                            projectId: widget.project.id,
+                                            targetVersionId: v.id,
+                                          );
+                                          if (mounted) {
+                                            setState(() {
+                                              _versions = widget.repository.listPaperVersions(widget.project.id);
+                                            });
+                                            _showMessage('Restored version ${v.versionNumber} as new snapshot.');
+                                          }
+                                        }
+                                      },
+                                    ),
                                 ],
                               ),
                               onTap: () => _viewVersion(v),
@@ -2849,17 +2965,18 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
             DropdownButtonFormField<String>(
               key: const ValueKey('citation-style'),
               initialValue: _citationStyle,
+              isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Citation preference',
               ),
               items: const [
                 DropdownMenuItem(
                   value: 'user_supplied',
-                  child: Text('Use supplied references'),
+                  child: Text('Use supplied references', overflow: TextOverflow.ellipsis),
                 ),
-                DropdownMenuItem(value: 'apa_7', child: Text('APA 7')),
-                DropdownMenuItem(value: 'ieee', child: Text('IEEE')),
-                DropdownMenuItem(value: 'other', child: Text('Other')),
+                DropdownMenuItem(value: 'apa_7', child: Text('APA 7', overflow: TextOverflow.ellipsis)),
+                DropdownMenuItem(value: 'ieee', child: Text('IEEE', overflow: TextOverflow.ellipsis)),
+                DropdownMenuItem(value: 'other', child: Text('Other', overflow: TextOverflow.ellipsis)),
               ],
               onChanged: (value) {
                 if (value != null) setState(() => _citationStyle = value);
@@ -2869,17 +2986,18 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
             DropdownButtonFormField<String>(
               key: const ValueKey('template-selector-classic'),
               initialValue: _documentTemplate,
+              isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Publication format / template',
               ),
               items: const [
                 DropdownMenuItem(
                   value: 'default',
-                  child: Text('Default Manuscript (Standard Academic)'),
+                  child: Text('Default Manuscript (Standard Academic)', overflow: TextOverflow.ellipsis),
                 ),
                 DropdownMenuItem(
                   value: 'ieee_conference',
-                  child: Text('IEEE Conference Paper'),
+                  child: Text('IEEE Conference Paper', overflow: TextOverflow.ellipsis),
                 ),
               ],
               onChanged: (value) {
@@ -2898,6 +3016,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
             DropdownButtonFormField<String>(
               key: const ValueKey('page-layout-selector-classic'),
               initialValue: _pageLayout,
+              isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Document layout format',
               ),
@@ -3084,15 +3203,17 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (_generationPhase == GenerationPhase.generating)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 8),
+              if (_generationPhase == GenerationPhase.generating || _isAnalyzing)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
                   child: Column(
                     children: [
-                      LinearProgressIndicator(),
-                      SizedBox(height: 4),
+                      const LinearProgressIndicator(),
+                      const SizedBox(height: 4),
                       Text(
-                        'Generating paper draft — this may take a minute…',
+                        _isAnalyzing
+                            ? 'Analyzing research material…'
+                            : 'Generating paper draft — this may take a minute…',
                         textAlign: TextAlign.center,
                       ),
                     ],
@@ -3124,28 +3245,49 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                   final isNarrow = constraints.maxWidth < 420;
                   final backButton = OutlinedButton(
                     onPressed: _requestLeave,
-                    child: const Text('Back / cancel'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    child: const Text('Back / cancel', maxLines: 1, overflow: TextOverflow.ellipsis),
                   );
                   final saveButton = FilledButton.icon(
                     onPressed: _saving ? null : () => _save(),
-                    icon: const Icon(Icons.save_outlined),
-                    label: Text(_saving ? 'Saving…' : 'Save project'),
+                    icon: const Icon(Icons.save_outlined, size: 18),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    label: Text(
+                      _saving ? 'Saving…' : 'Save project',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   );
                   final generateButton = FilledButton.icon(
-                    onPressed: _generationPhase == GenerationPhase.generating || _saving
+                    key: ValueKey(_documentMode ? 'button-generate-paper-docmode' : 'button-generate'),
+                    onPressed: _generationPhase == GenerationPhase.generating || _saving || _isAnalyzing
                         ? null
                         : _generate,
-                    icon: _generationPhase == GenerationPhase.generating
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    icon: (_generationPhase == GenerationPhase.generating || _isAnalyzing)
                         ? const SizedBox(
                             width: 16,
                             height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                           )
-                        : const Icon(Icons.auto_awesome_outlined),
+                        : const Icon(Icons.auto_awesome_outlined, size: 18),
                     label: Text(
-                      _generationPhase == GenerationPhase.generating
-                          ? 'Generating…'
-                          : 'Generate',
+                      _isAnalyzing
+                          ? 'Analyzing…'
+                          : (_generationPhase == GenerationPhase.generating
+                              ? 'Generating…'
+                              : 'Generate'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   );
 
@@ -3394,33 +3536,49 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    FilledButton.tonalIcon(
-                      key: const ValueKey('button-upload-figure'),
-                      onPressed: _pickFigureImage,
-                      icon: const Icon(Icons.add_photo_alternate, size: 16),
-                      label: const Text('Add Figure'),
+                if (_attachedFigures.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    if (_attachedFigures.isNotEmpty)
-                      OutlinedButton.icon(
-                        key: const ValueKey('button-plan-figures'),
-                        onPressed: _autoPlanFigurePlacements,
-                        icon: const Icon(Icons.alt_route, size: 16),
-                        label: const Text('Auto-Plan Placement'),
+                    child: Text(
+                      '${_attachedFigures.length}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
-                  ],
-                ),
+                    ),
+                  ),
               ],
             ),
             const SizedBox(height: 6),
             Text(
               'Upload architectural diagrams, benchmark charts, or schematics. The AI will weave references and discuss them directly in the paper.',
               style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                FilledButton.tonalIcon(
+                  key: const ValueKey('button-upload-figure'),
+                  onPressed: _pickFigureImage,
+                  icon: const Icon(Icons.add_photo_alternate, size: 16),
+                  label: const Text('Add Figure'),
+                ),
+                if (_attachedFigures.isNotEmpty)
+                  OutlinedButton.icon(
+                    key: const ValueKey('button-plan-figures'),
+                    onPressed: _autoPlanFigurePlacements,
+                    icon: const Icon(Icons.alt_route, size: 16),
+                    label: const Text('Auto-Plan Placement'),
+                  ),
+              ],
             ),
             if (_attachedFigures.isNotEmpty) ...[
               const SizedBox(height: 14),
@@ -3457,6 +3615,231 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         debugPrint('Failed to decode figure base64 string: $e');
       }
     }
+
+    final thumbnailWidget = ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: bytes != null
+          ? Image.memory(
+              bytes,
+              width: 48,
+              height: 48,
+              fit: BoxFit.cover,
+            )
+          : (fig['storage_key'] is String
+              ? FutureBuilder<Uint8List?>(
+                  future: widget.repository.getFigureBytes(fig['storage_key'] as String),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData && snapshot.data != null) {
+                      fig['bytes'] = snapshot.data;
+                      return Image.memory(
+                        snapshot.data!,
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                      );
+                    }
+                    return Container(
+                      width: 48,
+                      height: 48,
+                      color: Colors.grey.shade200,
+                      child: const Icon(Icons.image, color: Colors.grey),
+                    );
+                  },
+                )
+              : Container(
+                  width: 48,
+                  height: 48,
+                  color: Colors.grey.shade200,
+                  child: const Icon(Icons.image, color: Colors.grey),
+                )),
+    );
+
+    final actionButtonsRow = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Move Up',
+          icon: const Icon(Icons.arrow_upward, size: 16),
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+          onPressed: index > 0
+              ? () {
+                  setState(() {
+                    final item = _attachedFigures.removeAt(index);
+                    _attachedFigures.insert(index - 1, item);
+                  });
+                }
+              : null,
+        ),
+        IconButton(
+          tooltip: 'Move Down',
+          icon: const Icon(Icons.arrow_downward, size: 16),
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+          onPressed: index < _attachedFigures.length - 1
+              ? () {
+                  setState(() {
+                    final item = _attachedFigures.removeAt(index);
+                    _attachedFigures.insert(index + 1, item);
+                  });
+                }
+              : null,
+        ),
+        IconButton(
+          tooltip: 'Remove figure',
+          icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+          onPressed: () {
+            final removed = _attachedFigures.removeAt(index);
+            final figId = removed['id'] as String?;
+            if (figId != null) {
+              widget.repository.deleteProjectFigure(widget.project.id, figId);
+            }
+            setState(() {});
+          },
+        ),
+      ],
+    );
+
+    final formFieldsWidget = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          initialValue: fig['caption'] as String? ?? '',
+          style: const TextStyle(fontSize: 12.5),
+          decoration: const InputDecoration(
+            labelText: 'Figure Caption',
+            isDense: true,
+            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          ),
+          onChanged: (val) {
+            fig['caption'] = val;
+          },
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          initialValue: fig['description'] as String? ?? '',
+          style: const TextStyle(fontSize: 12.5),
+          decoration: const InputDecoration(
+            labelText: 'Key Takeaways / Description (for AI)',
+            hintText: 'e.g. Highlights the convergence speedup...',
+            isDense: true,
+            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          ),
+          onChanged: (val) {
+            fig['description'] = val;
+          },
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 10,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 220),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Section: ',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11),
+                  ),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: DropdownButton<String>(
+                      value: (fig['section_id'] as String?) ?? 'auto',
+                      isDense: true,
+                      isExpanded: true,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11.5),
+                      items: [
+                        const DropdownMenuItem(
+                          value: 'auto',
+                          child: Text('Auto (AI planned)', overflow: TextOverflow.ellipsis),
+                        ),
+                        for (final s in _requestedSections)
+                          DropdownMenuItem(
+                            value: s,
+                            child: Text(s.replaceAll('_', ' '), overflow: TextOverflow.ellipsis),
+                          ),
+                      ],
+                      onChanged: (val) {
+                        setState(() {
+                          fig['section_id'] = val == 'auto' ? null : val;
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 220),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Layout: ',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11),
+                  ),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: DropdownButton<String>(
+                      value: fig['placement'] as String? ?? 'column_width',
+                      isDense: true,
+                      isExpanded: true,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11.5),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'column_width',
+                          child: Text('Column Width', overflow: TextOverflow.ellipsis),
+                        ),
+                        DropdownMenuItem(
+                          value: 'full_width',
+                          child: Text('Full Page Width', overflow: TextOverflow.ellipsis),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            fig['placement'] = val;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            FilterChip(
+              visualDensity: VisualDensity.compact,
+              label: Text(
+                (fig['placement_status'] == 'approved') ? 'Placement Approved' : 'Review Plan',
+                style: TextStyle(
+                  fontSize: 10.5,
+                  color: (fig['placement_status'] == 'approved') ? Colors.green.shade900 : Colors.blue.shade900,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              selected: fig['placement_status'] == 'approved',
+              selectedColor: Colors.green.shade100,
+              backgroundColor: Colors.blue.shade50,
+              checkmarkColor: Colors.green.shade900,
+              onSelected: (selected) {
+                setState(() {
+                  fig['placement_status'] = selected ? 'approved' : 'assigned';
+                });
+              },
+            ),
+          ],
+        ),
+      ],
+    );
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -3464,218 +3847,26 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: bytes != null
-                ? Image.memory(
-                    bytes,
-                    width: 72,
-                    height: 72,
-                    fit: BoxFit.cover,
-                  )
-                : (fig['storage_key'] is String
-                    ? FutureBuilder<Uint8List?>(
-                        future: widget.repository.getFigureBytes(fig['storage_key'] as String),
-                        builder: (context, snapshot) {
-                          if (snapshot.hasData && snapshot.data != null) {
-                            fig['bytes'] = snapshot.data;
-                            return Image.memory(
-                              snapshot.data!,
-                              width: 72,
-                              height: 72,
-                              fit: BoxFit.cover,
-                            );
-                          }
-                          return Container(
-                            width: 72,
-                            height: 72,
-                            color: Colors.grey.shade200,
-                            child: const Icon(Icons.image, color: Colors.grey),
-                          );
-                        },
-                      )
-                    : Container(
-                        width: 72,
-                        height: 72,
-                        color: Colors.grey.shade200,
-                        child: const Icon(Icons.image, color: Colors.grey),
-                      )),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextFormField(
-                  initialValue: fig['caption'] as String? ?? '',
-                  decoration: const InputDecoration(
-                    labelText: 'Figure Caption',
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  ),
-                  onChanged: (val) {
-                    fig['caption'] = val;
-                  },
-                ),
-                const SizedBox(height: 6),
-                TextFormField(
-                  initialValue: fig['description'] as String? ?? '',
-                  decoration: const InputDecoration(
-                    labelText: 'Key Takeaways / Description (for AI)',
-                    hintText: 'e.g. Highlights the convergence speedup...',
-                    isDense: true,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  ),
-                  onChanged: (val) {
-                    fig['description'] = val;
-                  },
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Section: ',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        const SizedBox(width: 4),
-                        DropdownButton<String>(
-                          value: (fig['section_id'] as String?) ?? 'auto',
-                          isDense: true,
-                          style: Theme.of(context).textTheme.bodySmall,
-                          items: [
-                            const DropdownMenuItem(
-                              value: 'auto',
-                              child: Text('Auto (AI planned)'),
-                            ),
-                            for (final s in _requestedSections)
-                              DropdownMenuItem(
-                                value: s,
-                                child: Text(s.replaceAll('_', ' ')),
-                              ),
-                          ],
-                          onChanged: (val) {
-                            setState(() {
-                              fig['section_id'] = val == 'auto' ? null : val;
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Layout: ',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        const SizedBox(width: 4),
-                        DropdownButton<String>(
-                          value: fig['placement'] as String? ?? 'column_width',
-                          isDense: true,
-                          style: Theme.of(context).textTheme.bodySmall,
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'column_width',
-                              child: Text('Column Width'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'full_width',
-                              child: Text('Full Page Width'),
-                            ),
-                          ],
-                          onChanged: (val) {
-                            if (val != null) {
-                              setState(() {
-                                fig['placement'] = val;
-                              });
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        FilterChip(
-                          label: Text(
-                            (fig['placement_status'] == 'approved') ? 'Placement Approved' : 'Review Plan',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: (fig['placement_status'] == 'approved') ? Colors.green.shade900 : Colors.blue.shade900,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          selected: fig['placement_status'] == 'approved',
-                          selectedColor: Colors.green.shade100,
-                          backgroundColor: Colors.blue.shade50,
-                          checkmarkColor: Colors.green.shade900,
-                          onSelected: (selected) {
-                            setState(() {
-                              fig['placement_status'] = selected ? 'approved' : 'assigned';
-                            });
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 4),
-          Column(
-            mainAxisSize: MainAxisSize.min,
+          Row(
             children: [
-              IconButton(
-                tooltip: 'Move Up',
-                icon: const Icon(Icons.arrow_upward, size: 18),
-                visualDensity: VisualDensity.compact,
-                onPressed: index > 0
-                    ? () {
-                        setState(() {
-                          final item = _attachedFigures.removeAt(index);
-                          _attachedFigures.insert(index - 1, item);
-                        });
-                      }
-                    : null,
+              thumbnailWidget,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Fig. ${index + 1}: ${fig['name'] ?? 'Research Figure'}',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              IconButton(
-                tooltip: 'Move Down',
-                icon: const Icon(Icons.arrow_downward, size: 18),
-                visualDensity: VisualDensity.compact,
-                onPressed: index < _attachedFigures.length - 1
-                    ? () {
-                        setState(() {
-                          final item = _attachedFigures.removeAt(index);
-                          _attachedFigures.insert(index + 1, item);
-                        });
-                      }
-                    : null,
-              ),
-              IconButton(
-                tooltip: 'Remove figure',
-                icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
-                visualDensity: VisualDensity.compact,
-                onPressed: () {
-                  final removed = _attachedFigures.removeAt(index);
-                  final figId = removed['id'] as String?;
-                  if (figId != null) {
-                    widget.repository.deleteProjectFigure(widget.project.id, figId);
-                  }
-                  setState(() {});
-                },
-              ),
+              actionButtonsRow,
             ],
           ),
+          const SizedBox(height: 10),
+          formFieldsWidget,
         ],
       ),
     );
@@ -3754,261 +3945,54 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     if (_documentTemplate != 'ieee_conference' && _authors.isEmpty && _affiliations.isEmpty) {
       return const SizedBox.shrink();
     }
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.people_alt_outlined, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Authors & Institutional Affiliations',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FilledButton.tonalIcon(
-                  key: const ValueKey('button-add-author'),
-                  onPressed: () => _showAddAuthorDialog(),
-                  icon: const Icon(Icons.person_add, size: 16),
-                  label: const Text('Add Author'),
-                ),
-                const SizedBox(width: 6),
-                OutlinedButton.icon(
-                  key: const ValueKey('button-add-affiliation'),
-                  onPressed: () => _showAddAffiliationDialog(),
-                  icon: const Icon(Icons.account_balance_outlined, size: 16),
-                  label: const Text('Add Affiliation'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Structure IEEE multi-column author blocks, affiliation superscripts, and email contacts.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
-                TextButton.icon(
-                  key: const ValueKey('button-prefill-ieee-authors'),
-                  onPressed: _prefillSampleIeeeAuthors,
-                  icon: const Icon(Icons.playlist_add_check, size: 16),
-                  label: const Text('Pre-fill 5 Authors'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (_affiliations.isNotEmpty) ...[
-              Text(
-                'AFFILIATIONS (${_affiliations.length})',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.8,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (var i = 0; i < _affiliations.length; i++) ...[
-                    InputChip(
-                      label: Text(
-                        '[${_affiliations[i].id}] ${_affiliations[i].department != null ? '${_affiliations[i].department}, ' : ''}${_affiliations[i].institution}',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      onDeleted: () {
-                        setState(() {
-                          final removed = _affiliations.removeAt(i);
-                          for (var a = 0; a < _authors.length; a++) {
-                            final auth = _authors[a];
-                            if (auth.affiliationIds.contains(removed.id)) {
-                              final updatedIds = auth.affiliationIds.where((id) => id != removed.id).toList();
-                              _authors[a] = AuthorMetadataPayload(
-                                name: auth.name,
-                                order: auth.order,
-                                affiliationIds: updatedIds,
-                                email: auth.email,
-                                roleOrTitle: auth.roleOrTitle,
-                                isCorresponding: auth.isCorresponding,
-                                fundingAcknowledgment: auth.fundingAcknowledgment,
-                              );
-                            }
-                          }
-                        });
-                      },
-                    ),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 12),
-            ],
-            Text(
-              'AUTHORS (${_authors.length})',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.8,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-            const SizedBox(height: 6),
-            if (_authors.isEmpty)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade50.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.amber.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, size: 20, color: Colors.amber.shade800),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'No authors added yet. Add authors or click "Pre-fill 5 Authors" to configure IEEE conference attribution.',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            else
-              for (var i = 0; i < _authors.length; i++) ...[
-                _buildAuthorItemRow(i),
-                if (i < _authors.length - 1) const SizedBox(height: 8),
-              ],
-          ],
-        ),
-      ),
+    final report = AuthorAffiliationValidator.validate(
+      authors: _authors,
+      affiliations: _affiliations,
+    );
+
+    return ResbudAuthorSection(
+      authors: _authors,
+      affiliations: _affiliations,
+      validationReport: report,
+      onAddAuthor: () => _showAddAuthorDialog(),
+      onAddAffiliation: () => _showAddAffiliationDialog(),
+      onEditAuthor: (index) => _showAddAuthorDialog(existing: _authors[index], index: index),
+      onEditAffiliation: (index) => _showAddAffiliationDialog(existing: _affiliations[index], index: index),
+      onMoveAuthor: _moveAuthor,
+      onRemoveAuthor: (index) {
+        setState(() {
+          _authors.removeAt(index);
+          for (var i = 0; i < _authors.length; i++) {
+            _authors[i] = _authors[i].copyWith(order: i + 1);
+          }
+        });
+      },
+      onRemoveAffiliation: (index) {
+        setState(() {
+          final removed = _affiliations.removeAt(index);
+          for (var a = 0; a < _authors.length; a++) {
+            final auth = _authors[a];
+            if (auth.affiliationIds.contains(removed.id)) {
+              final updatedIds = auth.affiliationIds.where((id) => id != removed.id).toList();
+              _authors[a] = auth.copyWith(affiliationIds: updatedIds);
+            }
+          }
+        });
+      },
+      onPrefillAuthors: _prefillSampleIeeeAuthors,
     );
   }
 
-  Widget _buildAuthorItemRow(int index) {
-    final author = _authors[index];
-    final affTags = author.affiliationIds.isNotEmpty
-        ? author.affiliationIds.map((id) {
-            final affIdx = _affiliations.indexWhere((a) => a.id == id);
-            return affIdx >= 0 ? '${affIdx + 1}' : id;
-          }).join(',')
-        : null;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 14,
-            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-            child: Text(
-              '${index + 1}',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onPrimaryContainer,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      author.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                    ),
-                    if (affTags != null) ...[
-                      Text(
-                        ' [$affTags]',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                      ),
-                    ],
-                    if (author.isCorresponding) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.blue.shade200),
-                        ),
-                        child: Text(
-                          '* Corresponding',
-                          style: TextStyle(fontSize: 10, color: Colors.blue.shade800, fontWeight: FontWeight.w500),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  [
-                    if (author.roleOrTitle != null && author.roleOrTitle!.isNotEmpty) author.roleOrTitle!,
-                    if (author.email != null && author.email!.isNotEmpty) author.email!,
-                  ].join(' • '),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            tooltip: 'Edit Author',
-            icon: const Icon(Icons.edit_outlined, size: 18),
-            visualDensity: VisualDensity.compact,
-            onPressed: () => _showAddAuthorDialog(existing: author, index: index),
-          ),
-          IconButton(
-            tooltip: 'Remove Author',
-            icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
-            visualDensity: VisualDensity.compact,
-            onPressed: () {
-              setState(() {
-                _authors.removeAt(index);
-                for (var i = 0; i < _authors.length; i++) {
-                  final a = _authors[i];
-                  _authors[i] = AuthorMetadataPayload(
-                    name: a.name,
-                    order: i + 1,
-                    affiliationIds: a.affiliationIds,
-                    email: a.email,
-                    roleOrTitle: a.roleOrTitle,
-                    isCorresponding: a.isCorresponding,
-                    fundingAcknowledgment: a.fundingAcknowledgment,
-                  );
-                }
-              });
-            },
-          ),
-        ],
-      ),
-    );
+  void _moveAuthor(int index, int delta) {
+    final targetIndex = index + delta;
+    if (targetIndex < 0 || targetIndex >= _authors.length) return;
+    setState(() {
+      final moved = _authors.removeAt(index);
+      _authors.insert(targetIndex, moved);
+      for (var i = 0; i < _authors.length; i++) {
+        _authors[i] = _authors[i].copyWith(order: i + 1);
+      }
+    });
   }
 
   void _prefillSampleIeeeAuthors() {
@@ -4036,21 +4020,26 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       _authors.clear();
       _authors.addAll([
         const AuthorMetadataPayload(
+          id: 'auth_1',
           name: 'Dr. Aris Thorne',
           order: 1,
           affiliationIds: ['aff_1'],
           email: 'aris.thorne@nitrkl.ac.in',
+          orcid: '0000-0002-1825-0097',
           roleOrTitle: 'Senior Member, IEEE',
           isCorresponding: true,
         ),
         const AuthorMetadataPayload(
+          id: 'auth_2',
           name: 'Elena Vance',
           order: 2,
           affiliationIds: ['aff_1'],
           email: 'elena.vance@nitrkl.ac.in',
+          orcid: '0000-0001-5234-8890',
           roleOrTitle: 'Graduate Student Member, IEEE',
         ),
         const AuthorMetadataPayload(
+          id: 'auth_3',
           name: 'Marcus Zhao',
           order: 3,
           affiliationIds: ['aff_2'],
@@ -4058,13 +4047,15 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           roleOrTitle: 'Member, IEEE',
         ),
         const AuthorMetadataPayload(
+          id: 'auth_4',
           name: 'Dr. Clara Oswald',
           order: 4,
-          affiliationIds: ['aff_1'],
+          affiliationIds: ['aff_1', 'aff_2'],
           email: 'clara.oswald@nitrkl.ac.in',
           roleOrTitle: 'Associate Professor',
         ),
         const AuthorMetadataPayload(
+          id: 'auth_5',
           name: 'Robert Song',
           order: 5,
           affiliationIds: ['aff_2'],
@@ -4073,54 +4064,75 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
         ),
       ]);
     });
-    _showMessage('Pre-filled 5 IEEE authors across 2 affiliations.');
+    _showMessage('Loaded example IEEE author configuration.');
   }
 
-  Future<void> _showAddAffiliationDialog() async {
+  Future<AuthorAffiliationPayload?> _showAddAffiliationDialog({
+    AuthorAffiliationPayload? existing,
+    int? index,
+  }) async {
     final nextNum = _affiliations.length + 1;
-    final idController = TextEditingController(text: 'aff_$nextNum');
-    final deptController = TextEditingController();
-    final instController = TextEditingController();
-    final cityController = TextEditingController();
-    final stateController = TextEditingController();
-    final countryController = TextEditingController();
+    final idController = TextEditingController(text: existing?.id ?? 'aff_$nextNum');
+    final instController = TextEditingController(text: existing?.institution ?? '');
+    final deptController = TextEditingController(text: existing?.department ?? '');
+    final cityController = TextEditingController(text: existing?.city ?? '');
+    final stateController = TextEditingController(text: existing?.state ?? '');
+    final countryController = TextEditingController(text: existing?.country ?? '');
 
     final saved = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Add Institutional Affiliation'),
+        title: Text(existing != null ? 'Edit Institutional Affiliation' : 'Add Institutional Affiliation'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
-                controller: idController,
-                decoration: const InputDecoration(labelText: 'Affiliation ID *', hintText: 'aff_1'),
-              ),
-              const SizedBox(height: 8),
-              TextField(
                 controller: instController,
-                decoration: const InputDecoration(labelText: 'Institution / University *', hintText: 'e.g. Stanford University'),
+                decoration: const InputDecoration(
+                  labelText: 'Institution / University *',
+                  hintText: 'e.g. Stanford University',
+                ),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: deptController,
-                decoration: const InputDecoration(labelText: 'Department', hintText: 'e.g. Dept. of Computer Science'),
+                decoration: const InputDecoration(
+                  labelText: 'Department',
+                  hintText: 'e.g. Dept. of Computer Science',
+                ),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: cityController,
-                decoration: const InputDecoration(labelText: 'City', hintText: 'e.g. Stanford'),
+                decoration: const InputDecoration(
+                  labelText: 'City',
+                  hintText: 'e.g. Stanford',
+                ),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: stateController,
-                decoration: const InputDecoration(labelText: 'State / Province', hintText: 'e.g. CA'),
+                decoration: const InputDecoration(
+                  labelText: 'State / Region',
+                  hintText: 'e.g. CA',
+                ),
               ),
               const SizedBox(height: 8),
               TextField(
                 controller: countryController,
-                decoration: const InputDecoration(labelText: 'Country', hintText: 'e.g. USA'),
+                decoration: const InputDecoration(
+                  labelText: 'Country',
+                  hintText: 'e.g. USA',
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: idController,
+                decoration: const InputDecoration(
+                  labelText: 'Affiliation ID *',
+                  hintText: 'aff_1',
+                ),
               ),
             ],
           ),
@@ -4132,7 +4144,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
               if (instController.text.trim().isEmpty) return;
               Navigator.pop(context, true);
             },
-            child: const Text('Add Affiliation'),
+            child: Text(existing != null ? 'Save Changes' : 'Add Affiliation'),
           ),
         ],
       ),
@@ -4140,23 +4152,42 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
 
     if (saved == true && instController.text.trim().isNotEmpty) {
       final cleanId = idController.text.trim().isNotEmpty ? idController.text.trim() : 'aff_${_affiliations.length + 1}';
+      final newAff = AuthorAffiliationPayload(
+        id: cleanId,
+        institution: instController.text.trim(),
+        department: deptController.text.trim().isNotEmpty ? deptController.text.trim() : null,
+        city: cityController.text.trim().isNotEmpty ? cityController.text.trim() : null,
+        state: stateController.text.trim().isNotEmpty ? stateController.text.trim() : null,
+        country: countryController.text.trim().isNotEmpty ? countryController.text.trim() : null,
+      );
+
       setState(() {
-        _affiliations.add(AuthorAffiliationPayload(
-          id: cleanId,
-          institution: instController.text.trim(),
-          department: deptController.text.trim().isNotEmpty ? deptController.text.trim() : null,
-          city: cityController.text.trim().isNotEmpty ? cityController.text.trim() : null,
-          state: stateController.text.trim().isNotEmpty ? stateController.text.trim() : null,
-          country: countryController.text.trim().isNotEmpty ? countryController.text.trim() : null,
-        ));
+        if (existing != null && index != null) {
+          final oldId = existing.id;
+          _affiliations[index] = newAff;
+          if (oldId != cleanId) {
+            for (var a = 0; a < _authors.length; a++) {
+              final auth = _authors[a];
+              if (auth.affiliationIds.contains(oldId)) {
+                final updated = auth.affiliationIds.map((id) => id == oldId ? cleanId : id).toList();
+                _authors[a] = auth.copyWith(affiliationIds: updated);
+              }
+            }
+          }
+        } else {
+          _affiliations.add(newAff);
+        }
       });
+      return newAff;
     }
+    return null;
   }
 
   Future<void> _showAddAuthorDialog({AuthorMetadataPayload? existing, int? index}) async {
     final nameController = TextEditingController(text: existing?.name ?? '');
     final emailController = TextEditingController(text: existing?.email ?? '');
     final roleController = TextEditingController(text: existing?.roleOrTitle ?? '');
+    final orcidController = TextEditingController(text: existing?.orcid ?? '');
     final fundingController = TextEditingController(text: existing?.fundingAcknowledgment ?? '');
     final selectedAffils = Set<String>.from(existing?.affiliationIds ?? []);
     bool isCorresponding = existing?.isCorresponding ?? false;
@@ -4165,7 +4196,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDlgState) => AlertDialog(
-          title: Text(existing != null ? 'Edit Author' : 'Add IEEE Author'),
+          title: Text(existing != null ? 'Edit Author' : 'Add Author'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -4173,40 +4204,82 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
               children: [
                 TextField(
                   controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Full Name *', hintText: 'Dr. Jane Doe'),
+                  decoration: const InputDecoration(labelText: 'Full Name *', hintText: 'e.g. Dr. Jane Doe'),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: emailController,
-                  decoration: const InputDecoration(labelText: 'Email Address', hintText: 'jane.doe@university.edu'),
+                  decoration: const InputDecoration(labelText: 'Email Address (Optional)', hintText: 'jane.doe@university.edu'),
                 ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: roleController,
-                  decoration: const InputDecoration(labelText: 'Role / Academic Title', hintText: 'Member, IEEE'),
+                  decoration: const InputDecoration(labelText: 'Role / Academic Title (Optional)', hintText: 'e.g. Member, IEEE'),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: orcidController,
+                  decoration: const InputDecoration(
+                    labelText: 'ORCID (Optional)',
+                    hintText: '0000-0002-1825-0097',
+                  ),
                 ),
                 const SizedBox(height: 12),
-                if (_affiliations.isNotEmpty) ...[
-                  const Text('Assign Institutional Affiliations:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
-                  const SizedBox(height: 4),
-                  for (final aff in _affiliations)
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text('Assign Institutional Affiliations:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                    ),
+                    TextButton.icon(
+                      style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                      icon: const Icon(Icons.add, size: 14),
+                      label: const Text('New', style: TextStyle(fontSize: 11)),
+                      onPressed: () async {
+                        final created = await _showAddAffiliationDialog();
+                        if (created != null) {
+                          setDlgState(() {
+                            selectedAffils.add(created.id);
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                if (_affiliations.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Text(
+                      'No affiliations available yet. Tap "+ New" above to create one.',
+                      style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Theme.of(context).colorScheme.outline),
+                    ),
+                  )
+                else
+                  for (var affIdx = 0; affIdx < _affiliations.length; affIdx++) ...[
                     CheckboxListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: Text('[${aff.id}] ${aff.institution}', style: const TextStyle(fontSize: 12)),
-                      value: selectedAffils.contains(aff.id),
+                      title: Text(
+                        '[${affIdx + 1}] ${_affiliations[affIdx].institution}',
+                        style: const TextStyle(fontSize: 12),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: _affiliations[affIdx].department != null
+                          ? Text(_affiliations[affIdx].department!, style: const TextStyle(fontSize: 10.5))
+                          : null,
+                      value: selectedAffils.contains(_affiliations[affIdx].id),
                       onChanged: (checked) {
                         setDlgState(() {
                           if (checked == true) {
-                            selectedAffils.add(aff.id);
+                            selectedAffils.add(_affiliations[affIdx].id);
                           } else {
-                            selectedAffils.remove(aff.id);
+                            selectedAffils.remove(_affiliations[affIdx].id);
                           }
                         });
                       },
                     ),
-                  const SizedBox(height: 8),
-                ],
+                  ],
+                const SizedBox(height: 8),
                 SwitchListTile(
                   dense: true,
                   contentPadding: EdgeInsets.zero,
@@ -4217,7 +4290,10 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                 const SizedBox(height: 8),
                 TextField(
                   controller: fundingController,
-                  decoration: const InputDecoration(labelText: 'Funding Acknowledgment (Optional)', hintText: 'Supported by Grant #...'),
+                  decoration: const InputDecoration(
+                    labelText: 'Funding Acknowledgment (Optional)',
+                    hintText: 'Supported by Grant #...',
+                  ),
                 ),
               ],
             ),
@@ -4239,10 +4315,12 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
     if (saved == true && nameController.text.trim().isNotEmpty) {
       final orderVal = existing?.order ?? (_authors.length + 1);
       final authorPayload = AuthorMetadataPayload(
+        id: existing?.id,
         name: nameController.text.trim(),
         order: orderVal,
         affiliationIds: selectedAffils.toList(),
         email: emailController.text.trim().isNotEmpty ? emailController.text.trim() : null,
+        orcid: orcidController.text.trim().isNotEmpty ? orcidController.text.trim() : null,
         roleOrTitle: roleController.text.trim().isNotEmpty ? roleController.text.trim() : null,
         isCorresponding: isCorresponding,
         fundingAcknowledgment: fundingController.text.trim().isNotEmpty ? fundingController.text.trim() : null,
@@ -4253,6 +4331,9 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
           _authors[index] = authorPayload;
         } else {
           _authors.add(authorPayload);
+        }
+        for (var i = 0; i < _authors.length; i++) {
+          _authors[i] = _authors[i].copyWith(order: i + 1);
         }
       });
     }
@@ -4379,11 +4460,14 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                           children: [
                             Row(
                               children: [
-                                Text(
-                                  depth.title,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                Expanded(
+                                  child: Text(
+                                    depth.title,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                                const Spacer(),
+                                const SizedBox(width: 8),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
@@ -4456,11 +4540,14 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
                         children: [
                           Row(
                             children: [
-                              const Text(
-                                'Custom',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                              const Expanded(
+                                child: Text(
+                                  'Custom',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
-                              const Spacer(),
+                              const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
@@ -4505,11 +4592,12 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
             DropdownButtonFormField<String>(
               key: const ValueKey('citation-style-selector'),
               initialValue: _citationStyle,
+              isExpanded: true,
               decoration: const InputDecoration(labelText: 'Citation style'),
               items: const [
-                DropdownMenuItem(value: 'user_supplied', child: Text('Authoritative user citations')),
-                DropdownMenuItem(value: 'ieee', child: Text('IEEE style [1]')),
-                DropdownMenuItem(value: 'apa_7', child: Text('APA 7th edition')),
+                DropdownMenuItem(value: 'user_supplied', child: Text('Authoritative user citations', overflow: TextOverflow.ellipsis)),
+                DropdownMenuItem(value: 'ieee', child: Text('IEEE style [1]', overflow: TextOverflow.ellipsis)),
+                DropdownMenuItem(value: 'apa_7', child: Text('APA 7th edition', overflow: TextOverflow.ellipsis)),
               ],
               onChanged: (val) {
                 if (val != null) setState(() => _citationStyle = val);
@@ -4519,6 +4607,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
             DropdownButtonFormField<String>(
               key: const ValueKey('template-selector'),
               initialValue: _documentTemplate,
+              isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Publication format / template',
                 prefixIcon: Icon(Icons.article_outlined),
@@ -4526,11 +4615,11 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
               items: const [
                 DropdownMenuItem(
                   value: 'default',
-                  child: Text('Default Manuscript (Standard Academic)'),
+                  child: Text('Default Manuscript (Standard Academic)', overflow: TextOverflow.ellipsis),
                 ),
                 DropdownMenuItem(
                   value: 'ieee_conference',
-                  child: Text('IEEE Conference Paper'),
+                  child: Text('IEEE Conference Paper', overflow: TextOverflow.ellipsis),
                 ),
               ],
               onChanged: (val) {
@@ -4549,6 +4638,7 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
             DropdownButtonFormField<String>(
               key: const ValueKey('page-layout-selector'),
               initialValue: _pageLayout,
+              isExpanded: true,
               decoration: const InputDecoration(
                 labelText: 'Document page layout',
                 prefixIcon: Icon(Icons.dashboard_customize_outlined),
@@ -4556,11 +4646,11 @@ class _ProjectInputPageState extends State<ProjectInputPage> {
               items: const [
                 DropdownMenuItem(
                   value: 'single_column',
-                  child: Text('Standard Single-Column'),
+                  child: Text('Standard Single-Column', overflow: TextOverflow.ellipsis),
                 ),
                 DropdownMenuItem(
                   value: 'two_column_academic',
-                  child: Text('Two-Column Academic (IEEE format)'),
+                  child: Text('Two-Column Academic (IEEE format)', overflow: TextOverflow.ellipsis),
                 ),
               ],
               onChanged: (val) {

@@ -158,10 +158,12 @@ class AuthorAffiliation(ContractModel):
 class AuthorMetadata(ContractModel):
     """Structured author record supporting IEEE conference and academic multi-author formats."""
 
+    id: Annotated[str, Field(max_length=50)] | None = None
     name: Annotated[str, Field(min_length=1, max_length=150)]
     order: StrictInt = Field(default=1, ge=1, le=50)
     affiliation_ids: list[Annotated[str, Field(max_length=50)]] = Field(default_factory=list)
     email: Annotated[str, Field(max_length=150)] | None = None
+    orcid: Annotated[str, Field(max_length=50)] | None = None
     role_or_title: Annotated[str, Field(max_length=150)] | None = None
     is_corresponding: bool = False
     funding_acknowledgment: Annotated[str, Field(max_length=500)] | None = None
