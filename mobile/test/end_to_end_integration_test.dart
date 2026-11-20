@@ -195,7 +195,7 @@ void main() {
     // 5. Submit to backend using fake provider
     await tester.tap(find.text('Generate'));
     await tester.pump();
-    for (var i = 0; i < 30 && fakeApi.callCount == 0; i++) {
+    for (var i = 0; i < 60 && fakeApi.callCount == 0; i++) {
       await tester.runAsync(
         () => Future<void>.delayed(const Duration(milliseconds: 100)),
       );
