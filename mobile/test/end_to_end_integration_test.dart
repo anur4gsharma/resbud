@@ -193,7 +193,9 @@ void main() {
     await tester.pumpAndSettle();
 
     // 5. Submit to backend using fake provider
-    await tester.tap(find.text('Generate'));
+    final generateBtn = find.text('Generate');
+    await scrollTo(tester, generateBtn);
+    await tester.tap(generateBtn);
     await tester.pump();
     for (var i = 0; i < 60 && fakeApi.callCount == 0; i++) {
       await tester.runAsync(
