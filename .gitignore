@@ -58,4 +58,7 @@ launch.txt
 key.properties
 *.jks
 *.keystore
-releases/
+releases/*
+!releases/**/
+!releases/**/*.md
+!releases/**/checksums.txt

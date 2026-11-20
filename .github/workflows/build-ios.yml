@@ -1,0 +1,80 @@
+name: Build & Export iOS App
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/build-ios.yml'
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: 'Backend API Base URL'
+        required: false
+        default: 'https://resbud-api.onrender.com'
+
+jobs:
+  build-ios:
+    name: Build iOS Archive & IPA
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Verify Flutter Code Quality
+        run: |
+          flutter analyze
+          flutter test
+
+      - name: Build iOS IPA & Archive (Unsigned)
+        env:
+          RESBUD_API_URL: ${{ github.event.inputs.api_base_url || 'https://resbud-api.onrender.com' }}
+        run: |
+          flutter build ipa --no-codesign --dart-define=RESBUD_API_BASE_URL=$RESBUD_API_URL
+
+      - name: Package Payload as Installable Unsigned IPA
+        run: |
+          mkdir -p ../releases/ios
+          # Flutter creates build/ios/archive/Runner.xcarchive
+          cd build/ios/archive/Runner.xcarchive/Products/Applications
+          mkdir -p Payload
+          cp -r Runner.app Payload/
+          zip -r ../../../../../../releases/ios/Resbud-ios-unsigned.ipa Payload
+          cd ../../../../../..
+          # Also package full xcarchive for Xcode Organizer / App Store submission
+          cd mobile/build/ios/archive
+          zip -r ../../../releases/ios/Resbud-Runner.xcarchive.zip Runner.xcarchive
+          cd ../../..
+
+      - name: Compute Checksums
+        run: |
+          cd releases/ios
+          shasum -a 256 Resbud-ios-unsigned.ipa > checksums.txt || true
+          cat checksums.txt || true
+
+      - name: Upload iOS IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Resbud-iOS-unsigned-ipa
+          path: releases/ios/Resbud-ios-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Upload iOS Xcode Archive Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Resbud-Runner-xcarchive
+          path: releases/ios/Resbud-Runner.xcarchive.zip
+          if-no-files-found: warn
