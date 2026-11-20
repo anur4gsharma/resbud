@@ -60,7 +60,7 @@ jobs:
 
       - name: Compute Checksums
         run: |
-          cd releases/ios
+          cd "$GITHUB_WORKSPACE/releases/ios"
           shasum -a 256 Resbud-ios-unsigned.ipa > checksums.txt || true
           cat checksums.txt || true
 
@@ -68,12 +68,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Resbud-iOS-unsigned-ipa
-          path: releases/ios/Resbud-ios-unsigned.ipa
+          path: ${{ github.workspace }}/releases/ios/Resbud-ios-unsigned.ipa
           if-no-files-found: error
 
       - name: Upload iOS Xcode Archive Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Resbud-Runner-xcarchive
-          path: releases/ios/Resbud-Runner.xcarchive.zip
+          path: ${{ github.workspace }}/releases/ios/Resbud-Runner.xcarchive.zip
           if-no-files-found: warn
