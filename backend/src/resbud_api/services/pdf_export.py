@@ -366,6 +366,7 @@ def _export_two_column_academic_pdf(
                 figure_lookup[fig.id] = fig
                 figure_lookup[fig.filename] = fig
 
+        eq_counter = 1
         for sec_idx, section in enumerate(body_sections, start=1):
             clean_title = clean_heading_text(section.heading)
             heading_text = (
@@ -375,7 +376,7 @@ def _export_two_column_academic_pdf(
             )
             story.append(Paragraph(html.escape(heading_text), styles["Heading1"]))
             blocks = parse_markdown_blocks(section.content)
-            render_blocks_to_pdf(
+            eq_counter = render_blocks_to_pdf(
                 story,
                 blocks,
                 styles,
@@ -384,6 +385,7 @@ def _export_two_column_academic_pdf(
                 max_width=col_w,
                 two_column=True,
                 figure_lookup=figure_lookup,
+                equation_counter=eq_counter,
             )
 
         if paper.references:
@@ -708,8 +710,8 @@ def _create_two_column_academic_styles() -> dict[str, ParagraphStyle]:
             fontName=bold_font,
             fontSize=11,
             leading=14,
-            spaceBefore=10,
-            spaceAfter=3,
+            spaceBefore=8,
+            spaceAfter=2,
             keepWithNext=True,
             textColor=colors.black,
         ),
@@ -876,18 +878,20 @@ def _build_story(
             figure_lookup[fig.filename] = fig
 
     # Sections with Markdown interpretation and hierarchical numbering
+    eq_counter = 1
     for section_idx, section in enumerate(body_sections, start=1):
         clean_title = clean_heading_text(section.heading)
         heading_text = f"{section_idx}. {clean_title}"
         story.append(Paragraph(html.escape(heading_text), styles["Heading1"]))
         blocks = parse_markdown_blocks(section.content)
-        render_blocks_to_pdf(
+        eq_counter = render_blocks_to_pdf(
             story,
             blocks,
             styles,
             section_index=section_idx,
             numbered=True,
             figure_lookup=figure_lookup,
+            equation_counter=eq_counter,
         )
 
     # References (only bibliographic entries)

@@ -43,6 +43,36 @@ DISPLAY_MATH_BLOCK_RE = re.compile(
 LABEL_RE = re.compile(r"\\label\{([^{}]+)\}")
 TAG_RE = re.compile(r"\\tag\{([^{}]+)\}")
 
+BIG_INLINE_MATH_RE = re.compile(
+    r"(?<![\$\\])\$(?![\$\s])((?:[^$\n\\]|\\.)+?)(?<![\$\s])\$(?![0-9\$])(?:\s*\((?P<num>\d+)\))?"
+)
+
+
+def is_big_inline_equation(latex_str: str) -> bool:
+    """Check if an inline math expression contains structural relations and operators
+    characteristic of a standalone display equation (e.g. definition with fraction/sum/etc)."""
+    inner = clean_math_delimiters(latex_str.strip())
+    return (
+        any(rel in inner for rel in ("=", ":=", r"\equiv", r"\approx"))
+        and len(inner) >= 15
+        and any(op in inner for op in (r"\sum", r"\prod", r"\int", r"\frac", r"\sqrt"))
+    )
+
+
+def promote_big_inline_equations(content: str) -> str:
+    """Promote standalone/definition equations delimited by single dollars into display blocks."""
+    def repl(m: re.Match[str]) -> str:
+        raw = m.group(0)
+        inner = m.group(1).strip()
+        num = m.group("num")
+        if is_big_inline_equation(inner):
+            if num:
+                return f"\n\n$${inner}$$\n({num})\n\n"
+            return f"\n\n$${inner}$$\n\n"
+        return raw
+
+    return BIG_INLINE_MATH_RE.sub(repl, content)
+
 # In-text equation cross-reference patterns
 IN_TEXT_EQ_REF_RE = re.compile(
     r"(?P<prefix>\b(?:Equations?|eqs?\.?|Equations?|EQS?\.?)\s*)?"
@@ -123,7 +153,8 @@ def extract_equations_from_section(
     equations: list[StructuredEquation] = []
     idx = start_index
 
-    for match in DISPLAY_MATH_BLOCK_RE.finditer(content):
+    promoted_content = promote_big_inline_equations(content)
+    for match in DISPLAY_MATH_BLOCK_RE.finditer(promoted_content):
         raw_formula = (
             match.group("content_dollar")
             or match.group("content_bracket")
@@ -233,7 +264,7 @@ def renumber_and_synchronize_equations(
 
     # Second pass: Rewrite section content with consecutive numbers and synchronized references
     for sec in sections:
-        content = sec.content
+        content = promote_big_inline_equations(sec.content)
 
         # 1. Replace display equation blocks with numbered blocks
         def replace_eq_block(match: re.Match[str]) -> str:

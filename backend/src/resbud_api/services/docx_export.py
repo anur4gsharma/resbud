@@ -296,19 +296,21 @@ def _create_document(paper: PaperDraft, review_notes: list[dict[str, str]] | Non
             figure_lookup[fig.id] = fig
             figure_lookup[fig.filename] = fig
 
+    eq_counter = 1
     for sec_idx, section in enumerate(body_sections, start=1):
         clean_title = clean_heading_text(section.heading)
         heading_text = f"{sec_idx}. {clean_title}"
         sec_p = document.add_heading(heading_text, level=1)
         _ensure_run_style(sec_p, bold=True)
         blocks = parse_markdown_blocks(section.content)
-        render_blocks_to_docx(
+        eq_counter = render_blocks_to_docx(
             document,
             blocks,
             section_index=sec_idx,
             numbered=True,
             academic_font="Times New Roman",
             figure_lookup=figure_lookup,
+            equation_counter=eq_counter,
         )
 
     if paper.references:
@@ -608,7 +610,12 @@ def _create_ieee_conference_document(
     document.core_properties.title = paper.title
 
     # Title: 24pt Times New Roman, bold, centered
-    title_p = document.add_heading(paper.title, level=0)
+    if document.paragraphs and not document.paragraphs[0].text.strip():
+        title_p = document.paragraphs[0]
+        title_p.style = "Title"
+        title_p.text = paper.title
+    else:
+        title_p = document.add_heading(paper.title, level=0)
     title_p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
     title_p.paragraph_format.space_before = Pt(12)
     title_p.paragraph_format.space_after = Pt(12)
@@ -695,13 +702,14 @@ def _create_ieee_conference_document(
             figure_lookup[fig.id] = fig
             figure_lookup[fig.filename] = fig
 
+    eq_counter = 1
     for sec_idx, section in enumerate(body_sections, start=1):
         clean_title = clean_heading_text(section.heading)
         heading_text = format_ieee_heading_1(sec_idx, clean_title)
         sec_p = document.add_heading(heading_text, level=1)
         sec_p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        sec_p.paragraph_format.space_before = Pt(12)
-        sec_p.paragraph_format.space_after = Pt(4)
+        sec_p.paragraph_format.space_before = Pt(10)
+        sec_p.paragraph_format.space_after = Pt(3)
         sec_p.paragraph_format.keep_with_next = True
         for r in sec_p.runs:
             r.font.name = "Times New Roman"
@@ -712,7 +720,7 @@ def _create_ieee_conference_document(
             rPr.append(parse_xml(f"<w:smallCaps {nsdecls('w')}/>"))
 
         blocks = parse_markdown_blocks(section.content)
-        render_blocks_to_docx(
+        eq_counter = render_blocks_to_docx(
             document,
             blocks,
             section_index=sec_idx,
@@ -721,6 +729,7 @@ def _create_ieee_conference_document(
             two_column=True,
             template_id="ieee_conference",
             figure_lookup=figure_lookup,
+            equation_counter=eq_counter,
         )
 
     # References in Section 2 (flows across the two columns)

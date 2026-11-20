@@ -48,6 +48,8 @@ from resbud_api.templates.ieee_conference import (
 )
 
 matplotlib.use("Agg")
+plt.rcParams["mathtext.fontset"] = "stix"
+plt.rcParams["font.family"] = "STIXGeneral"
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 logger = logging.getLogger(__name__)
@@ -151,7 +153,7 @@ INLINE_TOKEN_RE = re.compile(
     r"(?P<escaped_dollar>\\\$)|"
     r"(?P<math_display>\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\])|"
     r"(?P<math_paren>\\\([\s\S]*?\\\))|"
-    r"(?P<math_dollar>(?<!\\)\$(?!\s)(?!\d+(?:[.,]\d+)?(?:\s|[.,;:!?]|$))((?:[^$\n\\]|\\.)+?)(?<!\s)\$(?!\d))|"
+    r"(?P<math_dollar>(?<!\\)\$(?!\s)((?:[^$\n\\]|\\.)+?)(?<!\s)\$(?!\d))|"
     r"(?P<bold_italic>\*\*\*[^*]+\*\*\*|___[^_]+___)|"
     r"(?P<bold>\*\*[^*]+\*\*|__[^_]+__)|"
     r"(?P<italic>\*[^*\n]+\*|(?<=\s)_[^_\n]+_(?=\s|[.,;:!?]|$))|"
@@ -170,8 +172,25 @@ MATH_EXTRACT_RE = re.compile(
     r"(?P<math_env>\\begin\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?\}[\s\S]*?\\end\{(?:equation|align|aligned|gather|matrix|pmatrix|bmatrix|vmatrix|cases)\*?\})|"
     r"(?P<math_display>\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\])|"
     r"(?P<math_paren>\\\([\s\S]*?\\\))|"
-    r"(?P<math_dollar>(?<!\\)\$(?!\s)(?!\d+(?:[.,]\d+)?(?:\s|[.,;:!?]|$))((?:[^$\n\\]|\\.)+?)(?<!\s)\$(?!\d))"
+    r"(?P<math_dollar>(?<!\\)\$(?!\s)((?:[^$\n\\]|\\.)+?)(?<!\s)\$(?!\d))"
 )
+
+
+def is_valid_inline_math(content: str) -> bool:
+    """Validate whether an extracted dollar span is genuine math or accidental currency/prose."""
+    c = content.strip()
+    if not c:
+        return False
+    # If it contains any LaTeX macro, math symbol, superscript, subscript, or relation, it is math
+    if re.search(r"[\\[\]{}|^_=+<>~±×÷·≤≥≠≈∈∉⊂⊆∪∩∂∇√∑∏∫]|/(?![a-zA-Z])", c):
+        return True
+    # If multiple words with ordinary English words and no math characters, likely prose or currency range
+    words = c.split()
+    if len(words) > 1:
+        has_prose_words = any(re.match(r"^[a-zA-Z]{2,}$", w) for w in words)
+        if has_prose_words and not any(ch in c for ch in r"\^_=+<>~±×÷·≤≥≠≈∈∉⊂⊆∪∩∂∇√∑∏∫"):
+            return False
+    return True
 
 
 def clean_math_source(raw: str) -> str:
@@ -422,7 +441,10 @@ def parse_inline_spans(text: str) -> list[InlineSpan]:
                 clean = raw[2:-2].strip()
             elif raw.startswith("$") and raw.endswith("$"):
                 clean = raw[1:-1].strip()
-            spans.append(InlineSpan(kind="math", content=clean))
+            if kind == "math_dollar" and not is_valid_inline_math(clean):
+                spans.append(InlineSpan(kind="text", content=raw))
+            else:
+                spans.append(InlineSpan(kind="math", content=clean))
         elif kind == "code":
             spans.append(InlineSpan(kind="code", content=raw[1:-1]))
         elif kind == "bold_italic":
@@ -465,9 +487,101 @@ def format_hierarchical_heading(title: str, indices: list[int]) -> str:
     return f"{prefix} {clean}"
 
 
+def normalize_markdown_tables(text: str) -> str:
+    """Normalize markdown tables: expand collapsed rows '| |' and detach leading/trailing prose."""
+    if not re.search(r"\|\s*:?-{2,}:?\s*\|", text):
+        return text
+
+    # Expand collapsed table rows: "| |" -> "|\n|"
+    expanded = re.sub(r"\|\s*\|\s*", "|\n| ", text)
+
+    lines = expanded.split("\n")
+    new_lines: list[str] = []
+
+    for line in lines:
+        stripped = line.strip()
+        if "|" in stripped:
+            first_pipe = stripped.find("|")
+            last_pipe = stripped.rfind("|")
+            # If line has at least two pipes and prose before or after
+            if first_pipe < last_pipe and (first_pipe > 0 or last_pipe < len(stripped) - 1):
+                prose_lead = stripped[:first_pipe].strip()
+                tbl_part = stripped[first_pipe : last_pipe + 1].strip()
+                prose_trail = stripped[last_pipe + 1 :].strip()
+                if prose_lead:
+                    new_lines.append(prose_lead)
+                    new_lines.append("")
+                new_lines.append(tbl_part)
+                if prose_trail:
+                    new_lines.append("")
+                    new_lines.append(prose_trail)
+                continue
+
+        new_lines.append(line)
+
+    return "\n".join(new_lines)
+
+
+def split_long_paragraphs(text: str, max_chars: int = 800) -> str:
+    """Split monolithic paragraphs (> 800 chars) into natural academic paragraphs at sentence boundaries."""
+    paras = text.split("\n\n")
+    new_paras: list[str] = []
+
+    for p in paras:
+        p_str = p.strip()
+        if len(p_str) <= max_chars or "```" in p_str or "|" in p_str:
+            new_paras.append(p_str)
+            continue
+
+        sentences = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9])", p_str)
+        curr_chunk: list[str] = []
+        curr_len = 0
+
+        for sent in sentences:
+            curr_chunk.append(sent)
+            curr_len += len(sent)
+            if curr_len >= 550:
+                new_paras.append(" ".join(curr_chunk))
+                curr_chunk = []
+                curr_len = 0
+        if curr_chunk:
+            if new_paras and curr_len < 200:
+                new_paras[-1] += " " + " ".join(curr_chunk)
+            else:
+                new_paras.append(" ".join(curr_chunk))
+
+    return "\n\n".join(new_paras)
+
+
+def normalize_markdown_content(content: str) -> str:
+    """Normalize markdown content before block parsing:
+    - Normalizes embedded and collapsed markdown tables.
+    - Isolates embedded figures onto their own block lines.
+    - Splits monolithic paragraph walls into readable academic paragraphs.
+    """
+    if not content:
+        return ""
+
+    # 1. Normalize markdown tables
+    normalized = normalize_markdown_tables(content)
+
+    # 2. Isolate embedded markdown figures onto their own lines if wrapped in prose
+    normalized = re.sub(
+        r"(?<=[^\n])\s*(!\[[^\]]+\]\([^)]+\))\s*(?=[^\n])",
+        r"\n\n\1\n\n",
+        normalized,
+    )
+
+    # 3. Split overly long monolithic prose blocks
+    normalized = split_long_paragraphs(normalized)
+
+    return normalized
+
+
 def parse_markdown_blocks(content: str) -> list[MarkdownBlock]:
     """Parse section Markdown content into structured academic document blocks."""
     blocks: list[MarkdownBlock] = []
+    content = normalize_markdown_content(content)
     lines = content.split("\n")
     i = 0
     n = len(lines)
@@ -690,7 +804,8 @@ def render_blocks_to_docx(
     two_column: bool = False,
     template_id: str = "default",
     figure_lookup: dict[str, Any] | None = None,
-) -> None:
+    equation_counter: int = 1,
+) -> int:
     """Render structured Markdown blocks into a Word document with hierarchical numbering."""
     sub_index = 0
     subsub_index = 0
@@ -799,11 +914,18 @@ def render_blocks_to_docx(
             run.font.color.rgb = RGBColor(0x22, 0x22, 0x22)
 
         elif isinstance(block, (MathBlock, EquationBlockNode)):
+            assigned_eq_num = block.equation_id
+            if not assigned_eq_num:
+                assigned_eq_num = str(equation_counter)
+                equation_counter += 1
+            elif assigned_eq_num.isdigit():
+                equation_counter = max(equation_counter, int(assigned_eq_num) + 1)
+
             _render_numbered_equation_to_docx(
                 document,
                 block.latex,
                 academic_font,
-                equation_number=block.equation_id,
+                equation_number=assigned_eq_num,
                 two_column=two_column,
                 status=block.rendering_status,
                 error_msg=block.validation_error,
@@ -858,6 +980,8 @@ def render_blocks_to_docx(
                     caption_size_pt=caption_size,
                 )
 
+    return equation_counter
+
 
 def _render_numbered_equation_to_docx(
     document: Any,
@@ -904,6 +1028,15 @@ def _render_numbered_equation_to_docx(
         "</w:tblBorders>"
     )
     tblPr.append(tblBorders)
+    tblCellMar = parse_xml(
+        f"<w:tblCellMar {nsdecls('w')}>"
+        '<w:top w:w="0" w:type="dxa"/>'
+        '<w:left w:w="0" w:type="dxa"/>'
+        '<w:bottom w:w="0" w:type="dxa"/>'
+        '<w:right w:w="0" w:type="dxa"/>'
+        "</w:tblCellMar>"
+    )
+    tblPr.append(tblCellMar)
 
     cell_math = tbl.cell(0, 0)
     cell_num = tbl.cell(0, 1)
@@ -917,8 +1050,8 @@ def _render_numbered_equation_to_docx(
 
     p_math = cell_math.paragraphs[0]
     p_math.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_math.paragraph_format.space_before = Pt(3)
-    p_math.paragraph_format.space_after = Pt(3)
+    p_math.paragraph_format.space_before = Pt(2)
+    p_math.paragraph_format.space_after = Pt(2)
     _render_math_to_docx(
         p_math,
         latex_str,
@@ -930,8 +1063,8 @@ def _render_numbered_equation_to_docx(
 
     p_num = cell_num.paragraphs[0]
     p_num.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    p_num.paragraph_format.space_before = Pt(3)
-    p_num.paragraph_format.space_after = Pt(3)
+    p_num.paragraph_format.space_before = Pt(2)
+    p_num.paragraph_format.space_after = Pt(2)
     clean_num = equation_number.strip("()")
     r_num = p_num.add_run(f"({clean_num})")
     r_num.font.name = font_name
@@ -1029,8 +1162,6 @@ def _render_table_to_docx(
                             r.font.color.rgb = RGBColor(0, 0, 0)
                             if r_idx == 0:
                                 r.font.bold = True
-        space_p = document.add_paragraph()
-        space_p.paragraph_format.space_after = Pt(4)
     except Exception as exc:
         logger.warning("Failed to render table to DOCX: %s", exc)
 
@@ -1065,7 +1196,7 @@ def _render_figure_bytes_to_docx(
             caption_p = document.add_paragraph()
             caption_p.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
             caption_p.paragraph_format.space_before = Pt(2)
-            caption_p.paragraph_format.space_after = Pt(8)
+            caption_p.paragraph_format.space_after = Pt(3)
             c_run = caption_p.add_run(caption)
             c_run.font.name = font_name
             c_run.font.size = Pt(caption_size_pt)
@@ -1418,7 +1549,8 @@ def render_blocks_to_pdf(
     max_width: float = 460.0,
     two_column: bool = False,
     figure_lookup: dict[str, Any] | None = None,
-) -> None:
+    equation_counter: int = 1,
+) -> int:
     """Render structured Markdown blocks into a ReportLab PDF story with hierarchical numbering."""
     sub_index = 0
     subsub_index = 0
@@ -1477,17 +1609,24 @@ def render_blocks_to_pdf(
             story.append(Preformatted(block.code, styles["CodeBlock"]))
 
         elif isinstance(block, (MathBlock, EquationBlockNode)):
+            assigned_eq_num = block.equation_id
+            if not assigned_eq_num:
+                assigned_eq_num = str(equation_counter)
+                equation_counter += 1
+            elif assigned_eq_num.isdigit():
+                equation_counter = max(equation_counter, int(assigned_eq_num) + 1)
+
             flowable = _render_math_to_pdf_flowable(
                 block.latex,
                 styles,
                 status=block.rendering_status,
                 error_msg=block.validation_error,
                 max_width=max_width,
-                equation_number=block.equation_id,
+                equation_number=assigned_eq_num,
             )
-            story.append(Spacer(1, 4 if two_column else 6))
+            story.append(Spacer(1, 2 if two_column else 4))
             story.append(flowable)
-            story.append(Spacer(1, 4 if two_column else 6))
+            story.append(Spacer(1, 2 if two_column else 4))
 
         elif isinstance(block, TableBlock):
             _render_table_to_pdf(story, block.headers, block.rows, styles, max_width=max_width)
@@ -1524,6 +1663,8 @@ def render_blocks_to_pdf(
                 _render_figure_bytes_to_pdf(
                     story, chart_bytes, caption, styles, max_width=max_width
                 )
+
+    return equation_counter
 
 
 def _render_table_to_pdf(
