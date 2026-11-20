@@ -190,7 +190,9 @@ def _export_two_column_academic_pdf(
                 for author in row_authors:
                     paper_affs = getattr(paper, "affiliations", None) or []
                     aff_index_map = {aff.id: str(i + 1) for i, aff in enumerate(paper_affs)}
-                    sup_indices = [aff_index_map[aid] for aid in author.affiliation_ids if aid in aff_index_map]
+                    sup_indices = [
+                        aff_index_map[aid] for aid in author.affiliation_ids if aid in aff_index_map
+                    ]
 
                     name_html = f"<b>{html.escape(author.name)}</b>"
                     if len(paper_affs) > 1 and sup_indices:
@@ -203,7 +205,11 @@ def _export_two_column_academic_pdf(
                         lines.append(html.escape(author.role_or_title))
 
                     author_affs = [aff_map[aid] for aid in author.affiliation_ids if aid in aff_map]
-                    display_affs = author_affs if author_affs else ([paper_affs[0]] if len(paper_affs) == 1 else [])
+                    display_affs = (
+                        author_affs
+                        if author_affs
+                        else ([paper_affs[0]] if len(paper_affs) == 1 else [])
+                    )
 
                     for aff_obj in display_affs:
                         if aff_obj and aff_obj.department:
@@ -225,7 +231,9 @@ def _export_two_column_academic_pdf(
                     if author.email:
                         lines.append(html.escape(author.email))
                     if author.orcid:
-                        lines.append(f"<font size='7' color='#555555'>ORCID: {html.escape(author.orcid)}</font>")
+                        lines.append(
+                            f"<font size='7' color='#555555'>ORCID: {html.escape(author.orcid)}</font>"
+                        )
                     cell_html = "<br/>".join(lines)
                     cell_data.append(Paragraph(cell_html, styles["Author"]))
                 t = Table([cell_data], colWidths=[printable_w / num_cols] * num_cols)

@@ -88,7 +88,9 @@ def _build_test_sections() -> list[PaperSection]:
     ]
 
 
-def _build_standard_request(page_layout: str = "single_column", template: str = "default") -> GenerationRequest:
+def _build_standard_request(
+    page_layout: str = "single_column", template: str = "default"
+) -> GenerationRequest:
     return GenerationRequest(
         schema_version=1,
         project=ProjectContext(
@@ -198,13 +200,25 @@ def test_b_two_column_academic_paper_generation() -> None:
 def test_c_ieee_conference_paper_generation() -> None:
     # 5 authors
     authors = [
-        AuthorMetadata(name=f"Author {i}", order=i, affiliation_ids=["aff_1" if i <= 3 else "aff_2"], email=f"author{i}@univ.edu")
+        AuthorMetadata(
+            name=f"Author {i}",
+            order=i,
+            affiliation_ids=["aff_1" if i <= 3 else "aff_2"],
+            email=f"author{i}@univ.edu",
+        )
         for i in range(1, 6)
     ]
     # 2 affiliations
     affiliations = [
-        AuthorAffiliation(id="aff_1", institution="Department of EECS, Tech University", city="Boston", country="USA"),
-        AuthorAffiliation(id="aff_2", institution="AI Research Lab, Global Institute", city="London", country="UK"),
+        AuthorAffiliation(
+            id="aff_1",
+            institution="Department of EECS, Tech University",
+            city="Boston",
+            country="USA",
+        ),
+        AuthorAffiliation(
+            id="aff_2", institution="AI Research Lab, Global Institute", city="London", country="UK"
+        ),
     ]
     # 3 structured figures
     figures = [
@@ -222,7 +236,7 @@ def test_c_ieee_conference_paper_generation() -> None:
     references = [
         ReferenceInput(
             id=f"ref_{i}",
-            text=f"Author {i}, 'Title of paper {i}', IEEE Trans. Comput., vol. {i}, pp. 100-110, 202{i%6}.",
+            text=f"Author {i}, 'Title of paper {i}', IEEE Trans. Comput., vol. {i}, pp. 100-110, 202{i % 6}.",
             citation_number=i,
             is_cited=True,
         )
@@ -279,11 +293,26 @@ def test_d_missing_info_handling() -> None:
     # Sections where results is marked needs_input
     sections = [
         PaperSection(id="introduction", heading="Introduction", content="Intro.", state="draft"),
-        PaperSection(id="results", heading="Results", content="[RESULTS NOT COLLECTED YET]", state="needs_input"),
+        PaperSection(
+            id="results",
+            heading="Results",
+            content="[RESULTS NOT COLLECTED YET]",
+            state="needs_input",
+        ),
     ]
     warnings = [
-        ReviewWarning(code="MISSING_RESULTS", severity="warning", message="No results were supplied.", section_id="results"),
-        ReviewWarning(code="MISSING_METHOD", severity="warning", message="No methodology was supplied.", section_id=None),
+        ReviewWarning(
+            code="MISSING_RESULTS",
+            severity="warning",
+            message="No results were supplied.",
+            section_id="results",
+        ),
+        ReviewWarning(
+            code="MISSING_METHOD",
+            severity="warning",
+            message="No methodology was supplied.",
+            section_id=None,
+        ),
     ]
 
     paper = PaperDraft(
@@ -332,12 +361,14 @@ def test_f_invalid_format_rejection() -> None:
 
     # 3. Forbidden extra fields rejected by ContractModel
     with pytest.raises(ValidationError):
-        PaperPreferences.model_validate({
-            "target_word_count": 1500,
-            "desired_sections": ["introduction"],
-            "citation_style": "ieee",
-            "forbidden_extra_field": "disallowed",
-        })
+        PaperPreferences.model_validate(
+            {
+                "target_word_count": 1500,
+                "desired_sections": ["introduction"],
+                "citation_style": "ieee",
+                "forbidden_extra_field": "disallowed",
+            }
+        )
 
 
 # --- Test G: Response Contract Adherence ---
@@ -370,7 +401,13 @@ def test_g_response_contract_adherence() -> None:
     dumped = resp.model_dump(mode="json")
 
     # Strict key checks
-    assert set(dumped.keys()) == {"schema_version", "generation_id", "paper", "review_warnings", "meta"}
+    assert set(dumped.keys()) == {
+        "schema_version",
+        "generation_id",
+        "paper",
+        "review_warnings",
+        "meta",
+    }
     UUID(dumped["generation_id"])  # Valid UUID string
     assert dumped["meta"]["duration_ms"] == 3140
     assert dumped["meta"]["completion_status"] == "completed"
@@ -415,8 +452,12 @@ def test_i_export_generation_from_persisted_paper() -> None:
         abstract="Testing document export pipelines for DOCX and PDF formats.",
         keywords=["DOCX", "PDF", "Export"],
         sections=_build_test_sections(),
-        references=[ReferenceInput(id="ref_1", text="[1] A. Researcher, 'Export pipelines', 2026.")],
-        review_warnings=[ReviewWarning(code="GENERAL_REVIEW", severity="info", message="Note for appendix.")],
+        references=[
+            ReferenceInput(id="ref_1", text="[1] A. Researcher, 'Export pipelines', 2026.")
+        ],
+        review_warnings=[
+            ReviewWarning(code="GENERAL_REVIEW", severity="info", message="Note for appendix.")
+        ],
         page_layout="two_column_academic",
         document_template="ieee_conference",
     )

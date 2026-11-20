@@ -410,7 +410,11 @@ def _render_ieee_authors(document: Any, paper: PaperDraft) -> None:
                 # Determine affiliation details
                 aff_index_map = {aff.id: str(i + 1) for i, aff in enumerate(affiliations)}
                 author_affs = [aff_map[aid] for aid in author.affiliation_ids if aid in aff_map]
-                display_affs = author_affs if author_affs else ([affiliations[0]] if len(affiliations) == 1 else [])
+                display_affs = (
+                    author_affs
+                    if author_affs
+                    else ([affiliations[0]] if len(affiliations) == 1 else [])
+                )
 
                 # Paragraph 1: Name + optional superscript affiliation marker + asterisk
                 p_name = cell.paragraphs[0]
@@ -425,7 +429,9 @@ def _render_ieee_authors(document: Any, paper: PaperDraft) -> None:
                 r_name.font.bold = False
                 r_name.font.color.rgb = RGBColor(0, 0, 0)
 
-                sup_indices = [aff_index_map[aid] for aid in author.affiliation_ids if aid in aff_index_map]
+                sup_indices = [
+                    aff_index_map[aid] for aid in author.affiliation_ids if aid in aff_index_map
+                ]
                 if len(affiliations) > 1 and sup_indices:
                     r_sup = p_name.add_run(" " + ",".join(sup_indices))
                     r_sup.font.name = "Times New Roman"

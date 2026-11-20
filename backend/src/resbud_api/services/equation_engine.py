@@ -61,6 +61,7 @@ def is_big_inline_equation(latex_str: str) -> bool:
 
 def promote_big_inline_equations(content: str) -> str:
     """Promote standalone/definition equations delimited by single dollars into display blocks."""
+
     def repl(m: re.Match[str]) -> str:
         raw = m.group(0)
         inner = m.group(1).strip()
@@ -72,6 +73,7 @@ def promote_big_inline_equations(content: str) -> str:
         return raw
 
     return BIG_INLINE_MATH_RE.sub(repl, content)
+
 
 # In-text equation cross-reference patterns
 IN_TEXT_EQ_REF_RE = re.compile(
